@@ -24,7 +24,7 @@ impl Default for AppSettings {
             always_on_top: true,
             click_through_locked: false,
             show_key_bubbles: true,
-            sound_enabled: false,
+            sound_enabled: true,
             autostart: false,
         }
     }

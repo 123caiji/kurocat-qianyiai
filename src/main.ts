@@ -38,7 +38,7 @@ let settings: AppSettings = {
   alwaysOnTop: true,
   clickThroughLocked: false,
   showKeyBubbles: true,
-  soundEnabled: false,
+  soundEnabled: true,
   autostart: false,
 };
 

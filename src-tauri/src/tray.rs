@@ -26,7 +26,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
     let sound_toggle = CheckMenuItem::with_id(
         app,
         "sound_toggle",
-        "声音反馈（键盘音/呼噜）",
+        "摸头呼噜声",
         true,
         initial.sound_enabled,
         None::<&str>,

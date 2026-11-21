@@ -358,8 +358,6 @@ export class KuroCatEngine {
       other.lastActiveAt = now;
     }
 
-    catAudio.playKeyClick((keyColCenter - 7.5) * 0.35);
-
     if (this.showKeyBubbles) {
       const label = formatBubbleForVk(vk, spec);
       if (label) {
@@ -394,7 +392,6 @@ export class KuroCatEngine {
     this.lastMouseMoveAt = now;
     this.leftPaw.mode = 'mouse';
     this.leftPaw.lastActiveAt = now;
-    catAudio.playMouseClick();
   }
 
   public onMouseUp(button: string): void {
@@ -423,9 +420,6 @@ export class KuroCatEngine {
         const dist = Math.hypot(px - this.lastPetCursorX, py - this.lastPetCursorY);
         if (dist > 1.5 && dist < 80) {
           this.petEnergy = Math.min(1, this.petEnergy + dist * 0.011);
-          if (this.petEnergy > 0.45) {
-            catAudio.playPurrPulse();
-          }
         }
       }
       this.lastPetCursorX = px;
@@ -587,6 +581,7 @@ export class KuroCatEngine {
     this.petEnergy = Math.max(0, this.petEnergy - dt * (this.cursorOverCat ? 0.22 : 0.65));
     const wantSquint = this.petEnergy > 0.3 ? 1 : 0;
     this.squintAmount += (wantSquint - this.squintAmount) * (1 - Math.exp(-12 * dt));
+    catAudio.setPurrIntensity(this.squintAmount > 0.25 ? this.squintAmount : 0);
 
     this.earTwitchLeft = Math.max(0, this.earTwitchLeft - dt * 8);
     this.earTwitchRight = Math.max(0, this.earTwitchRight - dt * 8);
