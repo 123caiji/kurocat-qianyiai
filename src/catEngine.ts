@@ -313,7 +313,7 @@ export class KuroCatEngine {
         chosen = this.lastSpacePaw === 'left' ? this.leftPaw : this.rightPaw;
       }
       const spaceU = chosen.side === 'left' ? spec.uStart + spec.uWidth * 0.34 : spec.uStart + spec.uWidth * 0.66;
-      targetPoint = this.projectKeyboardPoint(spaceU, spec.row + 0.5);
+      targetPoint = this.projectKeyboardPoint(spaceU, spec.row + 0.30);
     } else if (activelyMousing) {
       chosen = this.rightPaw;
     } else if (keyColCenter < 7.0) {
@@ -344,10 +344,10 @@ export class KuroCatEngine {
     if (chosen.mode === 'curled' || chosen.mode === 'idle') {
       const startPt = this.getLiveCurledPawPos(chosen, 0);
       chosen.pos = { x: startPt.x, y: startPt.y };
-      chosen.vel = { x: 0, y: 260 };
+      chosen.vel = { x: 0, y: 0 };
     }
     chosen.mode = 'poke';
-    chosen.target = { x: targetPoint.x, y: targetPoint.y };
+    chosen.target = this.clampToKeyboardSurface(targetPoint);
     chosen.pokeTime = 0;
     chosen.impactSquash = 0.85;
     chosen.lastActiveAt = now;
@@ -459,7 +459,33 @@ export class KuroCatEngine {
   }
 
   private getKeyWorldCenter(spec: KeySpec): Vec2 {
-    return this.projectKeyboardPoint(spec.uStart + spec.uWidth * 0.5, spec.row + 0.5);
+    // Keep paw tip squarely inside the keybed (especially on bottom row & far left/right edge keys!)
+    const uClamped = Math.max(0.65, Math.min(TOTAL_UNITS - 0.65, spec.uStart + spec.uWidth * 0.5));
+    const rowOffset = spec.row >= TOTAL_ROWS - 1 ? 0.30 : 0.48;
+    return this.projectKeyboardPoint(uClamped, spec.row + rowOffset);
+  }
+
+  private clampToKeyboardSurface(pt: Vec2): Vec2 {
+    // Transform into keyboard-local space and clamp so the plump paw pad NEVER extends past the keyboard bezel!
+    const dx = pt.x - this.kbCenterX;
+    const dy = pt.y - this.kbCenterY;
+    const cos = Math.cos(-this.kbTiltRad);
+    const sin = Math.sin(-this.kbTiltRad);
+    const lx = dx * cos - dy * sin;
+    const ly = dx * sin + dy * cos;
+
+    const maxX = this.kbWidth * 0.5 - 15;
+    const minY = -this.kbHeight * 0.5 + 8;
+    const maxY = this.kbHeight * 0.5 - 14;
+    const cx = Math.max(-maxX, Math.min(maxX, lx));
+    const cy = Math.max(minY, Math.min(maxY, ly));
+
+    const rcos = Math.cos(this.kbTiltRad);
+    const rsin = Math.sin(this.kbTiltRad);
+    return {
+      x: this.kbCenterX + cx * rcos - cy * rsin,
+      y: this.kbCenterY + cx * rsin + cy * rcos,
+    };
   }
 
   private spawnBubble(label: string, isSpace: boolean, keyX: number, now: number): void {
@@ -665,14 +691,22 @@ export class KuroCatEngine {
     paw.idleWeight += (wantIdle - paw.idleWeight) * blendRate;
     paw.curlWeight += (wantCurl - paw.curlWeight) * blendRate;
 
-    const stiffness = paw.mode === 'mouse' ? 1500 : paw.mode === 'poke' ? 1650 : 720;
-    const damping = paw.mode === 'mouse' ? 56 : paw.mode === 'poke' ? 48 : 34;
-    const ax = (paw.target.x - paw.pos.x) * stiffness - paw.vel.x * damping;
-    const ay = (paw.target.y - paw.pos.y) * stiffness - paw.vel.y * damping;
-    paw.vel.x += ax * dt;
-    paw.vel.y += ay * dt;
-    paw.pos.x += paw.vel.x * dt;
-    paw.pos.y += paw.vel.y * dt;
+    // Unconditionally stable, framerate-independent tracking (ZERO Euler spring overshoot at any FPS!)
+    const followRate = paw.mode === 'poke' ? 42 : paw.mode === 'mouse' ? 32 : 22;
+    const follow = 1 - Math.exp(-followRate * dt);
+    paw.pos.x += (paw.target.x - paw.pos.x) * follow;
+    paw.pos.y += (paw.target.y - paw.pos.y) * follow;
+    paw.vel.x = 0;
+    paw.vel.y = 0;
+
+    // Hard guarantee: while poking a key, paw tip stays strictly on top of the keyboard surface
+    if (paw.mode === 'poke') {
+      const clamped = this.clampToKeyboardSurface(paw.pos);
+      if (clamped.y < paw.pos.y || Math.abs(clamped.x - paw.pos.x) > 0.01) {
+        paw.pos.x = clamped.x;
+        paw.pos.y = Math.min(paw.pos.y, clamped.y);
+      }
+    }
 
     paw.impactSquash = Math.max(0, paw.impactSquash - dt * 7.5);
 
@@ -1156,7 +1190,7 @@ export class KuroCatEngine {
 
     // Plump, soft rounded black velvet paw ball pressing firmly onto the key!
     ctx.beginPath();
-    ctx.ellipse(px, py + 1.5, pawRx, pawRy, 0, 0, Math.PI * 2);
+    ctx.ellipse(px, py, pawRx, pawRy, 0, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.shadowBlur = 0;

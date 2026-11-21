@@ -15,7 +15,7 @@
 
 ## 📥 直接下载使用（Windows 10 / 11）
 
-前往 [Releases](https://github.com/qianyiai/kurocat/releases) 页面下载最新的免安装绿色版 `KuroCatPet-v2.6.0-windows-x64.exe`（约 3.2 MB），双击即可运行，右键小黑猫或右下角系统托盘图标可随时调整设置。
+前往 [Releases](https://github.com/qianyiai/kurocat/releases) 页面下载最新的免安装绿色版 `KuroCatPet-v2.7.0-windows-x64.exe`（约 3.2 MB），双击即可运行，右键小黑猫或右下角系统托盘图标可随时调整设置。
 
 ## 🛠️ 本地源码构建
 
