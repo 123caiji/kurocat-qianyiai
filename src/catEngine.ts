@@ -871,17 +871,15 @@ export class KuroCatEngine {
       ctx.save();
       ctx.translate(ex, eyeY);
 
-      if (this.squintAmount > 0.4 && blinkVal < 0.3) {
-        // Cozy sleepy almond-slit eyes + soft dark upper eyelid hoods (exact 3.4s!)
-        ctx.fillStyle = 'rgba(42, 42, 46, 0.85)';
+      if (this.squintAmount > 0.38 && blinkVal < 0.3) {
+        // Exact sleek thin horizontal lazy-slanted lemon-chartreuse slits from user's reference photo (NO grey lid blob!)
+        ctx.strokeStyle = '#d4f044';
+        ctx.lineWidth = 2.9;
+        ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.ellipse(0, -5.5, rx * 0.95, 6.2, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = '#d4f044';
-        ctx.beginPath();
-        ctx.ellipse(0, 1.8, rx * 0.98, 3.6, idx === 0 ? 0.06 : -0.06, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.moveTo(-13.5, -0.5);
+        ctx.quadraticCurveTo(0, 1.4, 13.5, 1.2);
+        ctx.stroke();
         ctx.restore();
         continue;
       }
