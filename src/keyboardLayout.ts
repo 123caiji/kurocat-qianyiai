@@ -79,7 +79,7 @@ export const KEYBOARD_KEYS: KeySpec[] = [
   { id: 'lctrl', label: 'Ctrl', bubble: 'Ctrl', row: 4, uStart: 0, uWidth: 1.25, accent: 'mod', vkCodes: [0xa2, 0x11] },
   { id: 'lwin', label: 'Win', bubble: 'Win', row: 4, uStart: 1.25, uWidth: 1.25, accent: 'mod', vkCodes: [0x5b, 0x5c] },
   { id: 'lalt', label: 'Alt', bubble: 'Alt', row: 4, uStart: 2.5, uWidth: 1.25, accent: 'mod', vkCodes: [0xa4, 0x12] },
-  { id: 'space', label: '␣', bubble: 'Space', row: 4, uStart: 3.75, uWidth: 6.25, vkCodes: [0x20] },
+  { id: 'space', label: '␣', bubble: '␣', row: 4, uStart: 3.75, uWidth: 6.25, vkCodes: [0x20] },
   { id: 'ralt', label: 'Alt', bubble: 'Alt', row: 4, uStart: 10, uWidth: 1, accent: 'mod', vkCodes: [0xa5] },
   { id: 'rctrl', label: 'Ctrl', bubble: 'Ctrl', row: 4, uStart: 11, uWidth: 1, accent: 'mod', vkCodes: [0xa3] },
   { id: 'left', label: '←', bubble: '←', row: 4, uStart: 12, uWidth: 1, accent: 'mod', vkCodes: [0x25, 0x23] },

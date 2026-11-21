@@ -281,19 +281,18 @@ pub fn run() {
                 let demo_handle = handle.clone();
                 std::thread::spawn(move || {
                     std::thread::sleep(Duration::from_millis(1200));
-                    let keys: &[u32] = &[0x41, 0x53, 0x44, 0x46, 0x4A, 0x4B, 0x45, 0x50];
+                    let keys: &[u32] = &[0x46, 0x53, 0x41, 0x45, 0x20, 0xA0, 0x4B];
                     for &vk in keys {
                         let _ = demo_handle.emit(
                             "kuro-input",
                             serde_json::json!({ "kind": "keyDown", "vk": vk, "scan": 0, "repeat": false }),
                         );
-                        std::thread::sleep(Duration::from_millis(110));
+                        std::thread::sleep(Duration::from_millis(100));
                         let _ = demo_handle.emit(
                             "kuro-input",
                             serde_json::json!({ "kind": "keyUp", "vk": vk, "scan": 0 }),
                         );
                     }
-                    // Hold F + J + Mouse Left briefly for preview
                     let _ = demo_handle.emit(
                         "kuro-input",
                         serde_json::json!({ "kind": "mouseMove", "x": 400, "y": 400, "nx": 0.25, "ny": 0.4 }),
