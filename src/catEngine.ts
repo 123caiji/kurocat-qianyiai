@@ -92,11 +92,11 @@ export class KuroCatEngine {
   private readonly catBaseY = 308;
   private readonly catHeight = 226;
 
-  // True-scale bright white keyboard right below the sitting cat!
-  private readonly kbCenterX = 212;
-  private readonly kbCenterY = 350;
-  private readonly kbWidth = 258;
-  private readonly kbHeight = 64;
+  // True-scale bright white keyboard right below the sitting cat (slightly taller so legends are super crisp!)
+  private readonly kbCenterX = 214;
+  private readonly kbCenterY = 353;
+  private readonly kbWidth = 266;
+  private readonly kbHeight = 74;
   private readonly kbTiltRad = (3.4 * Math.PI) / 180;
 
   // True-scale white oval mouse to the left of keyboard
@@ -292,10 +292,12 @@ export class KuroCatEngine {
     let targetPoint = this.getKeyWorldCenter(spec);
     let chosen: PawState;
 
-    const mouseDedicated = this.mouseLeftDown || this.mouseRightDown || now - this.lastMouseMoveAt < 900;
+    // Only keep left paw locked to mouse while actively sweeping (<320ms) or holding a mouse button;
+    // otherwise strictly split keyboard: left half (< 7.0: Esc, 1-6, Q-T, A-G, Z-B) -> left paw, right half (>= 7.0: 7-0, Y-P, H-L, N-M) -> right paw!
+    const activelyMousing = this.mouseLeftDown || this.mouseRightDown || now - this.lastMouseMoveAt < 320;
 
     if (spec.id === 'space') {
-      if (mouseDedicated) {
+      if (activelyMousing) {
         chosen = this.rightPaw;
       } else {
         this.lastSpacePaw = this.lastSpacePaw === 'left' ? 'right' : 'left';
@@ -303,9 +305,9 @@ export class KuroCatEngine {
       }
       const spaceU = chosen.side === 'left' ? spec.uStart + spec.uWidth * 0.34 : spec.uStart + spec.uWidth * 0.66;
       targetPoint = this.projectKeyboardPoint(spaceU, spec.row + 0.5);
-    } else if (mouseDedicated) {
+    } else if (activelyMousing) {
       chosen = this.rightPaw;
-    } else if (keyColCenter <= 6.2) {
+    } else if (keyColCenter < 7.0) {
       chosen = this.leftPaw;
     } else {
       chosen = this.rightPaw;
@@ -337,7 +339,7 @@ export class KuroCatEngine {
     chosen.lastActiveAt = now;
 
     const other = chosen.side === 'left' ? this.rightPaw : this.leftPaw;
-    if (other.mode === 'idle' && !mouseDedicated) {
+    if (other.mode === 'idle' && !activelyMousing) {
       other.mode = 'curled';
       other.lastActiveAt = now;
     }
@@ -606,7 +608,7 @@ export class KuroCatEngine {
     } else if (paw.mode === 'poke') {
       paw.pokeTime += dt;
       if (paw.pokeTime > 0.13) {
-        if (paw.side === 'left' && now - this.lastMouseMoveAt < 1800) {
+        if (paw.side === 'left' && (this.mouseLeftDown || this.mouseRightDown || now - this.lastMouseMoveAt < 450)) {
           paw.mode = 'mouse';
         } else if (now - this.lastAnyKeyAt < 650) {
           paw.mode = 'curled';
@@ -1016,6 +1018,22 @@ export class KuroCatEngine {
       ctx.fillStyle = topColor;
       this.roundRect(ctx, x, y, w, h - 0.9, 1.8);
       ctx.fill();
+
+      // Crisp, clear keycap legends (letters, numbers & compact icons!)
+      const legend = key.id === 'space' ? '' : key.id === 'esc' ? 'Esc' : key.label;
+      if (legend) {
+        const isWideWord = legend.length >= 3;
+        const fontSize = isWideWord ? 5.6 : legend.length === 2 ? 6.4 : 7.8;
+        ctx.font = `700 ${fontSize}px "Segoe UI", system-ui, sans-serif`;
+        ctx.fillStyle = press > 0.14
+          ? '#111214'
+          : key.accent === 'orange'
+            ? '#ffffff'
+            : '#2c2f36';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(legend, x + w * 0.5, y + (h - 0.9) * 0.52);
+      }
     }
 
     ctx.restore();
