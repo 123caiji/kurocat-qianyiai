@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KuroCat Pet</title>
+  </head>
+  <body>
+    <canvas id="pet-canvas"></canvas>
+
+    <div id="context-menu" class="context-menu hidden">
+      <div class="menu-header">🐈‍⬛ KuroCat 小黑猫</div>
+      <button class="menu-item" data-action="toggle-bubbles">
+        <span>悬浮按键气泡</span>
+        <span class="menu-check" id="chk-bubbles">✓</span>
+      </button>
+      <button class="menu-item" data-action="toggle-lock">
+        <span>锁定鼠标穿透</span>
+        <span class="menu-check" id="chk-lock"></span>
+      </button>
+      <button class="menu-item" data-action="toggle-sound">
+        <span>键盘/呼噜音效</span>
+        <span class="menu-check" id="chk-sound"></span>
+      </button>
+      <button class="menu-item" data-action="toggle-top">
+        <span>始终置顶显示</span>
+        <span class="menu-check" id="chk-top">✓</span>
+      </button>
+      <button class="menu-item" data-action="toggle-autostart">
+        <span>开机自动启动</span>
+        <span class="menu-check" id="chk-autostart"></span>
+      </button>
+      <div class="menu-sep"></div>
+      <div class="menu-scale-row">
+        <span class="menu-scale-label">缩放</span>
+        <div class="scale-pills">
+          <button class="scale-pill" data-scale="0.75">75%</button>
+          <button class="scale-pill" data-scale="1">100%</button>
+          <button class="scale-pill" data-scale="1.25">125%</button>
+          <button class="scale-pill" data-scale="1.5">150%</button>
+        </div>
+      </div>
+      <div class="menu-sep"></div>
+      <button class="menu-item" data-action="reset-pos">
+        <span>重置位置到右下角</span>
+      </button>
+      <button class="menu-item danger" data-action="quit">
+        <span>退出小黑猫</span>
+      </button>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
