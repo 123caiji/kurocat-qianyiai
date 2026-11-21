@@ -28,9 +28,8 @@ type PawMode = 'idle' | 'curled' | 'poke' | 'mouse';
 
 interface PawState {
   side: 'left' | 'right';
-  shoulderOffset: Vec2;
-  curlOffset: Vec2;
-  idlePos: Vec2;
+  shoulderNormY: number; // vertical fraction along spine (0=ear tips, 1=base)
+  shoulderHalfX: number;
   pos: Vec2;
   vel: Vec2;
   target: Vec2;
@@ -62,6 +61,22 @@ interface KeyAnim {
   lastHitAt: number;
 }
 
+// Exact measured pixel silhouette half-width profile from original video 0.3s (compact chubby sitting cat!)
+// t = 0.0 (ear tips) -> t = 1.0 (bottom base flush on keyboard)
+const BODY_SLICES: Array<{ t: number; hw: number }> = [
+  { t: 0.12, hw: 49 }, // forehead / ear base
+  { t: 0.21, hw: 56 }, // eye line
+  { t: 0.30, hw: 60 }, // chubby cheeks widest
+  { t: 0.38, hw: 52 }, // gentle neck indent
+  { t: 0.47, hw: 54 }, // upper chest
+  { t: 0.57, hw: 62 }, // mid chest
+  { t: 0.68, hw: 70 }, // plump belly
+  { t: 0.79, hw: 73 }, // widest soft thighs!
+  { t: 0.90, hw: 69 }, // lower thigh curve
+  { t: 0.97, hw: 58 }, // tapers softly inward at base!
+  { t: 1.00, hw: 46 }, // cozy bottom rest
+];
+
 export class KuroCatEngine {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -71,20 +86,22 @@ export class KuroCatEngine {
 
   public showKeyBubbles = true;
 
-  // Cat anchor coordinates
-  private readonly catX = 204;
-  private readonly catBaseY = 296;
+  // Compact true-scale proportions matching ORIG 0.3s directly!
+  private readonly catCenterX = 196;
+  private readonly catTopY = 82;
+  private readonly catBaseY = 308;
+  private readonly catHeight = 226;
 
-  // Keyboard geometry (matte 65% mechanical board with orange Tab & right-corner accent)
-  private readonly kbCenterX = 220;
-  private readonly kbCenterY = 345;
-  private readonly kbWidth = 236;
+  // True-scale bright white keyboard right below the sitting cat!
+  private readonly kbCenterX = 212;
+  private readonly kbCenterY = 350;
+  private readonly kbWidth = 258;
   private readonly kbHeight = 64;
   private readonly kbTiltRad = (3.4 * Math.PI) / 180;
 
-  // White oval mouse to the left of keyboard
-  private readonly mouseBaseX = 72;
-  private readonly mouseBaseY = 330;
+  // True-scale white oval mouse to the left of keyboard
+  private readonly mouseBaseX = 48;
+  private readonly mouseBaseY = 336;
   private mouseOffsetX = 0;
   private mouseOffsetY = 0;
   private mouseTargetOffsetX = 0;
@@ -103,16 +120,16 @@ export class KuroCatEngine {
   private eyeLookY = 0;
   private faceTurnX = 0;
 
-  // Expressive organic body motion
-  private bodyLean = 0;
+  // Spine-shear deformation state (exact measured flexible cat spine!)
+  private spineLean = 0;    // -1 (mouse lean: head shifts -46px left while hips stay anchored!) .. +1
   private headTilt = 0;
-  private typingHunch = 0;
+  private typingHunch = 0;  // 0..1 lowers head & rounds posture slightly when typing
   private strikeRock = 0;
   private strikeRockVel = 0;
   private bodyBob = 0;
   private kbBounce = 0;
 
-  // Blinking, petting, typing cadence
+  // Blinking, petting, ear micro-twitch, typing rhythm
   private nextBlinkAt = 2.8;
   private blinkProgress = 0;
   private isBlinking = false;
@@ -149,12 +166,11 @@ export class KuroCatEngine {
 
     this.leftPaw = {
       side: 'left',
-      shoulderOffset: { x: -26, y: -76 },
-      curlOffset: { x: -22, y: -32 },
-      idlePos: { x: this.catX - 13, y: this.catBaseY + 1 },
-      pos: { x: this.catX - 13, y: this.catBaseY + 1 },
+      shoulderNormY: 0.50,
+      shoulderHalfX: -32,
+      pos: { x: this.catCenterX - 18, y: this.catBaseY },
       vel: { x: 0, y: 0 },
-      target: { x: this.catX - 13, y: this.catBaseY + 1 },
+      target: { x: this.catCenterX - 18, y: this.catBaseY },
       mode: 'idle',
       idleWeight: 1,
       curlWeight: 0,
@@ -166,12 +182,11 @@ export class KuroCatEngine {
 
     this.rightPaw = {
       side: 'right',
-      shoulderOffset: { x: 26, y: -76 },
-      curlOffset: { x: 22, y: -32 },
-      idlePos: { x: this.catX + 13, y: this.catBaseY + 1 },
-      pos: { x: this.catX + 13, y: this.catBaseY + 1 },
+      shoulderNormY: 0.50,
+      shoulderHalfX: 32,
+      pos: { x: this.catCenterX + 18, y: this.catBaseY },
       vel: { x: 0, y: 0 },
-      target: { x: this.catX + 13, y: this.catBaseY + 1 },
+      target: { x: this.catCenterX + 18, y: this.catBaseY },
       mode: 'idle',
       idleWeight: 1,
       curlWeight: 0,
@@ -209,6 +224,42 @@ export class KuroCatEngine {
     cancelAnimationFrame(this.rafId);
   }
 
+  // ---- Flexible spine coordinate system (exact match to measured 0.3s -> 2.2s shear!) ----
+
+  private spinePoint(t: number, breath: number): Vec2 {
+    // t in [0..1]: 0 = ear tips, 1 = seated base on desk
+    const u = Math.max(0, Math.min(1, 1 - t)); // 0 at hips, 1 at head
+    const shearCurve = u * u * (3 - 2 * u); // smoothstep from hips up to head!
+    // Measured mouse-lean shift: -46px at head, -34px at neck, -18px at chest, 0px at hips!
+    const leanX = this.spineLean * 46 * shearCurve + this.strikeRock * 8 * shearCurve;
+    const hunchY = (this.typingHunch * 14 + this.bodyBob * 3.0 + breath) * shearCurve;
+    // Slight forward drop when leaning deeply to the mouse
+    const leanDropY = Math.abs(this.spineLean) * 6 * shearCurve;
+    return {
+      x: this.catCenterX + leanX,
+      y: this.catTopY + t * this.catHeight + hunchY + leanDropY,
+    };
+  }
+
+  private getLiveShoulder(paw: PawState, breath: number): Vec2 {
+    const sp = this.spinePoint(paw.shoulderNormY, breath);
+    return {
+      x: sp.x + paw.shoulderHalfX,
+      y: sp.y,
+    };
+  }
+
+  private getLiveCurledPawPos(paw: PawState, breath: number): Vec2 {
+    // Bent forearm elbow -> cute curled paw sitting near lower belly (matches 8.3s / 10.6s!)
+    const sp = this.spinePoint(0.84, breath);
+    const bob = Math.sin(this.elapsed * 12 + (paw.side === 'left' ? 0 : Math.PI)) * (1.5 + this.typingEnergy * 2.0);
+    const xOff = paw.side === 'left' ? -24 : 24;
+    return {
+      x: sp.x + xOff,
+      y: sp.y + bob,
+    };
+  }
+
   // ---- Input event handlers ----
 
   public onKeyDown(vk: number, repeat: boolean): void {
@@ -241,7 +292,6 @@ export class KuroCatEngine {
     let targetPoint = this.getKeyWorldCenter(spec);
     let chosen: PawState;
 
-    // Keep left paw 100% dedicated to mouse while sweeping/clicking; right paw handles all keyboard strikes!
     const mouseDedicated = this.mouseLeftDown || this.mouseRightDown || now - this.lastMouseMoveAt < 900;
 
     if (spec.id === 'space') {
@@ -263,9 +313,8 @@ export class KuroCatEngine {
 
     this.strikeRockVel += (chosen.side === 'left' ? -1 : 1) * (1.25 + this.typingEnergy * 1.0);
 
-    // Record soft smoky motion smear when whipping fast between distant keys
     const prevShoulder = this.getLiveShoulder(chosen, 0);
-    if (chosen.mode === 'poke' && Math.hypot(targetPoint.x - chosen.pos.x, targetPoint.y - chosen.pos.y) > 20) {
+    if (chosen.mode === 'poke' && Math.hypot(targetPoint.x - chosen.pos.x, targetPoint.y - chosen.pos.y) > 22) {
       chosen.smears.push({
         sx: prevShoulder.x,
         sy: prevShoulder.y,
@@ -277,9 +326,9 @@ export class KuroCatEngine {
     }
 
     if (chosen.mode === 'curled' || chosen.mode === 'idle') {
-      const startCurl = this.getLiveCurlPoint(chosen, 0);
-      chosen.pos = { x: startCurl.x, y: startCurl.y };
-      chosen.vel = { x: 0, y: 240 };
+      const startPt = this.getLiveCurledPawPos(chosen, 0);
+      chosen.pos = { x: startPt.x, y: startPt.y };
+      chosen.vel = { x: 0, y: 260 };
     }
     chosen.mode = 'poke';
     chosen.target = { x: targetPoint.x, y: targetPoint.y };
@@ -287,7 +336,6 @@ export class KuroCatEngine {
     chosen.impactSquash = 0.85;
     chosen.lastActiveAt = now;
 
-    // Tuck the other idle paw softly onto the lower chest while typing
     const other = chosen.side === 'left' ? this.rightPaw : this.leftPaw;
     if (other.mode === 'idle' && !mouseDedicated) {
       other.mode = 'curled';
@@ -313,8 +361,8 @@ export class KuroCatEngine {
 
   public onGlobalMouseMove(nx: number, ny: number): void {
     const now = performance.now();
-    this.mouseTargetOffsetX = (nx - 0.5) * 36;
-    this.mouseTargetOffsetY = (ny - 0.5) * 22;
+    this.mouseTargetOffsetX = (nx - 0.5) * 32;
+    this.mouseTargetOffsetY = (ny - 0.5) * 20;
     this.lastMouseMoveAt = now;
 
     this.leftPaw.mode = 'mouse';
@@ -372,7 +420,7 @@ export class KuroCatEngine {
     }
   }
 
-  // ---- Coordinate projection ----
+  // ---- Keyboard projection ----
 
   private projectKeyboardPoint(uCol: number, rowPos: number): Vec2 {
     const padX = 7;
@@ -399,12 +447,11 @@ export class KuroCatEngine {
   }
 
   private spawnBubble(label: string, isSpace: boolean, keyX: number, now: number): void {
-    // Organic playful staggered cluster right above keyboard (exact vibe of user's reference screenshot N/J/F/S/A!)
     if (this.bubbles.length >= 6) {
       this.bubbles.shift();
     }
-    const baseX = Math.max(122, Math.min(314, keyX * 0.48 + 148));
-    const staggerY = 266 + ((this.nextBubbleId % 3) - 1) * 9 + (Math.random() - 0.5) * 6;
+    const baseX = Math.max(125, Math.min(315, keyX * 0.45 + 140));
+    const staggerY = 258 + ((this.nextBubbleId % 3) - 1) * 10 + (Math.random() - 0.5) * 6;
     this.bubbles.push({
       id: this.nextBubbleId++,
       label,
@@ -413,7 +460,7 @@ export class KuroCatEngine {
       targetX: baseX,
       y: 292,
       targetY: staggerY,
-      rot: ((Math.random() - 0.5) * 5 * Math.PI) / 180,
+      rot: ((Math.random() - 0.5) * 4.5 * Math.PI) / 180,
       createdAt: now,
       lifetime: 940,
     });
@@ -424,11 +471,11 @@ export class KuroCatEngine {
     const count = this.bubbles.length;
     if (count === 0) return;
 
-    const widths = this.bubbles.map((b) => (b.isSpace ? 38 : Math.max(23, b.label.length * 7.5 + 12)));
+    const widths = this.bubbles.map((b) => (b.isSpace ? 40 : Math.max(25, b.label.length * 7.5 + 14)));
     const gap = 3.5;
     const totalW = widths.reduce((a, b) => a + b, 0) + gap * (count - 1);
-    const anchor = 254;
-    let cursor = Math.max(115, Math.min(342 - totalW, anchor - totalW * 0.5));
+    const anchor = 232;
+    let cursor = Math.max(126, Math.min(338 - totalW, anchor - totalW * 0.5));
 
     for (let i = 0; i < count; i++) {
       const w = widths[i];
@@ -437,47 +484,7 @@ export class KuroCatEngine {
     }
   }
 
-  // ---- Body transforms & attachment points ----
-
-  private getBodyTransform(breath: number) {
-    const leanAngle = this.bodyLean * 0.19 + this.strikeRock * 0.038;
-    const shiftX = this.bodyLean * 14;
-    const hunchDrop = this.typingHunch * 10 + this.bodyBob * 2.4;
-    const scaleX = 1 + this.typingHunch * 0.048 + this.bodyBob * 0.018;
-    const scaleY = 1 - this.typingHunch * 0.055 - this.bodyBob * 0.022;
-    return {
-      pivotX: this.catX,
-      pivotY: this.catBaseY,
-      leanAngle,
-      shiftX,
-      shiftY: breath * 0.6 + hunchDrop,
-      scaleX,
-      scaleY,
-    };
-  }
-
-  private bodyLocalToWorld(lx: number, ly: number, breath: number): Vec2 {
-    const tr = this.getBodyTransform(breath);
-    const sx = lx * tr.scaleX;
-    const sy = (ly + tr.shiftY * 0.65) * tr.scaleY;
-    const cos = Math.cos(tr.leanAngle);
-    const sin = Math.sin(tr.leanAngle);
-    return {
-      x: tr.pivotX + tr.shiftX + sx * cos - sy * sin,
-      y: tr.pivotY + sx * sin + sy * cos,
-    };
-  }
-
-  private getLiveShoulder(paw: PawState, breath: number): Vec2 {
-    return this.bodyLocalToWorld(paw.shoulderOffset.x, paw.shoulderOffset.y, breath);
-  }
-
-  private getLiveCurlPoint(paw: PawState, breath: number): Vec2 {
-    const bob = Math.sin(this.elapsed * 12 + (paw.side === 'left' ? 0 : Math.PI)) * (1.2 + this.typingEnergy * 1.8);
-    return this.bodyLocalToWorld(paw.curlOffset.x, paw.curlOffset.y + bob, breath);
-  }
-
-  // ---- Simulation step ----
+  // ---- Simulation update ----
 
   private update(dt: number, now: number): void {
     this.elapsed += dt;
@@ -494,7 +501,7 @@ export class KuroCatEngine {
     this.typingEnergy += (targetTypingEnergy - this.typingEnergy) * (1 - Math.exp(-9 * dt));
 
     const isTypingRecently = now - this.lastAnyKeyAt < 650;
-    const targetHunch = isTypingRecently ? 0.44 + this.typingEnergy * 0.56 : 0;
+    const targetHunch = isTypingRecently ? 0.45 + this.typingEnergy * 0.55 : 0;
     this.typingHunch += (targetHunch - this.typingHunch) * (1 - Math.exp(-10 * dt));
 
     const rockAcc = -this.strikeRock * 150 - this.strikeRockVel * 16;
@@ -504,20 +511,21 @@ export class KuroCatEngine {
     this.bodyBob = Math.max(0, this.bodyBob - dt * 14);
     this.kbBounce = Math.max(0, this.kbBounce - dt * 15);
 
+    // Measured spine-shear lean: shifts head & chest cleanly forward-left toward mouse while hips stay anchored!
     let targetLean = 0;
     if (this.leftPaw.mode === 'mouse') {
-      const mouseSweepBias = (this.mouseOffsetX / 18) * 0.24;
+      const mouseSweepBias = (this.mouseOffsetX / 18) * 0.22;
       targetLean = this.rightPaw.mode === 'poke'
-        ? -0.42 + mouseSweepBias
-        : -0.92 + mouseSweepBias;
-    } else if (this.rightPaw.mode === 'poke' && this.rightPaw.target.x > this.catX + 60) {
-      targetLean = 0.24;
-    } else if (this.leftPaw.mode === 'poke' && this.leftPaw.target.x < this.catX - 55) {
-      targetLean = -0.22;
+        ? -0.52 + mouseSweepBias
+        : -0.96 + mouseSweepBias;
+    } else if (this.rightPaw.mode === 'poke' && this.rightPaw.target.x > this.catCenterX + 65) {
+      targetLean = 0.22;
+    } else if (this.leftPaw.mode === 'poke' && this.leftPaw.target.x < this.catCenterX - 55) {
+      targetLean = -0.20;
     }
-    this.bodyLean += (targetLean - this.bodyLean) * (1 - Math.exp(-10 * dt));
+    this.spineLean += (targetLean - this.spineLean) * (1 - Math.exp(-10 * dt));
 
-    const desiredHeadTilt = this.typingHunch * (this.strikeRock * 0.075 - 0.045) + this.bodyLean * 0.06;
+    const desiredHeadTilt = this.typingHunch * (this.strikeRock * 0.065 - 0.04) + this.spineLean * 0.08;
     this.headTilt += (desiredHeadTilt - this.headTilt) * (1 - Math.exp(-9 * dt));
 
     this.petEnergy = Math.max(0, this.petEnergy - dt * (this.cursorOverCat ? 0.22 : 0.65));
@@ -540,9 +548,10 @@ export class KuroCatEngine {
       }
     }
 
-    // 100% live cursor eye tracking + expressive downward lower-edge gaze while pure typing (matches reference photo!)
-    const eyeCenterRelX = (this.catX + this.bodyLean * 14) / LOGICAL_W;
-    const eyeCenterRelY = (this.catBaseY - 144) / LOGICAL_H;
+    // 100% live eye tracking toward cursor, OR cozy bottom-edge glance at keys during pure typing!
+    const eyePos = this.spinePoint(0.24, 0);
+    const eyeCenterRelX = eyePos.x / LOGICAL_W;
+    const eyeCenterRelY = eyePos.y / LOGICAL_H;
     let dx = this.cursorRelX - eyeCenterRelX;
     let dy = this.cursorRelY - eyeCenterRelY;
     const dist = Math.hypot(dx, dy);
@@ -553,14 +562,13 @@ export class KuroCatEngine {
     }
     const mouseRecentlyMoved = now - this.lastMouseMoveAt < 2400;
     const pureTypingGlance = mouseRecentlyMoved ? 0 : this.typingHunch;
-    const targetEyeX = dx * 5.8 * (1 - pureTypingGlance * 0.3);
-    // Tuck black pupil snugly toward bottom edge of yellow-green iris when looking at keyboard! (exact reference photo!)
-    const targetEyeY = dy * 4.8 * (1 - pureTypingGlance * 0.45) + pureTypingGlance * 5.6;
+    const targetEyeX = dx * 7.0 * (1 - pureTypingGlance * 0.3);
+    const targetEyeY = dy * 5.2 * (1 - pureTypingGlance * 0.45) + pureTypingGlance * 5.8;
     const eyeLerp = 1 - Math.exp(-20 * dt);
     this.eyeLookX += (targetEyeX - this.eyeLookX) * eyeLerp;
     this.eyeLookY += (targetEyeY - this.eyeLookY) * eyeLerp;
 
-    const targetFaceTurn = dx * 3.8 + this.bodyLean * 4.6 + pureTypingGlance * 2.2;
+    const targetFaceTurn = dx * 4.0 + this.spineLean * 8.0 + pureTypingGlance * 2.0;
     this.faceTurnX += (targetFaceTurn - this.faceTurnX) * (1 - Math.exp(-10 * dt));
 
     for (const anim of this.keyAnims.values()) {
@@ -580,7 +588,7 @@ export class KuroCatEngine {
     for (const b of this.bubbles) {
       const age = (now - b.createdAt) / b.lifetime;
       b.x += (b.targetX - b.x) * (1 - Math.exp(-18 * dt));
-      const desiredY = b.targetY - age * 11;
+      const desiredY = b.targetY - age * 10;
       b.y += (desiredY - b.y) * (1 - Math.exp(-16 * dt));
     }
   }
@@ -590,14 +598,14 @@ export class KuroCatEngine {
     const liveMouseY = this.mouseBaseY + this.mouseOffsetY;
 
     if (paw.mode === 'mouse') {
-      paw.target = { x: liveMouseX + 1, y: liveMouseY - 3 };
+      paw.target = { x: liveMouseX + 2, y: liveMouseY - 2 };
       const stillHolding = this.mouseLeftDown || this.mouseRightDown || now - this.lastMouseMoveAt < 2200;
       if (!stillHolding) {
         paw.mode = 'idle';
       }
     } else if (paw.mode === 'poke') {
       paw.pokeTime += dt;
-      if (paw.pokeTime > 0.125) {
+      if (paw.pokeTime > 0.13) {
         if (paw.side === 'left' && now - this.lastMouseMoveAt < 1800) {
           paw.mode = 'mouse';
         } else if (now - this.lastAnyKeyAt < 650) {
@@ -613,9 +621,10 @@ export class KuroCatEngine {
     }
 
     if (paw.mode === 'curled') {
-      paw.target = this.getLiveCurlPoint(paw, 0);
+      paw.target = this.getLiveCurledPawPos(paw, 0);
     } else if (paw.mode === 'idle') {
-      paw.target = { x: paw.idlePos.x, y: paw.idlePos.y };
+      const baseSp = this.spinePoint(1.0, 0);
+      paw.target = { x: baseSp.x + (paw.side === 'left' ? -19 : 19), y: baseSp.y };
     }
 
     const wantIdle = paw.mode === 'idle' ? 1 : 0;
@@ -641,7 +650,7 @@ export class KuroCatEngine {
     paw.smears = paw.smears.filter((s) => s.alpha > 0.02);
   }
 
-  // ---- High-craftsmanship soft hand-drawn Canvas 2D rendering ----
+  // ---- High-fidelity true-scale rendering ----
 
   private render(): void {
     const ctx = this.ctx;
@@ -658,24 +667,24 @@ export class KuroCatEngine {
     ctx.translate(offsetX, offsetY);
     ctx.scale(uniformScale, uniformScale);
 
-    const breath = Math.sin(this.elapsed * 2.1) * 0.9;
+    const breath = Math.sin(this.elapsed * 2.1) * 1.0;
     const purrShift = this.squintAmount > 0.4 ? Math.sin(this.elapsed * 22) * 0.45 * this.squintAmount : 0;
 
-    // Layer 1: Calm steady low-right S-hook black tail
+    // Layer 1: Thick plush calm low-right S-hook black tail (measured 17px thick, barely drifts!)
     this.drawTail(ctx);
 
     // Layer 2: Mini mouse & 65% mechanical keyboard
     this.drawMiniMouse(ctx);
     this.drawKeyboard(ctx);
 
-    // Layer 3: Soft plush hand-drawn black cat body + chubby hind paws + fluffy rounded ears + expressive eyes
+    // Layer 3: Exact measured spine-deformable cat silhouette (ears, cheeks, neck, pear belly, grounded hind feet, eyes & tiny whiskers)
     this.drawCatBody(ctx, breath, purrShift);
 
-    // Layer 4: Completely redesigned plump velvety cat paws! (exact match to user's reference photo!)
+    // Layer 4: True-scale velvety cat paws (tapered idle legs / planted diagonal mouse support leg / bent curled chest paw / plump round poking paw!)
     this.drawPaw(ctx, this.leftPaw, breath);
     this.drawPaw(ctx, this.rightPaw, breath);
 
-    // Layer 5: Playful organically staggered 3D keycap bubbles
+    // Layer 5: Organic bouncing 3D keycap bubbles
     if (this.showKeyBubbles) {
       this.drawKeyBubbles(ctx);
     }
@@ -684,25 +693,26 @@ export class KuroCatEngine {
   }
 
   private drawTail(ctx: CanvasRenderingContext2D): void {
-    const gentleDrift = Math.sin(this.elapsed * 0.95) * 1.6;
+    // Exact ORIG 0.3s tail: leaves hip slightly higher, flat horizontal start curving cleanly up into a soft horizontal S-hook!
+    const gentleDrift = Math.sin(this.elapsed * 0.9) * 1.4;
+    const hipRight = this.spinePoint(0.84, 0);
 
-    const startX = this.catX + 38 + this.bodyLean * 4;
-    const startY = this.catBaseY - 14;
-    const cp1X = this.catX + 74;
-    const cp1Y = this.catBaseY - 11 + gentleDrift * 0.3;
-    const cp2X = this.catX + 86;
-    const cp2Y = this.catBaseY - 40 + gentleDrift * 0.6;
-    const endX = this.catX + 109 + gentleDrift * 0.4;
-    const endY = this.catBaseY - 44 + gentleDrift;
+    const startX = hipRight.x + 56;
+    const startY = hipRight.y - 2;
+    const cp1X = startX + 34;
+    const cp1Y = startY + 4 + gentleDrift * 0.25;
+    const cp2X = startX + 38;
+    const cp2Y = startY - 34 + gentleDrift * 0.45;
+    const endX = startX + 70 + gentleDrift * 0.35;
+    const endY = startY - 35 + gentleDrift;
 
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    // Whisper-soft charcoal brush edge
-    ctx.shadowColor = 'rgba(20, 19, 20, 0.45)';
+    ctx.shadowColor = 'rgba(18, 17, 18, 0.45)';
     ctx.shadowBlur = 1.6;
     ctx.strokeStyle = '#141314';
-    ctx.lineWidth = 11;
+    ctx.lineWidth = 16.0;
     ctx.beginPath();
     ctx.moveTo(startX, startY);
     ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, endY);
@@ -711,112 +721,137 @@ export class KuroCatEngine {
   }
 
   private drawCatBody(ctx: CanvasRenderingContext2D, breath: number, purrShift: number): void {
-    const tr = this.getBodyTransform(breath);
     const catBlack = '#141314';
 
-    ctx.save();
+    // Evaluate measured left & right silhouette points deformed by flexible cat spine!
+    const leftPts: Vec2[] = [];
+    const rightPts: Vec2[] = [];
+    const bellySwell = 1 + this.typingHunch * 0.04;
 
-    // Soft plush hand-drawn ink edge (gives velvety matte warmth instead of harsh vector plastic!)
-    ctx.shadowColor = 'rgba(20, 19, 20, 0.45)';
-    ctx.shadowBlur = 1.6;
-
-    // 0) Pure velvety black plump hind paws grounded under the belly (ZERO harsh white sticker outline! Exact reference photo!)
-    ctx.fillStyle = catBlack;
-    for (const [fx, fy, rx, ry] of [
-      [this.catX - 36 + tr.shiftX * 0.25, this.catBaseY - 2, 12.5, 9.5],
-      [this.catX + 26 + tr.shiftX * 0.25, this.catBaseY + 1, 13.0, 9.5],
-    ]) {
-      ctx.beginPath();
-      ctx.ellipse(fx, fy, rx, ry, 0, 0, Math.PI * 2);
-      ctx.fill();
+    for (const slice of BODY_SLICES) {
+      const sp = this.spinePoint(slice.t, breath);
+      const widen = slice.t > 0.45 ? bellySwell : 1;
+      const hw = slice.hw * widen;
+      leftPts.push({ x: sp.x + purrShift - hw, y: sp.y });
+      rightPts.push({ x: sp.x + purrShift + hw, y: sp.y });
     }
 
-    ctx.translate(tr.pivotX + tr.shiftX + purrShift, tr.pivotY);
-    ctx.rotate(tr.leanAngle);
-    ctx.scale(tr.scaleX, tr.scaleY);
+    const crownPt = this.spinePoint(0.11, breath);
+    const basePt = this.spinePoint(1.0, breath);
 
-    const headY = -142 + tr.shiftY * 0.55;
+    ctx.save();
+    ctx.shadowColor = 'rgba(18, 17, 18, 0.42)';
+    ctx.shadowBlur = 1.6;
     ctx.fillStyle = catBlack;
 
-    // 1) Plump, cozy pear-shaped fluffy sitting torso (slightly fuller & softer like reference photo!)
+    // 1) Cute rounded grounded hind paws peeking out when front paws lift (matches 8.3s, 10.6s, 13.2s, 31.0s!)
+    const anyFrontLifted = this.leftPaw.idleWeight < 0.7 || this.rightPaw.idleWeight < 0.7;
+    if (anyFrontLifted) {
+      for (const [fx, fy, rx, ry] of [
+        [basePt.x - 42, basePt.y - 3, 14.5, 11.5],
+        [basePt.x + 32, basePt.y - 1, 15.0, 11.5],
+      ]) {
+        ctx.beginPath();
+        ctx.ellipse(fx, fy, rx, ry, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // 2) Draw exact smooth spline through measured silhouette slices (left top -> right top -> right down -> bottom -> left up)!
     ctx.beginPath();
-    ctx.moveTo(-29, headY + 20);
-    ctx.bezierCurveTo(-45, headY + 44, -59, -40, -47, -2);
-    ctx.quadraticCurveTo(0, 8, 47, -2);
-    ctx.bezierCurveTo(59, -40, 45, headY + 44, 29, headY + 20);
+    // Smooth crown between ears
+    ctx.moveTo(leftPts[0].x + 14, leftPts[0].y - 6);
+    ctx.quadraticCurveTo(crownPt.x + purrShift, crownPt.y - 2, rightPts[0].x - 14, rightPts[0].y - 6);
+
+    // Right side smoothly through measured control slices
+    ctx.lineTo(rightPts[0].x, rightPts[0].y);
+    for (let i = 0; i < rightPts.length - 1; i++) {
+      const p0 = rightPts[i];
+      const p1 = rightPts[i + 1];
+      const mx = (p0.x + p1.x) * 0.5;
+      const my = (p0.y + p1.y) * 0.5;
+      ctx.quadraticCurveTo(p0.x, p0.y, mx, my);
+    }
+    const lastR = rightPts[rightPts.length - 1];
+    ctx.lineTo(lastR.x, lastR.y);
+
+    // Cozy rounded base resting flush on top of keyboard
+    const lastL = leftPts[leftPts.length - 1];
+    ctx.quadraticCurveTo(basePt.x + purrShift, basePt.y + 6, lastL.x, lastL.y);
+
+    // Left side smoothly up through measured slices
+    for (let i = leftPts.length - 1; i > 0; i--) {
+      const p0 = leftPts[i];
+      const p1 = leftPts[i - 1];
+      const mx = (p0.x + p1.x) * 0.5;
+      const my = (p0.y + p1.y) * 0.5;
+      ctx.quadraticCurveTo(p0.x, p0.y, mx, my);
+    }
+    ctx.lineTo(leftPts[0].x, leftPts[0].y);
     ctx.closePath();
     ctx.fill();
 
-    // 2) Fluffy rounded-cheek head + wider-based soft rounded ears (exact silhouette of reference photo!)
+    // 3) Compact plush rounded cat ears matching ORIG 0.3s exact height (shorter & cuter, no tall rabbit ears!)
+    const headCenter = this.spinePoint(0.24, breath);
     ctx.save();
-    ctx.translate(0, headY);
+    ctx.translate(headCenter.x + purrShift, headCenter.y);
     ctx.rotate(this.headTilt);
 
-    const lTwitch = Math.sin(this.earTwitchLeft * Math.PI) * 0.13;
-    const rTwitch = Math.sin(this.earTwitchRight * Math.PI) * 0.13;
+    const lTwitch = Math.sin(this.earTwitchLeft * Math.PI) * 0.12;
+    const rTwitch = Math.sin(this.earTwitchRight * Math.PI) * 0.12;
 
-    // Left ear (wider base, soft rounded plush tip!)
+    // Left ear (compact, rounded-tip kitten ear matching ORIG 0.3s!)
     ctx.save();
-    ctx.translate(-27 + this.faceTurnX * 0.16, -22);
-    ctx.rotate(-0.1 - lTwitch);
+    ctx.translate(-33 + this.faceTurnX * 0.18, -28);
+    ctx.rotate(-0.08 - lTwitch);
     ctx.beginPath();
-    ctx.moveTo(-15, 18);
-    ctx.bezierCurveTo(-17, -14, -10, -28, -2, -26);
-    ctx.bezierCurveTo(8, -23, 14, -10, 17, 2);
+    ctx.moveTo(-19, 20);
+    ctx.bezierCurveTo(-19, -8, -12, -23, -3, -21);
+    ctx.bezierCurveTo(8, -18, 16, -6, 21, 8);
     ctx.closePath();
     ctx.fill();
     ctx.restore();
 
-    // Right ear (wider base, soft rounded plush tip!)
+    // Right ear
     ctx.save();
-    ctx.translate(27 + this.faceTurnX * 0.16, -22);
-    ctx.rotate(0.1 + rTwitch);
+    ctx.translate(33 + this.faceTurnX * 0.18, -28);
+    ctx.rotate(0.08 + rTwitch);
     ctx.beginPath();
-    ctx.moveTo(15, 18);
-    ctx.bezierCurveTo(17, -14, 10, -28, 2, -26);
-    ctx.bezierCurveTo(-8, -23, -14, -10, -17, 2);
+    ctx.moveTo(19, 20);
+    ctx.bezierCurveTo(19, -8, 12, -23, 3, -21);
+    ctx.bezierCurveTo(-8, -18, -16, -6, -21, 8);
     ctx.closePath();
     ctx.fill();
     ctx.restore();
-
-    // Plush round cat head seamlessly blending into neck
-    ctx.beginPath();
-    ctx.moveTo(-26, -27);
-    ctx.quadraticCurveTo(0, -32, 26, -27);
-    ctx.bezierCurveTo(46, -20, 48, 12, 32, 27);
-    ctx.quadraticCurveTo(0, 35, -32, 27);
-    ctx.bezierCurveTo(-48, 12, -46, -20, -26, -27);
-    ctx.closePath();
-    ctx.fill();
 
     ctx.shadowBlur = 0;
 
-    // 3) Delicate wispy whiskers adapting naturally to 2.5D head turn (exact match to reference photo!)
-    ctx.strokeStyle = 'rgba(205, 208, 214, 0.52)';
-    ctx.lineWidth = 0.95;
+    // 4) Delicate wispy short cheek whiskers adapting to 2.5D head turn (exact match to 0.3s, 2.2s, reference photo!)
+    ctx.strokeStyle = 'rgba(205, 208, 214, 0.54)';
+    ctx.lineWidth = 1.05;
     ctx.lineCap = 'round';
-    const wShift = this.faceTurnX * 0.65;
-    const leftLen = Math.max(7, 10 - this.faceTurnX * 0.45);
-    const rightLen = Math.max(7, 10 + this.faceTurnX * 0.45);
+    const wShift = this.faceTurnX * 0.72;
+    const leftLen = Math.max(8, 12 - this.faceTurnX * 0.55);
+    const rightLen = Math.max(8, 12 + this.faceTurnX * 0.55);
     for (let i = 0; i < 3; i++) {
-      const wy = 11 + i * 4.0;
-      const slant = 1.6 + i * 1.0;
-      // Left cheek wispy whiskers
+      const wy = 16 + i * 5.0;
+      const slant = 2.0 + i * 1.1;
       ctx.beginPath();
-      ctx.moveTo(-25 + wShift, wy);
-      ctx.lineTo(-25 + wShift - leftLen, wy + slant);
+      ctx.moveTo(-34 + wShift, wy);
+      ctx.lineTo(-34 + wShift - leftLen, wy + slant);
       ctx.stroke();
-      // Right cheek wispy whiskers
+
       ctx.beginPath();
-      ctx.moveTo(25 + wShift, wy);
-      ctx.lineTo(25 + wShift + rightLen, wy + slant);
+      ctx.moveTo(34 + wShift, wy);
+      ctx.lineTo(34 + wShift + rightLen, wy + slant);
       ctx.stroke();
     }
 
-    // 4) Expressive soft chubby bean-almond lemon-green eyes (exact reference photo!)
-    this.drawEyes(ctx, this.faceTurnX * 0.65, -1);
+    // 5) Exact measured lemon-chartreuse eyes (cx = +-23px!)
+    this.drawEyes(ctx, this.faceTurnX * 0.72, -1);
 
-    ctx.restore();
+    ctx.restore(); // end head
+
     ctx.restore();
   }
 
@@ -824,9 +859,10 @@ export class KuroCatEngine {
     const blinkVal = this.isBlinking ? 1 - Math.abs(this.blinkProgress - 1) : 0;
     const closedness = Math.max(blinkVal, this.squintAmount * 0.85);
 
-    const eyeXs = [cx - 17.0, cx + 17.0];
-    const rx = 12.2 + this.typingHunch * 0.8;
-    const ry = 12.6 - this.typingHunch * 0.6;
+    // Exact measured eye spacing & size from original 0.3s & 10.6s!
+    const eyeXs = [cx - 23.0, cx + 23.0];
+    const rx = 14.8 + this.typingHunch * 1.0;
+    const ry = 13.4 - this.typingHunch * 0.5;
 
     for (let idx = 0; idx < 2; idx++) {
       const ex = eyeXs[idx];
@@ -834,23 +870,22 @@ export class KuroCatEngine {
       ctx.translate(ex, eyeY);
 
       if (this.squintAmount > 0.4 && blinkVal < 0.3) {
-        // Cozy sleepy almond-slit eyes + soft upper eyelid hoods (exact 3.4s!)
+        // Cozy sleepy almond-slit eyes + soft dark upper eyelid hoods (exact 3.4s!)
         ctx.fillStyle = 'rgba(42, 42, 46, 0.85)';
         ctx.beginPath();
-        ctx.ellipse(0, -4.5, rx * 0.95, 5.2, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, -5.5, rx * 0.95, 6.2, 0, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.fillStyle = '#d4f044';
         ctx.beginPath();
-        ctx.ellipse(0, 1.5, rx * 0.98, 3.0, idx === 0 ? 0.06 : -0.06, 0, Math.PI * 2);
+        ctx.ellipse(0, 1.8, rx * 0.98, 3.6, idx === 0 ? 0.06 : -0.06, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
         continue;
       }
 
       const openRy = Math.max(1.2, ry * (1 - closedness));
-      // Subtle curious outward-upward tilt when looking at keyboard (exact match to user's reference photo!)
-      const curiousTilt = (idx === 0 ? -0.11 : 0.11) * (0.35 + this.typingHunch * 0.65);
+      const curiousTilt = (idx === 0 ? -0.1 : 0.1) * (0.25 + this.typingHunch * 0.75);
       ctx.rotate(curiousTilt);
 
       ctx.fillStyle = '#d4f044';
@@ -860,12 +895,12 @@ export class KuroCatEngine {
 
       ctx.clip();
 
-      if (openRy > 3.0) {
-        // Big expressive solid black pupil that hugs the lower edge when glancing down at keyboard!
+      if (openRy > 3.2) {
+        // Expressive solid matte black pupil hugging lower rim when looking down at keyboard!
         const px = this.eyeLookX;
         const py = this.eyeLookY;
-        const pupilRx = 5.4;
-        const pupilRy = 7.6;
+        const pupilRx = 6.2;
+        const pupilRy = 8.8;
 
         ctx.fillStyle = '#0e0e10';
         ctx.beginPath();
@@ -880,8 +915,8 @@ export class KuroCatEngine {
   private drawMiniMouse(ctx: CanvasRenderingContext2D): void {
     const mx = this.mouseBaseX + this.mouseOffsetX;
     const my = this.mouseBaseY + this.mouseOffsetY;
-    const rx = 13.5;
-    const ry = 17.5;
+    const rx = 16.5;
+    const ry = 20.5;
     const clicked = this.mouseLeftDown || this.mouseRightDown || this.mouseMiddleDown;
 
     ctx.save();
@@ -894,7 +929,7 @@ export class KuroCatEngine {
 
     ctx.fillStyle = clicked ? '#d4f044' : '#f0f0ec';
     ctx.strokeStyle = '#303136';
-    ctx.lineWidth = 1.3;
+    ctx.lineWidth = 1.4;
     ctx.beginPath();
     ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -902,7 +937,7 @@ export class KuroCatEngine {
     ctx.stroke();
 
     ctx.fillStyle = this.mouseScrollFlash > 0.2 ? '#92ba12' : '#5e6066';
-    this.roundRect(ctx, -1.5, -10.5, 3.0, 6.5, 1.5);
+    this.roundRect(ctx, -1.8, -12, 3.6, 7.5, 1.8);
     ctx.fill();
 
     ctx.restore();
@@ -938,9 +973,14 @@ export class KuroCatEngine {
     ctx.fill();
     ctx.stroke();
 
+    // Bright clean light-grey inner keybed matching ORIG 0.3s bright airy white keyboard!
+    ctx.fillStyle = '#d4d6d1';
+    this.trapezoidPath(ctx, topHalfW - 5, botHalfW - 5, -halfH + 4, halfH - 4, 3.5);
+    ctx.fill();
+
     const rowH = innerH / TOTAL_ROWS;
     const unitW = innerW / TOTAL_UNITS;
-    const gap = 1.5;
+    const gap = 0.9;
 
     for (const key of KEYBOARD_KEYS) {
       const anim = this.keyAnims.get(key.id);
@@ -954,10 +994,10 @@ export class KuroCatEngine {
       const x = rawX * depthScale;
       const w = rawW * depthScale;
       const y = -innerH / 2 + key.row * rowH + gap * 0.5 + press * 2.0;
-      const h = rowH - gap - 1.0;
+      const h = rowH - gap - 0.8;
 
-      let topColor = '#f5f5f1';
-      let sideColor = '#c5c6c0';
+      let topColor = '#f8f8f5';
+      let sideColor = '#d0d2cc';
       if (press > 0.14) {
         topColor = '#d2f244';
         sideColor = '#8cb014';
@@ -965,16 +1005,16 @@ export class KuroCatEngine {
         topColor = '#f4a524';
         sideColor = '#c27a10';
       } else if (key.accent === 'mod') {
-        topColor = '#e6e7e2';
-        sideColor = '#b7b8b2';
+        topColor = '#efefeb';
+        sideColor = '#c7c9c3';
       }
 
       ctx.fillStyle = sideColor;
-      this.roundRect(ctx, x, y + 1.5, w, h, 1.8);
+      this.roundRect(ctx, x, y + 1.4, w, h, 1.8);
       ctx.fill();
 
       ctx.fillStyle = topColor;
-      this.roundRect(ctx, x, y, w, h - 1.0, 1.8);
+      this.roundRect(ctx, x, y, w, h - 0.9, 1.8);
       ctx.fill();
     }
 
@@ -982,11 +1022,7 @@ export class KuroCatEngine {
   }
 
   /**
-   * REDESIGNED PLUMP VELVETY CAT PAW (exact anatomy of user's reference screenshot!)
-   * - Stout shoulder tapering smoothly to a slightly slimmer wrist (~6.8px half-width),
-   *   then SWELLING into a plump, chubby, soft rounded black paw ball (~11.5px x 9.5px)!
-   * - ZERO bright white neon border around the paw tip or outer edge!
-   * - ONLY a single whisper-delicate muted-grey inner seam crease where the upper arm overlaps the black body!
+   * True-scale plush velvety cat arm & chubby rounded paw ball (1:1 match to reference photo & 8.3s / 13.2s / 31.0s!)
    */
   private drawPlumpCatArm(
     ctx: CanvasRenderingContext2D,
@@ -1006,35 +1042,34 @@ export class KuroCatEngine {
     const nx = -uy;
     const ny = ux;
 
-    // Wrist sits slightly above the plump paw ball center
-    const wristDist = Math.max(4, len - 6);
+    const wristDist = Math.max(6, len - 8);
     const wx = sx + ux * wristDist;
     const wy = sy + uy * wristDist;
 
-    const rShoulder = 11.2;
-    const rWrist = 7.2;
-    // Plump, chubby rounded cat paw bulb (wider than wrist! Exact match to reference photo!)
-    const pawRx = 11.4 * (1 + squash * 0.14);
-    const pawRy = 9.4 * (1 - squash * 0.12);
+    // True-scale plush proportions for 248px tall cat!
+    const rShoulder = 14.2;
+    const rWrist = 9.4;
+    const pawRx = 14.5 * (1 + squash * 0.14);
+    const pawRy = 11.8 * (1 - squash * 0.12);
 
     ctx.save();
-    ctx.shadowColor = 'rgba(20, 19, 20, 0.42)';
-    ctx.shadowBlur = 1.5;
+    ctx.shadowColor = 'rgba(18, 17, 18, 0.42)';
+    ctx.shadowBlur = 1.6;
     ctx.fillStyle = '#141314';
 
-    // 1) Smooth continuous arm silhouette from shoulder to slim wrist
+    // Arm silhouette tapering gently from shoulder to wrist
     ctx.beginPath();
     ctx.moveTo(sx + nx * rShoulder, sy + ny * rShoulder);
     ctx.quadraticCurveTo(
-      (sx + wx) * 0.5 + nx * (rShoulder * 0.82),
-      (sy + wy) * 0.5 + ny * (rShoulder * 0.82),
+      (sx + wx) * 0.5 + nx * (rShoulder * 0.84),
+      (sy + wy) * 0.5 + ny * (rShoulder * 0.84),
       wx + nx * rWrist,
       wy + ny * rWrist,
     );
     ctx.lineTo(wx - nx * rWrist, wy - ny * rWrist);
     ctx.quadraticCurveTo(
-      (sx + wx) * 0.5 - nx * (rShoulder * 0.82),
-      (sy + wy) * 0.5 - ny * (rShoulder * 0.82),
+      (sx + wx) * 0.5 - nx * (rShoulder * 0.84),
+      (sy + wy) * 0.5 - ny * (rShoulder * 0.84),
       sx - nx * rShoulder,
       sy - ny * rShoulder,
     );
@@ -1046,133 +1081,144 @@ export class KuroCatEngine {
     ctx.arc(sx, sy, rShoulder, 0, Math.PI * 2);
     ctx.fill();
 
-    // 2) Chubby plush rounded cat paw ball (wider than wrist, soft cushiony bottom!)
+    // Plump, soft rounded black velvet paw ball pressing firmly onto the key!
     ctx.beginPath();
     ctx.ellipse(px, py + 1.5, pawRx, pawRy, 0, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.shadowBlur = 0;
 
-    // 3) ONLY a whisper-subtle muted-grey inner overlap crease (so you see the arm over the black thigh — ZERO white border around the paw!)
-    if (withCrease && len > 24) {
-      const creaseSign = side === 'left' ? -1 : 1;
-      const startFrac = 0.24;
+    // Clean crisp subtle light-grey side separation lines ONLY where the arm crosses the black body (exact 2.2s / 8.3s / 13.2s!)
+    if (withCrease && len > 28) {
+      const startFrac = 0.18;
       const endFrac = 0.72;
-      const csx = sx + ux * (len * startFrac) + nx * creaseSign * (rShoulder * 0.78);
-      const csy = sy + uy * (len * startFrac) + ny * creaseSign * (rShoulder * 0.78);
-      const cex = sx + ux * (len * endFrac) + nx * creaseSign * (rWrist * 1.02);
-      const cey = sy + uy * (len * endFrac) + ny * creaseSign * (rWrist * 1.02);
+      for (const sgn of [-1, 1]) {
+        const csx = sx + ux * (len * startFrac) + nx * sgn * (rShoulder * 0.86);
+        const csy = sy + uy * (len * startFrac) + ny * sgn * (rShoulder * 0.86);
+        const cex = sx + ux * (len * endFrac) + nx * sgn * (rWrist * 1.02);
+        const cey = sy + uy * (len * endFrac) + ny * sgn * (rWrist * 1.02);
 
-      const creaseGrad = ctx.createLinearGradient(csx, csy, cex, cey);
-      creaseGrad.addColorStop(0.0, 'rgba(182, 184, 188, 0.0)');
-      creaseGrad.addColorStop(0.25, 'rgba(182, 184, 188, 0.42)');
-      creaseGrad.addColorStop(0.85, 'rgba(182, 184, 188, 0.34)');
-      creaseGrad.addColorStop(1.0, 'rgba(182, 184, 188, 0.0)');
+        const creaseGrad = ctx.createLinearGradient(csx, csy, cex, cey);
+        creaseGrad.addColorStop(0.0, 'rgba(216, 218, 222, 0.0)');
+        creaseGrad.addColorStop(0.22, 'rgba(216, 218, 222, 0.65)');
+        creaseGrad.addColorStop(0.84, 'rgba(216, 218, 222, 0.56)');
+        creaseGrad.addColorStop(1.0, 'rgba(216, 218, 222, 0.0)');
 
-      ctx.strokeStyle = creaseGrad;
-      ctx.lineWidth = 1.15;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(csx, csy);
-      ctx.lineTo(cex, cey);
-      ctx.stroke();
+        ctx.strokeStyle = creaseGrad;
+        ctx.lineWidth = 1.3;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(csx, csy);
+        ctx.lineTo(cex, cey);
+        ctx.stroke();
+      }
     }
 
     ctx.restore();
   }
 
-  private drawSoftTuckedPaw(ctx: CanvasRenderingContext2D, paw: PawState, breath: number, alpha: number): void {
-    // Soft natural tucked kitten paw on the lower belly (subtle muted-grey crease ONLY, NEVER a loud white U sticker!)
-    const cp = this.getLiveCurlPoint(paw, breath);
-    const tilt = paw.side === 'left' ? 0.14 : -0.14;
+  /**
+   * Real 2-segment articulated bent kitten arm (shoulder -> elbow -> curled plump paw on chest!)
+   * Matches original video 8.3s (left paw), 10.6s (both paws), 23.2s, 26.2s!
+   */
+  private drawBentCurledArm(ctx: CanvasRenderingContext2D, paw: PawState, breath: number, alpha: number): void {
+    const sh = this.getLiveShoulder(paw, breath);
+    const cp = this.getLiveCurledPawPos(paw, breath);
+    const sign = paw.side === 'left' ? -1 : 1;
+    // Natural elbow bends slightly outward & down below shoulder before forearm curves inward-up!
+    const elbowX = sh.x + sign * 8;
+    const elbowY = cp.y + 8;
 
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.translate(cp.x, cp.y);
-    ctx.rotate(tilt);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
 
-    // Velvety black soft tucked paw mound
+    // Continuous bent velvety black arm + plump curled paw
+    ctx.strokeStyle = '#141314';
+    ctx.lineWidth = 20;
+    ctx.beginPath();
+    ctx.moveTo(sh.x, sh.y);
+    ctx.quadraticCurveTo(elbowX, elbowY, cp.x, cp.y);
+    ctx.stroke();
+
     ctx.fillStyle = '#141314';
     ctx.beginPath();
-    ctx.ellipse(0, 0, 11.2, 12.2, 0, 0, Math.PI * 2);
+    ctx.ellipse(cp.x, cp.y, 12.5, 11.0, sign * 0.2, 0, Math.PI * 2);
     ctx.fill();
 
-    // Whisper-subtle soft dark-grey bottom paw crease (matches 10.6s / 23.2s / 26.2s naturally!)
-    const grad = ctx.createLinearGradient(0, -8, 0, 12);
-    grad.addColorStop(0, 'rgba(176, 178, 182, 0.0)');
-    grad.addColorStop(0.55, 'rgba(176, 178, 182, 0.34)');
-    grad.addColorStop(1, 'rgba(186, 188, 192, 0.44)');
+    // Clear crisp soft-grey contour along the bent curled forearm & kitten paw (exact match to ORIG 10.6s!)
+    const grad = ctx.createLinearGradient(elbowX, elbowY - 12, cp.x, cp.y + 12);
+    grad.addColorStop(0.0, 'rgba(214, 216, 220, 0.0)');
+    grad.addColorStop(0.30, 'rgba(214, 216, 220, 0.65)');
+    grad.addColorStop(0.85, 'rgba(220, 222, 226, 0.72)');
+    grad.addColorStop(1.0, 'rgba(220, 222, 226, 0.25)');
 
     ctx.strokeStyle = grad;
-    ctx.lineWidth = 1.15;
-    ctx.lineCap = 'round';
+    ctx.lineWidth = 1.4;
     ctx.beginPath();
-    ctx.moveTo(-9.5, -2);
-    ctx.bezierCurveTo(-10.5, 7, -6, 11.8, 0, 11.8);
-    ctx.bezierCurveTo(6, 11.8, 10.5, 7, 9.5, -2);
+    ctx.moveTo(elbowX + sign * 8, elbowY - 16);
+    ctx.quadraticCurveTo(elbowX + sign * 4, elbowY + 12, cp.x + sign * 2, cp.y + 10);
+    ctx.quadraticCurveTo(cp.x - sign * 11, cp.y + 8, cp.x - sign * 12, cp.y - 4);
     ctx.stroke();
 
     ctx.restore();
   }
 
   private drawPaw(ctx: CanvasRenderingContext2D, paw: PawState, breath: number): void {
-    const tr = this.getBodyTransform(breath);
-
-    // 1) Seated idle vertical front leg (0.3s) OR planted supporting diagonal right leg during mouse lean (2.2s / 3.4s)
+    // 1) Seated idle vertical front legs (EXACT 4 clean lines of ORIG 0.3s!) OR planted diagonal supporting leg (ORIG 2.2s!)
     if (paw.idleWeight > 0.05) {
       ctx.save();
       ctx.globalAlpha = paw.idleWeight;
 
       if (paw.side === 'right' && this.leftPaw.mode === 'mouse') {
         const sh = this.getLiveShoulder(paw, breath);
-        const footX = this.catX + 18;
-        const footY = this.catBaseY;
-        this.drawPlumpCatArm(ctx, 'right', sh.x, sh.y + 6, footX, footY, 0, true);
+        const baseSp = this.spinePoint(1.0, breath);
+        this.drawPlumpCatArm(ctx, 'right', sh.x - 4, sh.y + 8, baseSp.x + 28, baseSp.y - 2, 0, true);
       } else {
-        ctx.translate(tr.pivotX + tr.shiftX, tr.pivotY);
-        ctx.rotate(tr.leanAngle);
-        ctx.scale(tr.scaleX, tr.scaleY);
+        // Exact 4-line seated leg silhouette from ORIG 0.3s (outer curved leg line + crisp inner center-gap line!)
+        const topSp = this.spinePoint(0.66, breath);
+        const midSp = this.spinePoint(0.84, breath);
+        const botSp = this.spinePoint(1.0, breath);
+        const sign = paw.side === 'left' ? -1 : 1;
 
-        const legX = paw.side === 'left' ? -13.5 : 13.5;
-        const topY = -66;
-        const botY = 0;
+        const outerTopX = topSp.x + sign * 41;
+        const outerBotX = botSp.x + sign * 35;
+        const innerTopX = topSp.x + sign * 6.5;
+        const innerBotX = botSp.x + sign * 9.5;
 
-        ctx.fillStyle = '#141314';
-        ctx.beginPath();
-        ctx.moveTo(legX - 8.2, topY);
-        ctx.lineTo(legX + 8.2, topY);
-        ctx.lineTo(legX + 6.8, botY - 4);
-        ctx.quadraticCurveTo(legX + 9.2, botY + 3, legX, botY + 3.5);
-        ctx.quadraticCurveTo(legX - 9.2, botY + 3, legX - 6.8, botY - 4);
-        ctx.closePath();
-        ctx.fill();
+        // Crisp subtle light-grey outer leg curve & inner leg-gap line (4 total lines across both legs — exact ORIG 0.3s!)
+        const lineGrad = ctx.createLinearGradient(topSp.x, topSp.y, botSp.x, botSp.y);
+        lineGrad.addColorStop(0.0, 'rgba(210, 212, 216, 0.0)');
+        lineGrad.addColorStop(0.18, 'rgba(210, 212, 216, 0.64)');
+        lineGrad.addColorStop(0.92, 'rgba(210, 212, 216, 0.62)');
+        lineGrad.addColorStop(1.0, 'rgba(210, 212, 216, 0.25)');
 
-        // Delicate low-contrast vertical leg separation seams (exact understated 0.3s look!)
-        const seamGrad = ctx.createLinearGradient(legX, topY, legX, botY);
-        seamGrad.addColorStop(0.0, 'rgba(182, 184, 188, 0.0)');
-        seamGrad.addColorStop(0.18, 'rgba(182, 184, 188, 0.45)');
-        seamGrad.addColorStop(0.88, 'rgba(182, 184, 188, 0.42)');
-        seamGrad.addColorStop(1.0, 'rgba(182, 184, 188, 0.15)');
-
-        ctx.strokeStyle = seamGrad;
-        ctx.lineWidth = 1.15;
+        ctx.strokeStyle = lineGrad;
+        ctx.lineWidth = 1.4;
         ctx.lineCap = 'round';
+
+        // Outer front-leg separation line (gently curves inward toward paw!)
         ctx.beginPath();
-        ctx.moveTo(legX - 8.0, topY + 2);
-        ctx.lineTo(legX - 6.6, botY - 3);
-        ctx.moveTo(legX + 8.0, topY + 2);
-        ctx.lineTo(legX + 6.6, botY - 3);
+        ctx.moveTo(outerTopX, topSp.y);
+        ctx.quadraticCurveTo(midSp.x + sign * 41, midSp.y, outerBotX, botSp.y - 1);
+        ctx.stroke();
+
+        // Inner front-leg gap line (tapers slightly outward toward paws, exact inverted narrow V from ORIG 0.3s!)
+        ctx.beginPath();
+        ctx.moveTo(innerTopX, topSp.y + 10);
+        ctx.lineTo(innerBotX, botSp.y - 1);
         ctx.stroke();
       }
       ctx.restore();
     }
 
-    // 2) Soft natural tucked kitten paw on lower belly while other hand types
+    // 2) Continuous bent articulated curled chest arm (8.3s / 10.6s / 23.2s / 26.2s!)
     if (paw.curlWeight > 0.05) {
-      this.drawSoftTuckedPaw(ctx, paw, breath, paw.curlWeight);
+      this.drawBentCurledArm(ctx, paw, breath, paw.curlWeight);
     }
 
-    // 3) Plump velvety black poking / mouse-holding cat arm! (exact match to user's reference photo!)
+    // 3) Plump velvety poking / mouse-holding cat arm!
     const activeArmWeight = Math.max(0, 1 - paw.idleWeight - paw.curlWeight);
     if (activeArmWeight > 0.05) {
       const sh = this.getLiveShoulder(paw, breath);
@@ -1182,7 +1228,6 @@ export class KuroCatEngine {
       ctx.save();
       ctx.globalAlpha = Math.min(1, activeArmWeight * 1.2);
 
-      // Soft smoky motion-blur trails during fast swings
       for (const sm of paw.smears) {
         ctx.save();
         ctx.globalAlpha = Math.max(0, sm.alpha * activeArmWeight);
@@ -1190,7 +1235,8 @@ export class KuroCatEngine {
         ctx.restore();
       }
 
-      this.drawPlumpCatArm(ctx, paw.side, sh.x, sh.y, px, py, paw.impactSquash, true);
+      // Keep mouse-reaching arm pure velvet black in open air (ORIG 2.2s); show subtle separation lines when poking across black torso!
+      this.drawPlumpCatArm(ctx, paw.side, sh.x, sh.y, px, py, paw.impactSquash, paw.mode !== 'mouse');
       ctx.restore();
     }
   }
@@ -1217,10 +1263,10 @@ export class KuroCatEngine {
       ctx.rotate(b.rot);
       ctx.scale(scale, scale);
 
-      ctx.font = '700 11.5px "Segoe UI", system-ui, sans-serif';
+      ctx.font = '700 12px "Segoe UI", system-ui, sans-serif';
       const textW = ctx.measureText(b.label).width;
-      const boxW = b.isSpace ? 38 : Math.max(23, textW + 12);
-      const boxH = 23;
+      const boxW = b.isSpace ? 40 : Math.max(24, textW + 13);
+      const boxH = 24;
       const bx = -boxW / 2;
       const by = -boxH / 2;
 
