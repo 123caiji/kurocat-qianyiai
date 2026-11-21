@@ -14,7 +14,7 @@ export const TOTAL_ROWS = 5;
 
 export const KEYBOARD_KEYS: KeySpec[] = [
   // Row 0: Esc + 1..0 + - + = + Backspace (15U total)
-  { id: 'esc', label: 'ESC', bubble: 'Esc', row: 0, uStart: 0, uWidth: 1, accent: 'orange', vkCodes: [0x1b, 0xc0] },
+  { id: 'esc', label: 'ESC', bubble: 'Esc', row: 0, uStart: 0, uWidth: 1, accent: 'normal', vkCodes: [0x1b, 0xc0] },
   { id: '1', label: '1', bubble: '1', row: 0, uStart: 1, uWidth: 1, vkCodes: [0x31, 0x61, 0x70] },
   { id: '2', label: '2', bubble: '2', row: 0, uStart: 2, uWidth: 1, vkCodes: [0x32, 0x62, 0x71] },
   { id: '3', label: '3', bubble: '3', row: 0, uStart: 3, uWidth: 1, vkCodes: [0x33, 0x63, 0x72] },
@@ -29,8 +29,8 @@ export const KEYBOARD_KEYS: KeySpec[] = [
   { id: 'equal', label: '=', bubble: '=', row: 0, uStart: 12, uWidth: 1, vkCodes: [0xbb, 0x6b, 0x7b] },
   { id: 'bs', label: '⌫', bubble: '⌫', row: 0, uStart: 13, uWidth: 2, accent: 'mod', vkCodes: [0x08, 0x2e] },
 
-  // Row 1: Tab + Q..P + [ ] \ (15U total)
-  { id: 'tab', label: '↹', bubble: 'Tab', row: 1, uStart: 0, uWidth: 1.5, accent: 'mod', vkCodes: [0x09] },
+  // Row 1: Orange Tab (exact match to original video 0.3s!) + Q..P + [ ] \ (15U total)
+  { id: 'tab', label: '↹', bubble: 'Tab', row: 1, uStart: 0, uWidth: 1.5, accent: 'orange', vkCodes: [0x09] },
   { id: 'q', label: 'Q', bubble: 'Q', row: 1, uStart: 1.5, uWidth: 1, vkCodes: [0x51] },
   { id: 'w', label: 'W', bubble: 'W', row: 1, uStart: 2.5, uWidth: 1, vkCodes: [0x57] },
   { id: 'e', label: 'E', bubble: 'E', row: 1, uStart: 3.5, uWidth: 1, vkCodes: [0x45] },
