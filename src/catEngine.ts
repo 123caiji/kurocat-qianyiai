@@ -120,10 +120,14 @@ export class KuroCatEngine {
   private eyeLookY = 0;
   private faceTurnX = 0;
 
-  // Spine-shear deformation state (exact measured flexible cat spine!)
+  // Spine-shear deformation state (exact measured flexible cat spine + playful typing body/head sway!)
   private spineLean = 0;    // -1 (mouse lean: head shifts -46px left while hips stay anchored!) .. +1
   private headTilt = 0;
   private typingHunch = 0;  // 0..1 lowers head & rounds posture slightly when typing
+  private typingSway = 0;   // -1..+1 lively left-right torso & head sway while typing!
+  private typingSwayVel = 0;
+  private typingGroovePhase = 0;
+  private lastKeyBias = 0;
   private strikeRock = 0;
   private strikeRockVel = 0;
   private bodyBob = 0;
@@ -230,9 +234,10 @@ export class KuroCatEngine {
     // t in [0..1]: 0 = ear tips, 1 = seated base on desk
     const u = Math.max(0, Math.min(1, 1 - t)); // 0 at hips, 1 at head
     const shearCurve = u * u * (3 - 2 * u); // smoothstep from hips up to head!
-    // Measured mouse-lean shift: -46px at head, -34px at neck, -18px at chest, 0px at hips!
-    const leanX = this.spineLean * 46 * shearCurve + this.strikeRock * 8 * shearCurve;
-    const hunchY = (this.typingHunch * 14 + this.bodyBob * 3.0 + breath) * shearCurve;
+    // Measured mouse-lean shift (-46px at head) + lively typing left-right body/head sway (+-25px)!
+    const leanX = (this.spineLean * 46 + this.typingSway * 25 + this.strikeRock * 10) * shearCurve;
+    const swayDipY = Math.abs(this.typingSway) * 4.0 * shearCurve;
+    const hunchY = (this.typingHunch * 13 + this.bodyBob * 4.8 + breath) * shearCurve + swayDipY;
     // Slight forward drop when leaning deeply to the mouse
     const leanDropY = Math.abs(this.spineLean) * 6 * shearCurve;
     return {
@@ -280,7 +285,7 @@ export class KuroCatEngine {
     this.recentKeyTimes.push(now);
     if (this.recentKeyTimes.length > 26) this.recentKeyTimes.shift();
 
-    this.bodyBob = Math.min(1, this.bodyBob + 0.55);
+    this.bodyBob = Math.min(1.15, this.bodyBob + 0.65);
     this.kbBounce = Math.min(1, this.kbBounce + 0.45);
 
     if (Math.random() < 0.16) {
@@ -289,6 +294,10 @@ export class KuroCatEngine {
     }
 
     const keyColCenter = spec.uStart + spec.uWidth * 0.5;
+    const keyBias = Math.max(-1, Math.min(1, (keyColCenter - 7.0) / 5.0));
+    this.lastKeyBias = keyBias;
+    this.typingGroovePhase += 1.22;
+
     let targetPoint = this.getKeyWorldCenter(spec);
     let chosen: PawState;
 
@@ -313,7 +322,12 @@ export class KuroCatEngine {
       chosen = this.rightPaw;
     }
 
-    this.strikeRockVel += (chosen.side === 'left' ? -1 : 1) * (1.25 + this.typingEnergy * 1.0);
+    const sideSign = chosen.side === 'left' ? -1 : 1;
+    this.strikeRockVel += sideSign * (1.75 + this.typingEnergy * 1.25);
+    if (!activelyMousing) {
+      // Lively groove impulse: rocks head & upper body back and forth as the cat types!
+      this.typingSwayVel += (keyBias * 2.1 + Math.cos(this.typingGroovePhase) * 1.65) * (0.9 + this.typingEnergy * 0.45);
+    }
 
     const prevShoulder = this.getLiveShoulder(chosen, 0);
     if (chosen.mode === 'poke' && Math.hypot(targetPoint.x - chosen.pos.x, targetPoint.y - chosen.pos.y) > 22) {
@@ -506,12 +520,27 @@ export class KuroCatEngine {
     const targetHunch = isTypingRecently ? 0.45 + this.typingEnergy * 0.55 : 0;
     this.typingHunch += (targetHunch - this.typingHunch) * (1 - Math.exp(-10 * dt));
 
-    const rockAcc = -this.strikeRock * 150 - this.strikeRockVel * 16;
+    const rockAcc = -this.strikeRock * 140 - this.strikeRockVel * 14;
     this.strikeRockVel += rockAcc * dt;
     this.strikeRock = Math.max(-1, Math.min(1, this.strikeRock + this.strikeRockVel * dt));
 
-    this.bodyBob = Math.max(0, this.bodyBob - dt * 14);
+    this.bodyBob = Math.max(0, this.bodyBob - dt * 11.5);
     this.kbBounce = Math.max(0, this.kbBounce - dt * 15);
+
+    // Playful left-right body & head groove sway during pure typing (matches original video first half!)
+    const pureTypingActive = isTypingRecently && this.leftPaw.mode !== 'mouse';
+    if (pureTypingActive) {
+      this.typingGroovePhase += dt * (4.8 + this.typingEnergy * 5.2);
+    }
+    const grooveWave = Math.sin(this.typingGroovePhase) * (0.58 + this.typingEnergy * 0.44);
+    const targetTypingSway = pureTypingActive
+      ? Math.max(-1.1, Math.min(1.1, grooveWave * 0.72 + this.lastKeyBias * 0.55))
+      : this.leftPaw.mode === 'mouse' && isTypingRecently
+        ? Math.sin(this.typingGroovePhase) * 0.16
+        : 0;
+    const swayAcc = (targetTypingSway - this.typingSway) * 118 - this.typingSwayVel * 12.5;
+    this.typingSwayVel += swayAcc * dt;
+    this.typingSway = Math.max(-1.2, Math.min(1.2, this.typingSway + this.typingSwayVel * dt));
 
     // Measured spine-shear lean: shifts head & chest cleanly forward-left toward mouse while hips stay anchored!
     let targetLean = 0;
@@ -520,15 +549,14 @@ export class KuroCatEngine {
       targetLean = this.rightPaw.mode === 'poke'
         ? -0.52 + mouseSweepBias
         : -0.96 + mouseSweepBias;
-    } else if (this.rightPaw.mode === 'poke' && this.rightPaw.target.x > this.catCenterX + 65) {
-      targetLean = 0.22;
-    } else if (this.leftPaw.mode === 'poke' && this.leftPaw.target.x < this.catCenterX - 55) {
-      targetLean = -0.20;
     }
     this.spineLean += (targetLean - this.spineLean) * (1 - Math.exp(-10 * dt));
 
-    const desiredHeadTilt = this.typingHunch * (this.strikeRock * 0.065 - 0.04) + this.spineLean * 0.08;
-    this.headTilt += (desiredHeadTilt - this.headTilt) * (1 - Math.exp(-9 * dt));
+    const desiredHeadTilt =
+      this.typingSway * 0.18 +
+      this.typingHunch * (this.strikeRock * 0.065 - 0.02) +
+      this.spineLean * 0.085;
+    this.headTilt += (desiredHeadTilt - this.headTilt) * (1 - Math.exp(-12 * dt));
 
     this.petEnergy = Math.max(0, this.petEnergy - dt * (this.cursorOverCat ? 0.22 : 0.65));
     const wantSquint = this.petEnergy > 0.3 ? 1 : 0;
@@ -564,14 +592,16 @@ export class KuroCatEngine {
     }
     const mouseRecentlyMoved = now - this.lastMouseMoveAt < 2400;
     const pureTypingGlance = mouseRecentlyMoved ? 0 : this.typingHunch;
-    const targetEyeX = dx * 7.0 * (1 - pureTypingGlance * 0.3);
+    const targetEyeX =
+      dx * 7.0 * (1 - pureTypingGlance * 0.45) +
+      pureTypingGlance * (this.typingSway * 3.8 + this.lastKeyBias * 2.2);
     const targetEyeY = dy * 5.2 * (1 - pureTypingGlance * 0.45) + pureTypingGlance * 5.8;
     const eyeLerp = 1 - Math.exp(-20 * dt);
     this.eyeLookX += (targetEyeX - this.eyeLookX) * eyeLerp;
     this.eyeLookY += (targetEyeY - this.eyeLookY) * eyeLerp;
 
-    const targetFaceTurn = dx * 4.0 + this.spineLean * 8.0 + pureTypingGlance * 2.0;
-    this.faceTurnX += (targetFaceTurn - this.faceTurnX) * (1 - Math.exp(-10 * dt));
+    const targetFaceTurn = dx * 4.0 + this.spineLean * 8.0 + this.typingSway * 8.5 + pureTypingGlance * 1.5;
+    this.faceTurnX += (targetFaceTurn - this.faceTurnX) * (1 - Math.exp(-11 * dt));
 
     for (const anim of this.keyAnims.values()) {
       if (!anim.pressed && anim.pressAmount > 0) {
@@ -725,20 +755,46 @@ export class KuroCatEngine {
   private drawCatBody(ctx: CanvasRenderingContext2D, breath: number, purrShift: number): void {
     const catBlack = '#141314';
 
-    // Evaluate measured left & right silhouette points deformed by flexible cat spine!
+    // Evaluate measured left & right silhouette points deformed by flexible cat spine + unified head tilt!
     const leftPts: Vec2[] = [];
     const rightPts: Vec2[] = [];
     const bellySwell = 1 + this.typingHunch * 0.04;
+    const headCenter = this.spinePoint(0.24, breath);
+    const hcx = headCenter.x + purrShift;
+    const hcy = headCenter.y;
 
     for (const slice of BODY_SLICES) {
       const sp = this.spinePoint(slice.t, breath);
       const widen = slice.t > 0.45 ? bellySwell : 1;
       const hw = slice.hw * widen;
-      leftPts.push({ x: sp.x + purrShift - hw, y: sp.y });
-      rightPts.push({ x: sp.x + purrShift + hw, y: sp.y });
+
+      if (slice.t <= 0.38) {
+        const tiltW = slice.t <= 0.30 ? 1.0 : (0.42 - slice.t) / 0.12;
+        const ang = this.headTilt * tiltW;
+        const cosA = Math.cos(ang);
+        const sinA = Math.sin(ang);
+        const relY = sp.y - hcy;
+        const lx0 = sp.x + purrShift - hw - hcx;
+        const rx0 = sp.x + purrShift + hw - hcx;
+        leftPts.push({
+          x: hcx + lx0 * cosA - relY * sinA,
+          y: hcy + lx0 * sinA + relY * cosA,
+        });
+        rightPts.push({
+          x: hcx + rx0 * cosA - relY * sinA,
+          y: hcy + rx0 * sinA + relY * cosA,
+        });
+      } else {
+        leftPts.push({ x: sp.x + purrShift - hw, y: sp.y });
+        rightPts.push({ x: sp.x + purrShift + hw, y: sp.y });
+      }
     }
 
-    const crownPt = this.spinePoint(0.11, breath);
+    const crownRelY = this.spinePoint(0.11, breath).y - hcy;
+    const crownPt = {
+      x: hcx - crownRelY * Math.sin(this.headTilt),
+      y: hcy + crownRelY * Math.cos(this.headTilt),
+    };
     const basePt = this.spinePoint(1.0, breath);
 
     ctx.save();
@@ -761,9 +817,11 @@ export class KuroCatEngine {
 
     // 2) Draw exact smooth spline through measured silhouette slices (left top -> right top -> right down -> bottom -> left up)!
     ctx.beginPath();
-    // Smooth crown between ears
-    ctx.moveTo(leftPts[0].x + 14, leftPts[0].y - 6);
-    ctx.quadraticCurveTo(crownPt.x + purrShift, crownPt.y - 2, rightPts[0].x - 14, rightPts[0].y - 6);
+    // Smooth crown between ears (aligned with rotated head top!)
+    const crownCos = Math.cos(this.headTilt);
+    const crownSin = Math.sin(this.headTilt);
+    ctx.moveTo(leftPts[0].x + 14 * crownCos + 6 * crownSin, leftPts[0].y + 14 * crownSin - 6 * crownCos);
+    ctx.quadraticCurveTo(crownPt.x, crownPt.y - 2, rightPts[0].x - 14 * crownCos + 6 * crownSin, rightPts[0].y - 14 * crownSin - 6 * crownCos);
 
     // Right side smoothly through measured control slices
     ctx.lineTo(rightPts[0].x, rightPts[0].y);
@@ -794,9 +852,8 @@ export class KuroCatEngine {
     ctx.fill();
 
     // 3) Compact plush rounded cat ears matching ORIG 0.3s exact height (shorter & cuter, no tall rabbit ears!)
-    const headCenter = this.spinePoint(0.24, breath);
     ctx.save();
-    ctx.translate(headCenter.x + purrShift, headCenter.y);
+    ctx.translate(hcx, hcy);
     ctx.rotate(this.headTilt);
 
     const lTwitch = Math.sin(this.earTwitchLeft * Math.PI) * 0.12;
