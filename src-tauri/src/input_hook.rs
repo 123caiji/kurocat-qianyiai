@@ -50,13 +50,13 @@ pub fn start_global_hooks(app: AppHandle) {
 
     // Dispatcher thread: deduplicates held key repeats & throttles mouse moves to ~60Hz
     std::thread::spawn(move || {
-        let mut pressed = [false; 256];
+        let mut pressed = [false; 512];
         let mut last_mouse_emit = Instant::now() - Duration::from_secs(1);
 
         while let Ok(msg) = rx.recv() {
             match msg {
                 RawHookMsg::KeyDown { vk, scan } => {
-                    let repeat = if (vk as usize) < 256 {
+                    let repeat = if (vk as usize) < 512 {
                         let was = pressed[vk as usize];
                         pressed[vk as usize] = true;
                         was
@@ -66,7 +66,7 @@ pub fn start_global_hooks(app: AppHandle) {
                     let _ = app.emit("kuro-input", InputEvent::KeyDown { vk, scan, repeat });
                 }
                 RawHookMsg::KeyUp { vk, scan } => {
-                    if (vk as usize) < 256 {
+                    if (vk as usize) < 512 {
                         pressed[vk as usize] = false;
                     }
                     let _ = app.emit("kuro-input", InputEvent::KeyUp { vk, scan });
@@ -152,17 +152,23 @@ unsafe extern "system" fn keyboard_hook_proc(code: i32, wparam: usize, lparam: i
     if code >= 0 {
         let kb = &*(lparam as *const KBDLLHOOKSTRUCT);
         let msg = wparam as u32;
+        // Distinguish Numpad Enter (VK_RETURN with LLKHF_EXTENDED=0x01) from main Enter for 108-key layouts
+        let mapped_vk = if kb.vkCode == 0x0d && (kb.flags & 0x01) != 0 {
+            0x10d
+        } else {
+            kb.vkCode
+        };
         if let Some(tx) = HOOK_TX.get() {
             match msg {
                 WM_KEYDOWN | WM_SYSKEYDOWN => {
                     let _ = tx.send(RawHookMsg::KeyDown {
-                        vk: kb.vkCode,
+                        vk: mapped_vk,
                         scan: kb.scanCode,
                     });
                 }
                 WM_KEYUP | WM_SYSKEYUP => {
                     let _ = tx.send(RawHookMsg::KeyUp {
-                        vk: kb.vkCode,
+                        vk: mapped_vk,
                         scan: kb.scanCode,
                     });
                 }
@@ -471,10 +477,28 @@ pub mod macos_hook {
             0x35 => 0x1B, // Esc
             0x30 => 0x09, // Tab
             0x31 => 0x20, // Space
-            0x24 | 0x4C => 0x0D, // Return / Numpad Enter
+            0x24 => 0x0D, // Return
+            0x4C => 0x10D, // Numpad Enter
             0x33 => 0x08, // Backspace (Delete)
             0x75 => 0x2E, // Forward Delete
             0x39 => 0x14, // CapsLock
+            // Numpad
+            0x47 => 0x90, // Clear / NumLock
+            0x4B => 0x6F, // Numpad /
+            0x43 => 0x6A, // Numpad *
+            0x4E => 0x6D, // Numpad -
+            0x45 => 0x6B, // Numpad +
+            0x41 => 0x6E, // Numpad .
+            0x52 => 0x60, // Numpad 0
+            0x53 => 0x61, // Numpad 1
+            0x54 => 0x62, // Numpad 2
+            0x55 => 0x63, // Numpad 3
+            0x56 => 0x64, // Numpad 4
+            0x57 => 0x65, // Numpad 5
+            0x58 => 0x66, // Numpad 6
+            0x59 => 0x67, // Numpad 7
+            0x5B => 0x68, // Numpad 8
+            0x5C => 0x69, // Numpad 9
             // Modifiers
             0x38 => 0xA0, // LShift
             0x3C => 0xA1, // RShift

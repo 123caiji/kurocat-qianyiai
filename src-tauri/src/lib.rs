@@ -8,7 +8,10 @@ mod tray;
 mod updater;
 
 use cats::{all_cats, cat_exists, cats_path, sanitize_cat_id, CatSkinConfig};
-use config::{config_path, load_settings, save_settings, set_windows_autostart, AppSettings};
+use config::{
+    config_path, load_settings, normalize_keyboard_layout, normalize_keyboard_orientation,
+    save_settings, set_windows_autostart, AppSettings,
+};
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -17,6 +20,16 @@ use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Size, St
 
 pub const BASE_WIDTH: f64 = 420.0;
 pub const BASE_HEIGHT: f64 = 440.0;
+pub const BASE_WIDTH_108: f64 = 540.0;
+pub const BASE_HEIGHT_108: f64 = 456.0;
+
+pub fn base_dimensions(layout: &str) -> (f64, f64) {
+    if layout == "108" {
+        (BASE_WIDTH_108, BASE_HEIGHT_108)
+    } else {
+        (BASE_WIDTH, BASE_HEIGHT)
+    }
+}
 
 pub fn run_mcp_stdio() {
     mcp::run_stdio_mcp();
@@ -79,6 +92,8 @@ fn update_settings(app: AppHandle, state: State<'_, AppState>, mut patch: AppSet
     if patch.mcp_port == 0 {
         patch.mcp_port = 27420;
     }
+    patch.keyboard_layout = normalize_keyboard_layout(&patch.keyboard_layout);
+    patch.keyboard_orientation = normalize_keyboard_orientation(&patch.keyboard_orientation);
 
     let prev_autostart = state.settings.lock().unwrap().autostart;
     if patch.autostart != prev_autostart {
@@ -89,8 +104,9 @@ fn update_settings(app: AppHandle, state: State<'_, AppState>, mut patch: AppSet
 
     if let Some(win) = app.get_webview_window("main") {
         let _ = win.set_always_on_top(patch.always_on_top);
-        let w = (BASE_WIDTH * patch.scale).round();
-        let h = (BASE_HEIGHT * patch.scale).round();
+        let (bw, bh) = base_dimensions(&patch.keyboard_layout);
+        let w = (bw * patch.scale).round();
+        let h = (bh * patch.scale).round();
         let _ = win.set_size(Size::Logical(LogicalSize::new(w, h)));
     }
 
@@ -191,9 +207,10 @@ pub fn reload_and_emit_all(app: &AppHandle) {
     let cats = all_cats();
     let state = app.state::<AppState>();
 
-    let (scale_changed, top_changed) = {
+    let (size_changed, top_changed) = {
         let mut s = state.settings.lock().unwrap();
-        let sc = (s.scale - disk_settings.scale).abs() > 0.01;
+        let sc = (s.scale - disk_settings.scale).abs() > 0.01
+            || s.keyboard_layout != disk_settings.keyboard_layout;
         let tc = s.always_on_top != disk_settings.always_on_top;
         *s = disk_settings.clone();
         (sc, tc)
@@ -206,10 +223,11 @@ pub fn reload_and_emit_all(app: &AppHandle) {
         if top_changed {
             let _ = win.set_always_on_top(disk_settings.always_on_top);
         }
-        if scale_changed {
+        if size_changed {
+            let (bw, bh) = base_dimensions(&disk_settings.keyboard_layout);
             let _ = win.set_size(Size::Logical(LogicalSize::new(
-                (BASE_WIDTH * disk_settings.scale).round(),
-                (BASE_HEIGHT * disk_settings.scale).round(),
+                (bw * disk_settings.scale).round(),
+                (bh * disk_settings.scale).round(),
             )));
         }
     }
@@ -252,11 +270,43 @@ pub fn apply_scale_and_save(app: &AppHandle, scale: f64) {
         s.clone()
     };
     if let Some(win) = app.get_webview_window("main") {
+        let (bw, bh) = base_dimensions(&updated.keyboard_layout);
         let _ = win.set_size(Size::Logical(LogicalSize::new(
-            (BASE_WIDTH * clamped).round(),
-            (BASE_HEIGHT * clamped).round(),
+            (bw * clamped).round(),
+            (bh * clamped).round(),
         )));
     }
+    let _ = app.emit("kuro-settings", updated);
+}
+
+pub fn apply_keyboard_layout_and_save(app: &AppHandle, layout: &str) {
+    let normalized = normalize_keyboard_layout(layout);
+    let state = app.state::<AppState>();
+    let updated = {
+        let mut s = state.settings.lock().unwrap();
+        s.keyboard_layout = normalized;
+        save_settings(&s);
+        s.clone()
+    };
+    if let Some(win) = app.get_webview_window("main") {
+        let (bw, bh) = base_dimensions(&updated.keyboard_layout);
+        let _ = win.set_size(Size::Logical(LogicalSize::new(
+            (bw * updated.scale).round(),
+            (bh * updated.scale).round(),
+        )));
+    }
+    let _ = app.emit("kuro-settings", updated);
+}
+
+pub fn apply_keyboard_orientation_and_save(app: &AppHandle, orientation: &str) {
+    let normalized = normalize_keyboard_orientation(orientation);
+    let state = app.state::<AppState>();
+    let updated = {
+        let mut s = state.settings.lock().unwrap();
+        s.keyboard_orientation = normalized;
+        save_settings(&s);
+        s.clone()
+    };
     let _ = app.emit("kuro-settings", updated);
 }
 
@@ -328,14 +378,19 @@ fn get_cursor_pos(_scale_factor: f64) -> Option<(i32, i32)> {
     None
 }
 
-fn is_over_interactive_silhouette(rx: f64, ry: f64) -> (bool, bool) {
-    // Cat body/head oval centered around (0.48, 0.49)
-    let dx_cat = (rx - 0.48) / 0.25;
+fn is_over_interactive_silhouette(rx: f64, ry: f64, is_108: bool) -> (bool, bool) {
+    // Cat body/head oval centered around (0.48, 0.49) for 65% or (0.51, 0.48) for 108-key
+    let (cat_cx, cat_rx) = if is_108 { (0.51, 0.21) } else { (0.48, 0.25) };
+    let dx_cat = (rx - cat_cx) / cat_rx;
     let dy_cat = (ry - 0.49) / 0.27;
     let over_cat = (dx_cat * dx_cat + dy_cat * dy_cat) <= 1.0;
 
     // Keyboard & mouse lower area
-    let over_desk = rx >= 0.06 && rx <= 0.92 && ry >= 0.65 && ry <= 0.91;
+    let over_desk = if is_108 {
+        rx >= 0.04 && rx <= 0.94 && ry >= 0.65 && ry <= 0.94
+    } else {
+        rx >= 0.06 && rx <= 0.92 && ry >= 0.65 && ry <= 0.91
+    };
 
     (over_cat || over_desk, over_cat)
 }
@@ -375,13 +430,16 @@ fn start_hit_test_loop(
             let rx = (cx - pos.x) as f64 / w;
             let ry = (cy - pos.y) as f64 / h;
             let inside = rx >= 0.0 && rx <= 1.0 && ry >= 0.0 && ry <= 1.0;
+            let (locked, is_108) = {
+                let s = settings.lock().unwrap();
+                (s.click_through_locked, s.keyboard_layout == "108")
+            };
             let (over_interactive, over_cat) = if inside {
-                is_over_interactive_silhouette(rx, ry)
+                is_over_interactive_silhouette(rx, ry, is_108)
             } else {
                 (false, false)
             };
 
-            let locked = settings.lock().unwrap().click_through_locked;
             let is_menu = menu_open.load(Ordering::Relaxed);
             let is_drag = dragging.load(Ordering::Relaxed);
             let is_banner = update_banner_open.load(Ordering::Relaxed);
@@ -454,9 +512,10 @@ pub fn run() {
                 {
                     let _ = win.set_visible_on_all_workspaces(true);
                 }
+                let (bw, bh) = base_dimensions(&s.keyboard_layout);
                 let _ = win.set_size(Size::Logical(LogicalSize::new(
-                    (BASE_WIDTH * s.scale).round(),
-                    (BASE_HEIGHT * s.scale).round(),
+                    (bw * s.scale).round(),
+                    (bh * s.scale).round(),
                 )));
                 if let (Some(x), Some(y)) = (s.x, s.y) {
                     let _ = win.set_position(PhysicalPosition::new(x, y));

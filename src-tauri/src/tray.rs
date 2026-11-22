@@ -1,5 +1,8 @@
 use crate::config::AppSettings;
-use crate::{apply_breed_and_save, apply_scale_and_save, reset_window_position, AppState};
+use crate::{
+    apply_breed_and_save, apply_keyboard_layout_and_save, apply_keyboard_orientation_and_save,
+    apply_scale_and_save, reset_window_position, AppState,
+};
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -87,6 +90,18 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
         &[&scale_75, &scale_100, &scale_125, &scale_150],
     )?;
 
+    let kb_65 = MenuItem::with_id(app, "kb_65", "65% 紧凑键盘", true, None::<&str>)?;
+    let kb_108 = MenuItem::with_id(app, "kb_108", "108 键全尺寸（含小键盘）", true, None::<&str>)?;
+    let kb_sep = PredefinedMenuItem::separator(app)?;
+    let kb_cat = MenuItem::with_id(app, "kb_cat", "面向猫咪（180° 真实视角）", true, None::<&str>)?;
+    let kb_viewer = MenuItem::with_id(app, "kb_viewer", "面向观众（正向字母易读）", true, None::<&str>)?;
+    let kb_menu = Submenu::with_items(
+        app,
+        "键盘配列与方向",
+        true,
+        &[&kb_65, &kb_108, &kb_sep, &kb_cat, &kb_viewer],
+    )?;
+
     let reset_pos = MenuItem::with_id(app, "reset_pos", "重置位置到右下角", true, None::<&str>)?;
     #[cfg(windows)]
     let desktop_shortcut =
@@ -114,6 +129,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
             &sound_toggle,
             &always_on_top,
             &breed_menu,
+            &kb_menu,
             &scale_menu,
             &desktop_shortcut,
             &reset_pos,
@@ -136,6 +152,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
             &sound_toggle,
             &always_on_top,
             &breed_menu,
+            &kb_menu,
             &scale_menu,
             &reset_pos,
             &autostart,
@@ -248,6 +265,10 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                 "scale_100" => apply_scale_and_save(app, 1.0),
                 "scale_125" => apply_scale_and_save(app, 1.25),
                 "scale_150" => apply_scale_and_save(app, 1.5),
+                "kb_65" => apply_keyboard_layout_and_save(app, "65"),
+                "kb_108" => apply_keyboard_layout_and_save(app, "108"),
+                "kb_cat" => apply_keyboard_orientation_and_save(app, "cat"),
+                "kb_viewer" => apply_keyboard_orientation_and_save(app, "viewer"),
                 "desktop_shortcut" => {
                     let _ = crate::config::create_desktop_shortcut();
                 }

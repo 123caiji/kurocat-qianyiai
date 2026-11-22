@@ -94,12 +94,19 @@ fn detect_install_kind() -> &'static str {
 }
 
 fn select_asset<'a>(assets: &'a [GhAsset], install_kind: &str) -> Option<&'a GhAsset> {
+    let want_108 = cfg!(feature = "layout-108");
     match install_kind {
         "windows-nsis" => assets
             .iter()
             .find(|a| {
                 let n = a.name.to_ascii_lowercase();
-                n.ends_with("-setup.exe") && n.contains("x64")
+                n.ends_with("-setup.exe") && n.contains("x64") && (n.contains("108key") == want_108)
+            })
+            .or_else(|| {
+                assets.iter().find(|a| {
+                    let n = a.name.to_ascii_lowercase();
+                    n.ends_with("-setup.exe") && n.contains("x64")
+                })
             })
             .or_else(|| {
                 assets
@@ -108,7 +115,15 @@ fn select_asset<'a>(assets: &'a [GhAsset], install_kind: &str) -> Option<&'a GhA
             }),
         "windows-portable" => assets
             .iter()
-            .find(|a| a.name.to_ascii_lowercase().ends_with("-windows-x64.exe"))
+            .find(|a| {
+                let n = a.name.to_ascii_lowercase();
+                n.ends_with("-windows-x64.exe") && (n.contains("108key") == want_108)
+            })
+            .or_else(|| {
+                assets
+                    .iter()
+                    .find(|a| a.name.to_ascii_lowercase().ends_with("-windows-x64.exe"))
+            })
             .or_else(|| {
                 assets
                     .iter()

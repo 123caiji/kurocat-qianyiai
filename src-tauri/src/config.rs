@@ -14,6 +14,34 @@ fn default_mcp_port() -> u16 {
     27420
 }
 
+pub fn default_keyboard_layout() -> String {
+    if cfg!(feature = "layout-108") {
+        "108".to_string()
+    } else {
+        "65".to_string()
+    }
+}
+
+pub fn normalize_keyboard_layout(raw: &str) -> String {
+    if raw.trim() == "108" {
+        "108".to_string()
+    } else {
+        "65".to_string()
+    }
+}
+
+pub fn default_keyboard_orientation() -> String {
+    "cat".to_string()
+}
+
+pub fn normalize_keyboard_orientation(raw: &str) -> String {
+    if raw.trim() == "viewer" {
+        "viewer".to_string()
+    } else {
+        "cat".to_string()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
@@ -31,6 +59,10 @@ pub struct AppSettings {
     pub mcp_enabled: bool,
     #[serde(default = "default_mcp_port")]
     pub mcp_port: u16,
+    #[serde(default = "default_keyboard_layout")]
+    pub keyboard_layout: String,
+    #[serde(default = "default_keyboard_orientation")]
+    pub keyboard_orientation: String,
 }
 
 impl Default for AppSettings {
@@ -47,6 +79,8 @@ impl Default for AppSettings {
             cat_breed: default_cat_breed(),
             mcp_enabled: default_mcp_enabled(),
             mcp_port: default_mcp_port(),
+            keyboard_layout: default_keyboard_layout(),
+            keyboard_orientation: default_keyboard_orientation(),
         }
     }
 }

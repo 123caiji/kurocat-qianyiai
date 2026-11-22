@@ -2,9 +2,10 @@ import './style.css';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { KuroCatEngine } from './catEngine';
+import { KuroCatEngine, type KeyboardOrientation } from './catEngine';
 import { catAudio } from './audio';
 import { DEFAULT_BUILTIN_CATS, type CatSkinConfig } from './catSkins';
+import type { KeyboardLayoutId } from './keyboardLayout';
 
 interface AppSettings {
   x: number | null;
@@ -18,6 +19,8 @@ interface AppSettings {
   catBreed: string;
   mcpEnabled: boolean;
   mcpPort: number;
+  keyboardLayout: KeyboardLayoutId;
+  keyboardOrientation: KeyboardOrientation;
 }
 
 type InputEvent =
@@ -54,7 +57,7 @@ interface UpdateProgressEvent {
   info: UpdateInfo | null;
 }
 
-let appVersion = '4.4.0';
+let appVersion = '4.5.0';
 let latestUpdateInfo: UpdateInfo | null = null;
 let updateBusy = false;
 let dismissedVersion: string | null = null;
@@ -72,6 +75,8 @@ let settings: AppSettings = {
   catBreed: 'black',
   mcpEnabled: true,
   mcpPort: 27420,
+  keyboardLayout: '65',
+  keyboardOrientation: 'cat',
 };
 
 let catList: CatSkinConfig[] = [...DEFAULT_BUILTIN_CATS];
@@ -119,6 +124,15 @@ function syncMenuUI(): void {
     btn.classList.toggle('active', Math.abs(v - settings.scale) < 0.05);
   });
 
+  const kbLayout: KeyboardLayoutId = settings.keyboardLayout === '108' ? '108' : '65';
+  const kbOrient: KeyboardOrientation = settings.keyboardOrientation === 'viewer' ? 'viewer' : 'cat';
+  document.querySelectorAll<HTMLButtonElement>('[data-kblayout]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.kblayout === kbLayout);
+  });
+  document.querySelectorAll<HTMLButtonElement>('[data-kborient]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.kborient === kbOrient);
+  });
+
   const activeCat = catList.find((c) => c.id === settings.catBreed) ?? catList[0];
   renderBreedPills();
 
@@ -131,6 +145,7 @@ function syncMenuUI(): void {
 
   engine.showKeyBubbles = settings.showKeyBubbles;
   engine.setCatAppearance(activeCat?.id || 'black', activeCat);
+  engine.setKeyboardConfig(kbLayout, kbOrient);
   catAudio.setEnabled(settings.soundEnabled);
 }
 
@@ -464,8 +479,24 @@ async function bootstrap(): Promise<void> {
   });
 
   menuEl.addEventListener('click', (e) => {
-    const target = (e.target as HTMLElement).closest<HTMLElement>('[data-action], [data-scale], [data-breed]');
+    const target = (e.target as HTMLElement).closest<HTMLElement>(
+      '[data-action], [data-scale], [data-breed], [data-kblayout], [data-kborient]',
+    );
     if (!target) return;
+
+    const kbLayoutAttr = target.dataset.kblayout;
+    if (kbLayoutAttr === '65' || kbLayoutAttr === '108') {
+      void applySettingsPatch({ keyboardLayout: kbLayoutAttr });
+      closeContextMenu();
+      return;
+    }
+
+    const kbOrientAttr = target.dataset.kborient;
+    if (kbOrientAttr === 'cat' || kbOrientAttr === 'viewer') {
+      void applySettingsPatch({ keyboardOrientation: kbOrientAttr });
+      closeContextMenu();
+      return;
+    }
 
     const breedAttr = target.dataset.breed;
     if (breedAttr) {

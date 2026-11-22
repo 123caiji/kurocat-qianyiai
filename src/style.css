@@ -176,6 +176,35 @@ body {
   gap: 4px;
 }
 
+.kb-pills {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
+}
+
+.kb-pill {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e5e7eb;
+  border-radius: 6px;
+  padding: 4.5px 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.kb-pill:hover {
+  background: rgba(200, 245, 56, 0.18);
+  border-color: rgba(200, 245, 56, 0.45);
+}
+
+.kb-pill.active {
+  background: #c8f538;
+  color: #111214;
+  border-color: #c8f538;
+  font-weight: 700;
+}
+
 .scale-pill {
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.05);

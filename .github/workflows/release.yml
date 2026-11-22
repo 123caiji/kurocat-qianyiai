@@ -33,10 +33,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Tauri app (Windows x64)
+      - name: Build Tauri app (Windows x64 - Standard 65% default)
         run: npm run tauri -- build --bundles msi,nsis
 
-      - name: Rename Windows release assets (ensure setup.exe sorts #1 on GitHub Releases)
+      - name: Rename Standard Windows release assets (setup.exe sorts #1 on GitHub Releases)
         shell: pwsh
         run: |
           $tag = if ($env:GITHUB_REF_NAME -match '^v') { $env:GITHUB_REF_NAME } else { 'latest' }
@@ -47,12 +47,25 @@ jobs:
             Copy-Item $nsis.FullName "KuroCat-$ver-x64-setup.exe"
           }
 
+      - name: Build Tauri app (Windows x64 - 108-Key Full-Size default)
+        run: npm run tauri -- build --bundles nsis --features layout-108
+
+      - name: Rename 108-Key Windows installer (sorts #2 right below Standard setup.exe)
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_REF_NAME -match '^v') { $env:GITHUB_REF_NAME } else { 'latest' }
+          $nsis = Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1
+          if ($nsis) {
+            Copy-Item $nsis.FullName "KuroCat-$tag-108key-x64-setup.exe"
+          }
+
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
           name: kurocat-windows-x64
           path: |
             KuroCat-*-x64-setup.exe
+            KuroCat-*-108key-x64-setup.exe
             KuroCat-*-windows-x64.exe
             src-tauri/target/release/bundle/msi/*.msi
 
@@ -62,6 +75,7 @@ jobs:
         with:
           files: |
             KuroCat-*-x64-setup.exe
+            KuroCat-*-108key-x64-setup.exe
             KuroCat-*-windows-x64.exe
             src-tauri/target/release/bundle/msi/*.msi
 
