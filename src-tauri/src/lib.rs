@@ -15,7 +15,7 @@ use config::{
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Size, State};
 
 pub const BASE_WIDTH: f64 = 420.0;
@@ -470,6 +470,34 @@ fn win_force_click_through(win: &tauri::WebviewWindow, ignore: bool) {
     }
 }
 
+#[cfg(windows)]
+fn win_foreground_hwnd() -> isize {
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+    unsafe { GetForegroundWindow() as isize }
+}
+
+#[cfg(windows)]
+fn win_gentle_reassert_topmost(win: &tauri::WebviewWindow) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE,
+    };
+    let Ok(raw_hwnd) = win.hwnd() else {
+        return;
+    };
+    let hwnd = raw_hwnd.0 as windows_sys::Win32::Foundation::HWND;
+    unsafe {
+        let _ = SetWindowPos(
+            hwnd,
+            HWND_TOPMOST,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
+        );
+    }
+}
+
 #[cfg(target_os = "macos")]
 pub fn configure_macos_fullscreen_overlay(win: &tauri::WebviewWindow, always_on_top: bool) {
     use std::ffi::{c_char, c_void};
@@ -538,6 +566,12 @@ fn start_hit_test_loop(
         let mut last_effective_locked = false;
         #[cfg(windows)]
         let mut drift_ticks: u8 = 0;
+        #[cfg(windows)]
+        let mut last_fg_hwnd: isize = 0;
+        #[cfg(windows)]
+        let mut pending_topmost_ticks: u8 = 0;
+        #[cfg(windows)]
+        let mut last_topmost_reassert = Instant::now() - Duration::from_secs(2);
 
         loop {
             std::thread::sleep(Duration::from_millis(25));
@@ -566,15 +600,39 @@ fn start_hit_test_loop(
             let rx = (cx - pos.x) as f64 / w;
             let ry = (cy - pos.y) as f64 / h;
             let inside = rx >= 0.0 && rx <= 1.0 && ry >= 0.0 && ry <= 1.0;
-            let (locked, is_108, cur_scale, layout_str) = {
+            let (locked, always_on_top, is_108, cur_scale, layout_str) = {
                 let s = settings.lock().unwrap();
                 (
                     s.click_through_locked,
+                    s.always_on_top,
                     s.keyboard_layout == "108",
                     s.scale.clamp(0.20, 1.50),
                     s.keyboard_layout.clone(),
                 )
             };
+
+            // Gentle once-per-foreground-switch topmost guard for borderless fullscreen games:
+            // never spams SetWindowPos in a loop and never steals focus (SWP_NOACTIVATE).
+            #[cfg(windows)]
+            if always_on_top {
+                let fg = win_foreground_hwnd();
+                let our_hwnd = win.hwnd().map(|h| h.0 as isize).unwrap_or(0);
+                if fg != 0 && fg != our_hwnd && fg != last_fg_hwnd {
+                    last_fg_hwnd = fg;
+                    pending_topmost_ticks = 5; // ~125ms after target borderless window takes focus
+                }
+                if pending_topmost_ticks > 0 {
+                    pending_topmost_ticks -= 1;
+                    if pending_topmost_ticks == 0
+                        && last_topmost_reassert.elapsed() >= Duration::from_millis(350)
+                    {
+                        win_gentle_reassert_topmost(&win);
+                        last_topmost_reassert = Instant::now();
+                    }
+                }
+            } else {
+                pending_topmost_ticks = 0;
+            }
             let alt_override = input_hook::is_alt_pressed();
             let effective_locked = locked && !alt_override;
 
