@@ -49,7 +49,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
     )?;
 
     let breed_black = MenuItem::with_id(app, "breed_black", "经典小黑猫", true, None::<&str>)?;
-    let breed_ragdoll = MenuItem::with_id(app, "breed_ragdoll", "蓝双布偶猫", true, None::<&str>)?;
+    let breed_ragdoll = MenuItem::with_id(app, "breed_ragdoll", "布偶猫（定制花色）", true, None::<&str>)?;
     let breed_menu = Submenu::with_items(
         app,
         "猫咪外观",

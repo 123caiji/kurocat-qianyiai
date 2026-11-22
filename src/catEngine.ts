@@ -774,12 +774,12 @@ export class KuroCatEngine {
     ctx.lineJoin = 'round';
 
     if (this.catBreed === 'ragdoll') {
-      // Plush feathery blue-grey Ragdoll plume tail with soft refined slate outline & airy sheen!
-      ctx.shadowColor = 'rgba(34, 40, 54, 0.20)';
+      // Plush bushy warm cocoa-taupe Ragdoll plume tail matching the real cat photo!
+      ctx.shadowColor = 'rgba(48, 38, 30, 0.22)';
       ctx.shadowBlur = 4;
       ctx.shadowOffsetY = 1.5;
-      ctx.strokeStyle = '#4c5262';
-      ctx.lineWidth = 23.0;
+      ctx.strokeStyle = '#4e4239';
+      ctx.lineWidth = 23.5;
       ctx.beginPath();
       ctx.moveTo(startX, startY);
       ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, endY);
@@ -788,25 +788,25 @@ export class KuroCatEngine {
       ctx.shadowBlur = 0;
       ctx.shadowOffsetY = 0;
       const tailGrad = ctx.createLinearGradient(startX, startY, endX, endY);
-      tailGrad.addColorStop(0.0, '#8d95a6');
-      tailGrad.addColorStop(0.5, '#6e778a');
-      tailGrad.addColorStop(1.0, '#555d70');
+      tailGrad.addColorStop(0.0, '#8d7e6f');
+      tailGrad.addColorStop(0.5, '#726356');
+      tailGrad.addColorStop(1.0, '#584b40');
       ctx.strokeStyle = tailGrad;
-      ctx.lineWidth = 19.8;
+      ctx.lineWidth = 20.2;
       ctx.beginPath();
       ctx.moveTo(startX, startY);
       ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, endY);
       ctx.stroke();
 
-      // Fluffy tip plume puff
-      ctx.fillStyle = '#555d70';
+      // Bushy warm cocoa-taupe plume tip puff
+      ctx.fillStyle = '#584b40';
       ctx.beginPath();
-      ctx.ellipse(endX + 1, endY, 11.5, 10.2, -0.15, 0, Math.PI * 2);
+      ctx.ellipse(endX + 1, endY, 12.2, 10.6, -0.15, 0, Math.PI * 2);
       ctx.fill();
 
-      // Soft airy fluff highlight along upper curve
-      ctx.strokeStyle = 'rgba(240, 244, 252, 0.30)';
-      ctx.lineWidth = 5.2;
+      // Soft warm creamy sheen along upper fluff curve
+      ctx.strokeStyle = 'rgba(246, 240, 232, 0.26)';
+      ctx.lineWidth = 5.0;
       ctx.beginPath();
       ctx.moveTo(startX + 4, startY - 4);
       ctx.bezierCurveTo(cp1X - 2, cp1Y - 4, cp2X - 3, cp2Y - 4, endX - 3, endY - 4);
@@ -828,7 +828,7 @@ export class KuroCatEngine {
   private drawCatBody(ctx: CanvasRenderingContext2D, breath: number, purrShift: number): void {
     const isRagdoll = this.catBreed === 'ragdoll';
     const catBlack = '#141314';
-    const inkOutline = '#4c5262';
+    const inkOutline = '#5d5148';
 
     // Evaluate measured left & right silhouette points deformed by flexible cat spine + unified head tilt!
     const leftPts: Vec2[] = [];
@@ -940,94 +940,104 @@ export class KuroCatEngine {
 
     traceBodyPath();
     if (isRagdoll) {
-      const furGrad = ctx.createRadialGradient(hcx, hcy + 65, 18, basePt.x, basePt.y - 60, 145);
-      furGrad.addColorStop(0.0, '#fdfcf9');
-      furGrad.addColorStop(0.68, '#f6f3ed');
-      furGrad.addColorStop(1.0, '#ebe7df');
+      // Warm creamy ivory base coat matching the real fluffy Ragdoll photo!
+      const furGrad = ctx.createRadialGradient(hcx, hcy + 68, 18, basePt.x, basePt.y - 60, 148);
+      furGrad.addColorStop(0.0, '#fbf9f3');
+      furGrad.addColorStop(0.68, '#f4f0e6');
+      furGrad.addColorStop(1.0, '#e8e2d6');
       ctx.fillStyle = furGrad;
       ctx.fill();
 
-      // Paint classic Blue Bicolor Ragdoll markings clipped cleanly inside the body silhouette!
+      // Paint custom warm milk-tea taupe Ragdoll markings clipped cleanly inside the body silhouette!
       ctx.save();
       ctx.shadowBlur = 0;
       ctx.shadowOffsetY = 0;
       ctx.clip();
 
-      // 2a) Soft muted blue-grey Ragdoll back/shoulder saddle (leaving front chest ruff & tummy snow-white!)
-      const midTorso = this.spinePoint(0.66, breath);
+      // 2a) Plush warm taupe-brown lower flanks / hips wrapping around both outer thighs (matches photo!)
+      const midTorso = this.spinePoint(0.72, breath);
       for (const sgn of [-1, 1]) {
-        const saddleGrad = ctx.createRadialGradient(
-          midTorso.x + purrShift + sgn * 72,
-          midTorso.y - 4,
-          10,
-          midTorso.x + purrShift + sgn * 56,
-          midTorso.y + 4,
-          64,
+        const flankGrad = ctx.createRadialGradient(
+          midTorso.x + purrShift + sgn * 70,
+          midTorso.y + 8,
+          14,
+          midTorso.x + purrShift + sgn * 50,
+          midTorso.y + 10,
+          72,
         );
-        saddleGrad.addColorStop(0.0, 'rgba(116, 124, 140, 0.52)');
-        saddleGrad.addColorStop(0.55, 'rgba(136, 144, 160, 0.24)');
-        saddleGrad.addColorStop(1.0, 'rgba(150, 158, 172, 0.0)');
-        ctx.fillStyle = saddleGrad;
+        flankGrad.addColorStop(0.0, 'rgba(130, 115, 100, 0.78)');
+        flankGrad.addColorStop(0.50, 'rgba(156, 141, 126, 0.45)');
+        flankGrad.addColorStop(0.82, 'rgba(178, 165, 150, 0.14)');
+        flankGrad.addColorStop(1.0, 'rgba(190, 178, 164, 0.0)');
+        ctx.fillStyle = flankGrad;
         ctx.beginPath();
-        ctx.ellipse(midTorso.x + purrShift + sgn * 64, midTorso.y + 2, 46, 72, sgn * -0.15, 0, Math.PI * 2);
+        ctx.ellipse(midTorso.x + purrShift + sgn * 60, midTorso.y + 8, 52, 84, sgn * -0.14, 0, Math.PI * 2);
         ctx.fill();
       }
 
-      // 2b) Soft fluffy white Ragdoll chest ruff subtle contour arc under the chin
-      const neckSp = this.spinePoint(0.45, breath);
-      ctx.strokeStyle = 'rgba(182, 186, 196, 0.34)';
-      ctx.lineWidth = 2.0;
+      // 2b) Subtle fluffy creamy-white chest lion-mane fur tufts under chin
+      const neckSp = this.spinePoint(0.47, breath);
+      ctx.strokeStyle = 'rgba(182, 170, 156, 0.36)';
+      ctx.lineWidth = 1.8;
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.arc(neckSp.x + purrShift, neckSp.y - 4, 34, 0.24 * Math.PI, 0.76 * Math.PI);
+      ctx.arc(neckSp.x + purrShift, neckSp.y - 2, 34, 0.22 * Math.PI, 0.78 * Math.PI);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(neckSp.x + purrShift - 16, neckSp.y + 18, 14, 0.18 * Math.PI, 0.72 * Math.PI);
+      ctx.arc(neckSp.x + purrShift + 16, neckSp.y + 18, 14, 0.28 * Math.PI, 0.82 * Math.PI);
       ctx.stroke();
 
-      // 2c) Iconic Blue-Bicolor Ragdoll "Inverted-V" (正八字开脸) face mask rotating seamlessly with head!
+      // 2c) Custom warm milk-tea taupe crown cap & wide fluffy creamy-white blaze (1:1 match to user's real Ragdoll photos!)
       ctx.save();
       ctx.translate(hcx, hcy);
       ctx.rotate(this.headTilt);
 
       const maskShift = this.faceTurnX * 0.72;
-      const maskGrad = ctx.createLinearGradient(0, -38, 0, 24);
-      maskGrad.addColorStop(0.0, '#5c6476');
-      maskGrad.addColorStop(0.48, '#737c90');
-      maskGrad.addColorStop(0.86, '#8c95a8');
-      maskGrad.addColorStop(1.0, 'rgba(154, 162, 178, 0.25)');
+      // Rich warm latte-taupe head mask covering crown, ears base, temples & outer cheeks
+      const capGrad = ctx.createLinearGradient(0, -40, 0, 22);
+      capGrad.addColorStop(0.0, '#8d7d6e');
+      capGrad.addColorStop(0.42, '#9e8e7f');
+      capGrad.addColorStop(0.84, '#b3a495');
+      capGrad.addColorStop(1.0, 'rgba(186, 173, 158, 0.14)');
 
-      ctx.fillStyle = maskGrad;
-      ctx.shadowColor = 'rgba(118, 126, 144, 0.48)';
-      ctx.shadowBlur = 4.2;
+      ctx.fillStyle = capGrad;
+      ctx.shadowColor = 'rgba(138, 122, 108, 0.45)';
+      ctx.shadowBlur = 4.8;
 
-      // Left mask wing (symmetric crisp-yet-fluffy inverted-V opening right down the nose bridge!)
+      // Full warm milk-tea head mask curving around outer eyes & cheeks, opening into a wide soft fluffy white blaze!
       ctx.beginPath();
-      ctx.moveTo(maskShift - 1.5, -36);
-      ctx.bezierCurveTo(
-        maskShift - 7.5, -20,
-        maskShift - 12.5, -5,
-        maskShift - 20.5, 9,
-      );
-      ctx.quadraticCurveTo(maskShift - 32, 20, -68, 22);
-      ctx.lineTo(-74, -44);
+      ctx.moveTo(-74, -44);
+      ctx.lineTo(74, -44);
+      ctx.lineTo(70, 20);
+      ctx.quadraticCurveTo(maskShift + 42, 18, maskShift + 26, 9);
+      ctx.quadraticCurveTo(maskShift + 17, 0, maskShift + 13.5, -13);
+      // Soft wide fluffy dome peak of the creamy-white blaze between the brows (warm latte bridge stays connected across forehead!)
+      ctx.quadraticCurveTo(maskShift + 7, -21.5, maskShift, -22.5);
+      ctx.quadraticCurveTo(maskShift - 7, -21.5, maskShift - 13.5, -13);
+      ctx.quadraticCurveTo(maskShift - 17, 0, maskShift - 26, 9);
+      ctx.quadraticCurveTo(maskShift - 42, 18, -70, 20);
       ctx.closePath();
       ctx.fill();
 
-      // Right mask wing
+      // Lighter warm champagne-beige soft forehead bridge highlight right between the ears (exact match to close-up photo!)
+      ctx.shadowBlur = 5.5;
+      ctx.fillStyle = 'rgba(208, 194, 176, 0.58)';
       ctx.beginPath();
-      ctx.moveTo(maskShift + 1.5, -36);
-      ctx.bezierCurveTo(
-        maskShift + 7.5, -20,
-        maskShift + 12.5, -5,
-        maskShift + 20.5, 9,
-      );
-      ctx.quadraticCurveTo(maskShift + 32, 20, 68, 22);
-      ctx.lineTo(74, -44);
-      ctx.closePath();
+      ctx.ellipse(maskShift, -32, 18, 9, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Deeper warm taupe-brown shading along outer temples below both ears
+      ctx.fillStyle = 'rgba(116, 100, 86, 0.40)';
+      ctx.beginPath();
+      ctx.ellipse(-44 + maskShift * 0.4, -10, 21, 22, -0.18, 0, Math.PI * 2);
+      ctx.ellipse(44 + maskShift * 0.4, -10, 21, 22, 0.18, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.restore(); // end mask head-space
       ctx.restore(); // end body clip
 
-      // Clean refined soft slate-charcoal body outline so white fur pops crisply on BOTH light & dark wallpapers!
+      // Clean refined soft warm-brown body outline so creamy fur pops crisply on BOTH light & dark wallpapers!
       ctx.save();
       ctx.shadowBlur = 0;
       ctx.shadowOffsetY = 0;
@@ -1064,10 +1074,12 @@ export class KuroCatEngine {
       };
 
       if (isRagdoll) {
+        // Rich dark espresso-taupe ear rims fading to soft warm latte base (1:1 match to user's real cat!)
         const earGrad = ctx.createLinearGradient(0, -23, 0, 18);
-        earGrad.addColorStop(0.0, '#494f5e');
-        earGrad.addColorStop(0.6, '#5f6778');
-        earGrad.addColorStop(1.0, '#6c7486');
+        earGrad.addColorStop(0.0, '#463b33');
+        earGrad.addColorStop(0.42, '#625449');
+        earGrad.addColorStop(0.82, '#8b7c6e');
+        earGrad.addColorStop(1.0, '#9c8d7e');
         ctx.fillStyle = earGrad;
         earPath();
         ctx.fill();
@@ -1076,7 +1088,7 @@ export class KuroCatEngine {
         ctx.save();
         ctx.shadowBlur = 0;
         ctx.shadowOffsetY = 0;
-        ctx.strokeStyle = inkOutline;
+        ctx.strokeStyle = '#473c34';
         ctx.lineWidth = 1.9;
         ctx.lineCap = 'round';
         ctx.beginPath();
@@ -1085,8 +1097,8 @@ export class KuroCatEngine {
         ctx.bezierCurveTo(sideSign * -8, -18, sideSign * -16, -6, sideSign * -19, 5);
         ctx.stroke();
 
-        // Delicate dusty sakura-pink inner ear
-        ctx.fillStyle = '#efc3c9';
+        // Soft warm dusty-blush cream inner ear
+        ctx.fillStyle = '#dec4be';
         ctx.beginPath();
         ctx.moveTo(sideSign * 11, 10);
         ctx.bezierCurveTo(sideSign * 11, -3, sideSign * 7, -13, sideSign * 2, -11);
@@ -1094,14 +1106,14 @@ export class KuroCatEngine {
         ctx.closePath();
         ctx.fill();
 
-        // Tiny wispy creamy white Ragdoll ear fluff tufts
-        ctx.strokeStyle = 'rgba(252, 250, 246, 0.85)';
-        ctx.lineWidth = 1.5;
+        // Fluffy creamy-white Ragdoll ear furnishings
+        ctx.strokeStyle = 'rgba(252, 249, 242, 0.90)';
+        ctx.lineWidth = 1.6;
         ctx.beginPath();
-        ctx.moveTo(sideSign * -6, 7);
-        ctx.quadraticCurveTo(sideSign * -1, 4, sideSign * 4, 6);
-        ctx.moveTo(sideSign * -3, 10);
-        ctx.quadraticCurveTo(sideSign * 2, 8, sideSign * 7, 10);
+        ctx.moveTo(sideSign * -7, 6);
+        ctx.quadraticCurveTo(sideSign * -1, 3, sideSign * 5, 6);
+        ctx.moveTo(sideSign * -4, 10);
+        ctx.quadraticCurveTo(sideSign * 2, 7.5, sideSign * 8, 10);
         ctx.stroke();
         ctx.restore();
       } else {
@@ -1151,9 +1163,9 @@ export class KuroCatEngine {
       ctx.stroke();
     }
 
-    // 5) Delicate wispy short cheek whiskers adapting to 2.5D head turn
-    ctx.strokeStyle = isRagdoll ? 'rgba(72, 77, 92, 0.58)' : 'rgba(205, 208, 214, 0.54)';
-    ctx.lineWidth = isRagdoll ? 1.1 : 1.05;
+    // 5) Delicate wispy cheek whiskers adapting to 2.5D head turn
+    ctx.strokeStyle = isRagdoll ? 'rgba(98, 86, 76, 0.52)' : 'rgba(205, 208, 214, 0.54)';
+    ctx.lineWidth = isRagdoll ? 1.15 : 1.05;
     ctx.lineCap = 'round';
     const leftLen = Math.max(8, 12 - this.faceTurnX * 0.55);
     const rightLen = Math.max(8, 12 + this.faceTurnX * 0.55);
@@ -1230,11 +1242,11 @@ export class KuroCatEngine {
       ctx.rotate(curiousTilt);
 
       if (isRagdoll) {
-        // Luminous jewel-like sapphire blue Ragdoll iris!
+        // Gentle soulful sky-cerulean Ragdoll eyes (warm & lifelike, matching user's Ragdoll!)
         const irisGrad = ctx.createLinearGradient(0, -openRy, 0, openRy);
-        irisGrad.addColorStop(0.0, '#2a62be');
-        irisGrad.addColorStop(0.48, '#58aaf7');
-        irisGrad.addColorStop(1.0, '#a8e1ff');
+        irisGrad.addColorStop(0.0, '#2c5594');
+        irisGrad.addColorStop(0.50, '#5a94d6');
+        irisGrad.addColorStop(1.0, '#a3d2f2');
         ctx.fillStyle = irisGrad;
       } else {
         ctx.fillStyle = '#d4f044';
@@ -1453,29 +1465,32 @@ export class KuroCatEngine {
     if (isRagdoll) {
       // Seamless pure creamy snow-white Ragdoll mitten arm melting smoothly out of the white chest!
       const armGrad = ctx.createLinearGradient(sx, sy, px, py);
-      armGrad.addColorStop(0.0, '#f8f6f1');
-      armGrad.addColorStop(0.5, '#fbfaf7');
-      armGrad.addColorStop(1.0, '#fdfcf9');
+      armGrad.addColorStop(0.0, '#f5f1e8');
+      armGrad.addColorStop(0.5, '#f9f6ef');
+      armGrad.addColorStop(1.0, '#fcfaf4');
 
       ctx.fillStyle = armGrad;
 
       // Tapered snow-white arm silhouette (NO dark shadow smudge over the white chest!)
-      ctx.beginPath();
-      ctx.moveTo(sx + nx * rShoulder, sy + ny * rShoulder);
-      ctx.quadraticCurveTo(
-        (sx + wx) * 0.5 + nx * (rShoulder * 0.84),
-        (sy + wy) * 0.5 + ny * (rShoulder * 0.84),
-        wx + nx * rWrist,
-        wy + ny * rWrist,
-      );
-      ctx.lineTo(wx - nx * rWrist, wy - ny * rWrist);
-      ctx.quadraticCurveTo(
-        (sx + wx) * 0.5 - nx * (rShoulder * 0.84),
-        (sy + wy) * 0.5 - ny * (rShoulder * 0.84),
-        sx - nx * rShoulder,
-        sy - ny * rShoulder,
-      );
-      ctx.closePath();
+      const traceArmPath = () => {
+        ctx.beginPath();
+        ctx.moveTo(sx + nx * rShoulder, sy + ny * rShoulder);
+        ctx.quadraticCurveTo(
+          (sx + wx) * 0.5 + nx * (rShoulder * 0.84),
+          (sy + wy) * 0.5 + ny * (rShoulder * 0.84),
+          wx + nx * rWrist,
+          wy + ny * rWrist,
+        );
+        ctx.lineTo(wx - nx * rWrist, wy - ny * rWrist);
+        ctx.quadraticCurveTo(
+          (sx + wx) * 0.5 - nx * (rShoulder * 0.84),
+          (sy + wy) * 0.5 - ny * (rShoulder * 0.84),
+          sx - nx * rShoulder,
+          sy - ny * rShoulder,
+        );
+        ctx.closePath();
+      };
+      traceArmPath();
       ctx.fill();
 
       // Seamless white shoulder merge (invisible against white chest — ZERO grey shoulder blob!)
@@ -1483,18 +1498,35 @@ export class KuroCatEngine {
       ctx.arc(sx, sy, rShoulder, 0, Math.PI * 2);
       ctx.fill();
 
+      // Signature unique marking from user's real Ragdoll photo: adorable warm taupe-brown oval patch on viewer's RIGHT front forearm!
+      if (side === 'right' && len > 26) {
+        ctx.save();
+        traceArmPath();
+        ctx.clip();
+        const spotX = sx + ux * (len * 0.64) + nx * 2.0;
+        const spotY = sy + uy * (len * 0.64) + ny * 2.0;
+        const armAngle = Math.atan2(dy, dx);
+        ctx.fillStyle = 'rgba(134, 118, 102, 0.84)';
+        ctx.shadowColor = 'rgba(134, 118, 102, 0.45)';
+        ctx.shadowBlur = 2.5;
+        ctx.beginPath();
+        ctx.ellipse(spotX, spotY, Math.min(13.5, len * 0.16), 8.2, armAngle, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
       // Soft subtle contact shadow ONLY under the plump round white mitten paw ball
       ctx.save();
-      ctx.shadowColor = 'rgba(30, 36, 48, 0.22)';
+      ctx.shadowColor = 'rgba(46, 38, 30, 0.22)';
       ctx.shadowBlur = 4;
       ctx.shadowOffsetY = 1.5;
-      ctx.fillStyle = '#fdfcf9';
+      ctx.fillStyle = '#fcfaf4';
       ctx.beginPath();
       ctx.ellipse(px, py, pawRx, pawRy, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
 
-      // Refined slate-grey arm side strokes that fade gently out at the shoulder and stay crisp along forearm & paw!
+      // Refined warm-taupe arm side strokes that fade gently out at the shoulder and stay crisp along forearm & paw!
       ctx.lineWidth = 1.65;
       ctx.lineCap = 'round';
       for (const sgn of [-1, 1]) {
@@ -1505,9 +1537,9 @@ export class KuroCatEngine {
         const eey = wy + ny * sgn * rWrist;
 
         const edgeGrad = ctx.createLinearGradient(esx, esy, eex, eey);
-        edgeGrad.addColorStop(0.0, 'rgba(76, 82, 98, 0.0)');
-        edgeGrad.addColorStop(0.24, 'rgba(76, 82, 98, 0.78)');
-        edgeGrad.addColorStop(1.0, 'rgba(76, 82, 98, 0.92)');
+        edgeGrad.addColorStop(0.0, 'rgba(93, 81, 72, 0.0)');
+        edgeGrad.addColorStop(0.24, 'rgba(93, 81, 72, 0.78)');
+        edgeGrad.addColorStop(1.0, 'rgba(93, 81, 72, 0.92)');
 
         ctx.strokeStyle = edgeGrad;
         ctx.beginPath();
@@ -1523,7 +1555,7 @@ export class KuroCatEngine {
 
       // Crisp rounded mitten paw outline arc so the white paw reads clearly against white keyboard keys!
       const pawAng = Math.atan2(dy, dx);
-      ctx.strokeStyle = 'rgba(76, 82, 98, 0.92)';
+      ctx.strokeStyle = 'rgba(93, 81, 72, 0.92)';
       ctx.beginPath();
       ctx.ellipse(px, py, pawRx, pawRy, 0, pawAng - Math.PI * 0.62, pawAng + Math.PI * 0.62);
       ctx.stroke();
@@ -1615,14 +1647,24 @@ export class KuroCatEngine {
     ctx.lineJoin = 'round';
 
     // Continuous bent velvety arm + plump curled paw
-    ctx.strokeStyle = isRagdoll ? '#f7f5f0' : '#141314';
+    ctx.strokeStyle = isRagdoll ? '#f6f2ea' : '#141314';
     ctx.lineWidth = 20;
     ctx.beginPath();
     ctx.moveTo(sh.x, sh.y);
     ctx.quadraticCurveTo(elbowX, elbowY, cp.x, cp.y);
     ctx.stroke();
 
-    ctx.fillStyle = isRagdoll ? '#fcfbf8' : '#141314';
+    // Signature warm taupe-brown patch on viewer's RIGHT curled forearm too!
+    if (isRagdoll && paw.side === 'right') {
+      ctx.save();
+      ctx.fillStyle = 'rgba(134, 118, 102, 0.78)';
+      ctx.beginPath();
+      ctx.ellipse((elbowX + cp.x) * 0.5 + 2, (elbowY + cp.y) * 0.5 + 1, 7.5, 5.2, -0.35, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    ctx.fillStyle = isRagdoll ? '#fcfaf4' : '#141314';
     ctx.beginPath();
     ctx.ellipse(cp.x, cp.y, 12.5, 11.0, sign * 0.2, 0, Math.PI * 2);
     ctx.fill();
@@ -1630,10 +1672,10 @@ export class KuroCatEngine {
     // Clear crisp contour along the bent curled forearm & kitten paw
     const grad = ctx.createLinearGradient(elbowX, elbowY - 12, cp.x, cp.y + 12);
     if (isRagdoll) {
-      grad.addColorStop(0.0, 'rgba(62, 67, 80, 0.0)');
-      grad.addColorStop(0.28, 'rgba(62, 67, 80, 0.68)');
-      grad.addColorStop(0.86, 'rgba(58, 63, 76, 0.78)');
-      grad.addColorStop(1.0, 'rgba(58, 63, 76, 0.35)');
+      grad.addColorStop(0.0, 'rgba(93, 81, 72, 0.0)');
+      grad.addColorStop(0.28, 'rgba(93, 81, 72, 0.68)');
+      grad.addColorStop(0.86, 'rgba(93, 81, 72, 0.78)');
+      grad.addColorStop(1.0, 'rgba(93, 81, 72, 0.35)');
     } else {
       grad.addColorStop(0.0, 'rgba(214, 216, 220, 0.0)');
       grad.addColorStop(0.30, 'rgba(214, 216, 220, 0.65)');
@@ -1674,14 +1716,26 @@ export class KuroCatEngine {
         const innerTopX = topSp.x + sign * 6.5;
         const innerBotX = botSp.x + sign * 9.5;
 
-        // Crisp subtle outer leg curve & inner leg-gap line (4 total lines across both legs — exact ORIG 0.3s!)
+        // Signature warm taupe-brown oval leg patch on viewer's RIGHT seated front leg (1:1 match to user's real Ragdoll!)
         const isRagdoll = this.catBreed === 'ragdoll';
+        if (isRagdoll && paw.side === 'right') {
+          ctx.save();
+          ctx.fillStyle = 'rgba(134, 118, 102, 0.80)';
+          ctx.shadowColor = 'rgba(134, 118, 102, 0.40)';
+          ctx.shadowBlur = 3.0;
+          ctx.beginPath();
+          ctx.ellipse(midSp.x + 21, midSp.y + 12, 9.5, 13.5, 0.22, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        // Crisp subtle outer leg curve & inner leg-gap line (4 total lines across both legs — exact ORIG 0.3s!)
         const lineGrad = ctx.createLinearGradient(topSp.x, topSp.y, botSp.x, botSp.y);
         if (isRagdoll) {
-          lineGrad.addColorStop(0.0, 'rgba(66, 72, 86, 0.0)');
-          lineGrad.addColorStop(0.18, 'rgba(66, 72, 86, 0.62)');
-          lineGrad.addColorStop(0.92, 'rgba(62, 68, 82, 0.68)');
-          lineGrad.addColorStop(1.0, 'rgba(62, 68, 82, 0.28)');
+          lineGrad.addColorStop(0.0, 'rgba(93, 81, 72, 0.0)');
+          lineGrad.addColorStop(0.18, 'rgba(93, 81, 72, 0.62)');
+          lineGrad.addColorStop(0.92, 'rgba(93, 81, 72, 0.68)');
+          lineGrad.addColorStop(1.0, 'rgba(93, 81, 72, 0.28)');
         } else {
           lineGrad.addColorStop(0.0, 'rgba(210, 212, 216, 0.0)');
           lineGrad.addColorStop(0.18, 'rgba(210, 212, 216, 0.64)');
