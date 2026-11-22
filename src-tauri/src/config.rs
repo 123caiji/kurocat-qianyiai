@@ -2,6 +2,10 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+fn default_cat_breed() -> String {
+    "black".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
@@ -13,6 +17,8 @@ pub struct AppSettings {
     pub show_key_bubbles: bool,
     pub sound_enabled: bool,
     pub autostart: bool,
+    #[serde(default = "default_cat_breed")]
+    pub cat_breed: String,
 }
 
 impl Default for AppSettings {
@@ -26,6 +32,7 @@ impl Default for AppSettings {
             show_key_bubbles: true,
             sound_enabled: true,
             autostart: false,
+            cat_breed: default_cat_breed(),
         }
     }
 }

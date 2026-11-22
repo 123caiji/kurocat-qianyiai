@@ -35,6 +35,9 @@ fn get_settings(state: State<'_, AppState>) -> AppSettings {
 #[tauri::command]
 fn update_settings(app: AppHandle, state: State<'_, AppState>, mut patch: AppSettings) -> AppSettings {
     patch.scale = patch.scale.clamp(0.6, 1.8);
+    if patch.cat_breed != "ragdoll" {
+        patch.cat_breed = "black".to_string();
+    }
     let prev_autostart = state.settings.lock().unwrap().autostart;
     if patch.autostart != prev_autostart {
         let _ = set_windows_autostart(patch.autostart);
@@ -86,6 +89,18 @@ fn reset_position(app: AppHandle) {
 #[tauri::command]
 fn quit_app(app: AppHandle) {
     app.exit(0);
+}
+
+pub fn apply_breed_and_save(app: &AppHandle, breed: &str) {
+    let normalized = if breed == "ragdoll" { "ragdoll" } else { "black" };
+    let state = app.state::<AppState>();
+    let updated = {
+        let mut s = state.settings.lock().unwrap();
+        s.cat_breed = normalized.to_string();
+        save_settings(&s);
+        s.clone()
+    };
+    let _ = app.emit("kuro-settings", updated);
 }
 
 pub fn apply_scale_and_save(app: &AppHandle, scale: f64) {

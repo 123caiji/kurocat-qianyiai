@@ -1,5 +1,5 @@
 use crate::config::AppSettings;
-use crate::{apply_scale_and_save, reset_window_position, AppState};
+use crate::{apply_breed_and_save, apply_scale_and_save, reset_window_position, AppState};
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -48,6 +48,15 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
         None::<&str>,
     )?;
 
+    let breed_black = MenuItem::with_id(app, "breed_black", "经典小黑猫", true, None::<&str>)?;
+    let breed_ragdoll = MenuItem::with_id(app, "breed_ragdoll", "蓝双布偶猫", true, None::<&str>)?;
+    let breed_menu = Submenu::with_items(
+        app,
+        "猫咪外观",
+        true,
+        &[&breed_black, &breed_ragdoll],
+    )?;
+
     let scale_75 = MenuItem::with_id(app, "scale_75", "75%（小巧）", true, None::<&str>)?;
     let scale_100 = MenuItem::with_id(app, "scale_100", "100%（默认）", true, None::<&str>)?;
     let scale_125 = MenuItem::with_id(app, "scale_125", "125%（偏大）", true, None::<&str>)?;
@@ -74,6 +83,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
             &key_bubbles,
             &sound_toggle,
             &always_on_top,
+            &breed_menu,
             &scale_menu,
             &reset_pos,
             &autostart,
@@ -163,6 +173,8 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                         let _ = app.emit("kuro-settings", s.clone());
                     }
                 }
+                "breed_black" => apply_breed_and_save(app, "black"),
+                "breed_ragdoll" => apply_breed_and_save(app, "ragdoll"),
                 "scale_75" => apply_scale_and_save(app, 0.75),
                 "scale_100" => apply_scale_and_save(app, 1.0),
                 "scale_125" => apply_scale_and_save(app, 1.25),

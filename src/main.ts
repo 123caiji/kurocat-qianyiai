@@ -2,7 +2,7 @@ import './style.css';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { KuroCatEngine } from './catEngine';
+import { KuroCatEngine, type CatBreed } from './catEngine';
 import { catAudio } from './audio';
 
 interface AppSettings {
@@ -14,6 +14,7 @@ interface AppSettings {
   showKeyBubbles: boolean;
   soundEnabled: boolean;
   autostart: boolean;
+  catBreed: CatBreed;
 }
 
 type InputEvent =
@@ -40,6 +41,7 @@ let settings: AppSettings = {
   showKeyBubbles: true,
   soundEnabled: true,
   autostart: false,
+  catBreed: 'black',
 };
 
 const canvas = document.getElementById('pet-canvas') as HTMLCanvasElement;
@@ -62,7 +64,18 @@ function syncMenuUI(): void {
     btn.classList.toggle('active', Math.abs(v - settings.scale) < 0.05);
   });
 
+  const breed: CatBreed = settings.catBreed === 'ragdoll' ? 'ragdoll' : 'black';
+  document.querySelectorAll<HTMLButtonElement>('.breed-pill').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.breed === breed);
+  });
+  const headerEl = document.getElementById('menu-header');
+  if (headerEl) {
+    headerEl.textContent = breed === 'ragdoll' ? '🐱 KuroCat 布偶猫' : '🐈‍⬛ KuroCat 小黑猫';
+    headerEl.style.color = breed === 'ragdoll' ? '#7ac7ff' : '#c8f538';
+  }
+
   engine.showKeyBubbles = settings.showKeyBubbles;
+  engine.catBreed = breed;
   catAudio.setEnabled(settings.soundEnabled);
 }
 
@@ -167,8 +180,15 @@ async function bootstrap(): Promise<void> {
   });
 
   menuEl.addEventListener('click', (e) => {
-    const target = (e.target as HTMLElement).closest<HTMLElement>('[data-action], [data-scale]');
+    const target = (e.target as HTMLElement).closest<HTMLElement>('[data-action], [data-scale], [data-breed]');
     if (!target) return;
+
+    const breedAttr = target.dataset.breed;
+    if (breedAttr === 'black' || breedAttr === 'ragdoll') {
+      void applySettingsPatch({ catBreed: breedAttr });
+      closeContextMenu();
+      return;
+    }
 
     const scaleAttr = target.dataset.scale;
     if (scaleAttr) {

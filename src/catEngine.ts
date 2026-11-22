@@ -10,6 +10,7 @@ import { catAudio } from './audio';
 
 export const LOGICAL_W = 420;
 export const LOGICAL_H = 440;
+export type CatBreed = 'black' | 'ragdoll';
 
 interface Vec2 {
   x: number;
@@ -85,6 +86,7 @@ export class KuroCatEngine {
   private elapsed = 0;
 
   public showKeyBubbles = true;
+  public catBreed: CatBreed = 'black';
 
   // Compact true-scale proportions matching ORIG 0.3s directly!
   private readonly catCenterX = 196;
@@ -770,19 +772,63 @@ export class KuroCatEngine {
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.shadowColor = 'rgba(18, 17, 18, 0.45)';
-    ctx.shadowBlur = 1.6;
-    ctx.strokeStyle = '#141314';
-    ctx.lineWidth = 16.0;
-    ctx.beginPath();
-    ctx.moveTo(startX, startY);
-    ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, endY);
-    ctx.stroke();
+
+    if (this.catBreed === 'ragdoll') {
+      // Plush feathery blue-grey Ragdoll plume tail with soft refined slate outline & airy sheen!
+      ctx.shadowColor = 'rgba(34, 40, 54, 0.20)';
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetY = 1.5;
+      ctx.strokeStyle = '#4c5262';
+      ctx.lineWidth = 23.0;
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, endY);
+      ctx.stroke();
+
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+      const tailGrad = ctx.createLinearGradient(startX, startY, endX, endY);
+      tailGrad.addColorStop(0.0, '#8d95a6');
+      tailGrad.addColorStop(0.5, '#6e778a');
+      tailGrad.addColorStop(1.0, '#555d70');
+      ctx.strokeStyle = tailGrad;
+      ctx.lineWidth = 19.8;
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, endY);
+      ctx.stroke();
+
+      // Fluffy tip plume puff
+      ctx.fillStyle = '#555d70';
+      ctx.beginPath();
+      ctx.ellipse(endX + 1, endY, 11.5, 10.2, -0.15, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Soft airy fluff highlight along upper curve
+      ctx.strokeStyle = 'rgba(240, 244, 252, 0.30)';
+      ctx.lineWidth = 5.2;
+      ctx.beginPath();
+      ctx.moveTo(startX + 4, startY - 4);
+      ctx.bezierCurveTo(cp1X - 2, cp1Y - 4, cp2X - 3, cp2Y - 4, endX - 3, endY - 4);
+      ctx.stroke();
+    } else {
+      ctx.shadowColor = 'rgba(18, 17, 18, 0.45)';
+      ctx.shadowBlur = 1.6;
+      ctx.strokeStyle = '#141314';
+      ctx.lineWidth = 16.0;
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, endY);
+      ctx.stroke();
+    }
+
     ctx.restore();
   }
 
   private drawCatBody(ctx: CanvasRenderingContext2D, breath: number, purrShift: number): void {
+    const isRagdoll = this.catBreed === 'ragdoll';
     const catBlack = '#141314';
+    const inkOutline = '#4c5262';
 
     // Evaluate measured left & right silhouette points deformed by flexible cat spine + unified head tilt!
     const leftPts: Vec2[] = [];
@@ -827,13 +873,21 @@ export class KuroCatEngine {
     const basePt = this.spinePoint(1.0, breath);
 
     ctx.save();
-    ctx.shadowColor = 'rgba(18, 17, 18, 0.42)';
-    ctx.shadowBlur = 1.6;
-    ctx.fillStyle = catBlack;
+    if (isRagdoll) {
+      ctx.shadowColor = 'rgba(26, 30, 40, 0.24)';
+      ctx.shadowBlur = 5;
+      ctx.shadowOffsetY = 2;
+    } else {
+      ctx.shadowColor = 'rgba(18, 17, 18, 0.42)';
+      ctx.shadowBlur = 1.6;
+    }
 
     // 1) Cute rounded grounded hind paws peeking out when front paws lift (matches 8.3s, 10.6s, 13.2s, 31.0s!)
     const anyFrontLifted = this.leftPaw.idleWeight < 0.7 || this.rightPaw.idleWeight < 0.7;
     if (anyFrontLifted) {
+      ctx.fillStyle = isRagdoll ? '#f7f5f0' : catBlack;
+      ctx.strokeStyle = inkOutline;
+      ctx.lineWidth = 1.9;
       for (const [fx, fy, rx, ry] of [
         [basePt.x - 42, basePt.y - 3, 14.5, 11.5],
         [basePt.x + 32, basePt.y - 1, 15.0, 11.5],
@@ -841,44 +895,152 @@ export class KuroCatEngine {
         ctx.beginPath();
         ctx.ellipse(fx, fy, rx, ry, 0, 0, Math.PI * 2);
         ctx.fill();
+        if (isRagdoll) {
+          ctx.save();
+          ctx.shadowBlur = 0;
+          ctx.shadowOffsetY = 0;
+          ctx.stroke();
+          ctx.restore();
+        }
       }
     }
 
-    // 2) Draw exact smooth spline through measured silhouette slices (left top -> right top -> right down -> bottom -> left up)!
-    ctx.beginPath();
-    // Smooth crown between ears (aligned with rotated head top!)
-    const crownCos = Math.cos(this.headTilt);
-    const crownSin = Math.sin(this.headTilt);
-    ctx.moveTo(leftPts[0].x + 14 * crownCos + 6 * crownSin, leftPts[0].y + 14 * crownSin - 6 * crownCos);
-    ctx.quadraticCurveTo(crownPt.x, crownPt.y - 2, rightPts[0].x - 14 * crownCos + 6 * crownSin, rightPts[0].y - 14 * crownSin - 6 * crownCos);
+    // 2) Build exact smooth spline through measured silhouette slices (left top -> right top -> right down -> bottom -> left up)!
+    const traceBodyPath = () => {
+      ctx.beginPath();
+      const crownCos = Math.cos(this.headTilt);
+      const crownSin = Math.sin(this.headTilt);
+      ctx.moveTo(leftPts[0].x + 14 * crownCos + 6 * crownSin, leftPts[0].y + 14 * crownSin - 6 * crownCos);
+      ctx.quadraticCurveTo(crownPt.x, crownPt.y - 2, rightPts[0].x - 14 * crownCos + 6 * crownSin, rightPts[0].y - 14 * crownSin - 6 * crownCos);
 
-    // Right side smoothly through measured control slices
-    ctx.lineTo(rightPts[0].x, rightPts[0].y);
-    for (let i = 0; i < rightPts.length - 1; i++) {
-      const p0 = rightPts[i];
-      const p1 = rightPts[i + 1];
-      const mx = (p0.x + p1.x) * 0.5;
-      const my = (p0.y + p1.y) * 0.5;
-      ctx.quadraticCurveTo(p0.x, p0.y, mx, my);
+      ctx.lineTo(rightPts[0].x, rightPts[0].y);
+      for (let i = 0; i < rightPts.length - 1; i++) {
+        const p0 = rightPts[i];
+        const p1 = rightPts[i + 1];
+        const mx = (p0.x + p1.x) * 0.5;
+        const my = (p0.y + p1.y) * 0.5;
+        ctx.quadraticCurveTo(p0.x, p0.y, mx, my);
+      }
+      const lastR = rightPts[rightPts.length - 1];
+      ctx.lineTo(lastR.x, lastR.y);
+
+      const lastL = leftPts[leftPts.length - 1];
+      ctx.quadraticCurveTo(basePt.x + purrShift, basePt.y + 6, lastL.x, lastL.y);
+
+      for (let i = leftPts.length - 1; i > 0; i--) {
+        const p0 = leftPts[i];
+        const p1 = leftPts[i - 1];
+        const mx = (p0.x + p1.x) * 0.5;
+        const my = (p0.y + p1.y) * 0.5;
+        ctx.quadraticCurveTo(p0.x, p0.y, mx, my);
+      }
+      ctx.lineTo(leftPts[0].x, leftPts[0].y);
+      ctx.closePath();
+    };
+
+    traceBodyPath();
+    if (isRagdoll) {
+      const furGrad = ctx.createRadialGradient(hcx, hcy + 65, 18, basePt.x, basePt.y - 60, 145);
+      furGrad.addColorStop(0.0, '#fdfcf9');
+      furGrad.addColorStop(0.68, '#f6f3ed');
+      furGrad.addColorStop(1.0, '#ebe7df');
+      ctx.fillStyle = furGrad;
+      ctx.fill();
+
+      // Paint classic Blue Bicolor Ragdoll markings clipped cleanly inside the body silhouette!
+      ctx.save();
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+      ctx.clip();
+
+      // 2a) Soft muted blue-grey Ragdoll back/shoulder saddle (leaving front chest ruff & tummy snow-white!)
+      const midTorso = this.spinePoint(0.66, breath);
+      for (const sgn of [-1, 1]) {
+        const saddleGrad = ctx.createRadialGradient(
+          midTorso.x + purrShift + sgn * 72,
+          midTorso.y - 4,
+          10,
+          midTorso.x + purrShift + sgn * 56,
+          midTorso.y + 4,
+          64,
+        );
+        saddleGrad.addColorStop(0.0, 'rgba(116, 124, 140, 0.52)');
+        saddleGrad.addColorStop(0.55, 'rgba(136, 144, 160, 0.24)');
+        saddleGrad.addColorStop(1.0, 'rgba(150, 158, 172, 0.0)');
+        ctx.fillStyle = saddleGrad;
+        ctx.beginPath();
+        ctx.ellipse(midTorso.x + purrShift + sgn * 64, midTorso.y + 2, 46, 72, sgn * -0.15, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 2b) Soft fluffy white Ragdoll chest ruff subtle contour arc under the chin
+      const neckSp = this.spinePoint(0.45, breath);
+      ctx.strokeStyle = 'rgba(182, 186, 196, 0.34)';
+      ctx.lineWidth = 2.0;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(neckSp.x + purrShift, neckSp.y - 4, 34, 0.24 * Math.PI, 0.76 * Math.PI);
+      ctx.stroke();
+
+      // 2c) Iconic Blue-Bicolor Ragdoll "Inverted-V" (正八字开脸) face mask rotating seamlessly with head!
+      ctx.save();
+      ctx.translate(hcx, hcy);
+      ctx.rotate(this.headTilt);
+
+      const maskShift = this.faceTurnX * 0.72;
+      const maskGrad = ctx.createLinearGradient(0, -38, 0, 24);
+      maskGrad.addColorStop(0.0, '#5c6476');
+      maskGrad.addColorStop(0.48, '#737c90');
+      maskGrad.addColorStop(0.86, '#8c95a8');
+      maskGrad.addColorStop(1.0, 'rgba(154, 162, 178, 0.25)');
+
+      ctx.fillStyle = maskGrad;
+      ctx.shadowColor = 'rgba(118, 126, 144, 0.48)';
+      ctx.shadowBlur = 4.2;
+
+      // Left mask wing (symmetric crisp-yet-fluffy inverted-V opening right down the nose bridge!)
+      ctx.beginPath();
+      ctx.moveTo(maskShift - 1.5, -36);
+      ctx.bezierCurveTo(
+        maskShift - 7.5, -20,
+        maskShift - 12.5, -5,
+        maskShift - 20.5, 9,
+      );
+      ctx.quadraticCurveTo(maskShift - 32, 20, -68, 22);
+      ctx.lineTo(-74, -44);
+      ctx.closePath();
+      ctx.fill();
+
+      // Right mask wing
+      ctx.beginPath();
+      ctx.moveTo(maskShift + 1.5, -36);
+      ctx.bezierCurveTo(
+        maskShift + 7.5, -20,
+        maskShift + 12.5, -5,
+        maskShift + 20.5, 9,
+      );
+      ctx.quadraticCurveTo(maskShift + 32, 20, 68, 22);
+      ctx.lineTo(74, -44);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.restore(); // end mask head-space
+      ctx.restore(); // end body clip
+
+      // Clean refined soft slate-charcoal body outline so white fur pops crisply on BOTH light & dark wallpapers!
+      ctx.save();
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+      traceBodyPath();
+      ctx.strokeStyle = inkOutline;
+      ctx.lineWidth = 1.8;
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      ctx.fillStyle = catBlack;
+      ctx.fill();
     }
-    const lastR = rightPts[rightPts.length - 1];
-    ctx.lineTo(lastR.x, lastR.y);
-
-    // Cozy rounded base resting flush on top of keyboard
-    const lastL = leftPts[leftPts.length - 1];
-    ctx.quadraticCurveTo(basePt.x + purrShift, basePt.y + 6, lastL.x, lastL.y);
-
-    // Left side smoothly up through measured slices
-    for (let i = leftPts.length - 1; i > 0; i--) {
-      const p0 = leftPts[i];
-      const p1 = leftPts[i - 1];
-      const mx = (p0.x + p1.x) * 0.5;
-      const my = (p0.y + p1.y) * 0.5;
-      ctx.quadraticCurveTo(p0.x, p0.y, mx, my);
-    }
-    ctx.lineTo(leftPts[0].x, leftPts[0].y);
-    ctx.closePath();
-    ctx.fill();
 
     // 3) Compact plush rounded cat ears matching ORIG 0.3s exact height (shorter & cuter, no tall rabbit ears!)
     ctx.save();
@@ -888,37 +1050,111 @@ export class KuroCatEngine {
     const lTwitch = Math.sin(this.earTwitchLeft * Math.PI) * 0.12;
     const rTwitch = Math.sin(this.earTwitchRight * Math.PI) * 0.12;
 
-    // Left ear (compact, rounded-tip kitten ear matching ORIG 0.3s!)
-    ctx.save();
-    ctx.translate(-33 + this.faceTurnX * 0.18, -28);
-    ctx.rotate(-0.08 - lTwitch);
-    ctx.beginPath();
-    ctx.moveTo(-19, 20);
-    ctx.bezierCurveTo(-19, -8, -12, -23, -3, -21);
-    ctx.bezierCurveTo(8, -18, 16, -6, 21, 8);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
+    const drawOneEar = (sideSign: -1 | 1, twitch: number) => {
+      ctx.save();
+      ctx.translate(sideSign * 33 + this.faceTurnX * 0.18, -28);
+      ctx.rotate(sideSign * (0.08 + twitch));
 
-    // Right ear
-    ctx.save();
-    ctx.translate(33 + this.faceTurnX * 0.18, -28);
-    ctx.rotate(0.08 + rTwitch);
-    ctx.beginPath();
-    ctx.moveTo(19, 20);
-    ctx.bezierCurveTo(19, -8, 12, -23, 3, -21);
-    ctx.bezierCurveTo(-8, -18, -16, -6, -21, 8);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
+      const earPath = () => {
+        ctx.beginPath();
+        ctx.moveTo(sideSign * 19, 20);
+        ctx.bezierCurveTo(sideSign * 19, -8, sideSign * 12, -23, sideSign * 3, -21);
+        ctx.bezierCurveTo(sideSign * -8, -18, sideSign * -16, -6, sideSign * -21, 8);
+        ctx.closePath();
+      };
+
+      if (isRagdoll) {
+        const earGrad = ctx.createLinearGradient(0, -23, 0, 18);
+        earGrad.addColorStop(0.0, '#494f5e');
+        earGrad.addColorStop(0.6, '#5f6778');
+        earGrad.addColorStop(1.0, '#6c7486');
+        ctx.fillStyle = earGrad;
+        earPath();
+        ctx.fill();
+
+        // Stroke outer ear rim cleanly (open at bottom skull merge so there is zero seam line!)
+        ctx.save();
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.strokeStyle = inkOutline;
+        ctx.lineWidth = 1.9;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(sideSign * 19, 17);
+        ctx.bezierCurveTo(sideSign * 19, -8, sideSign * 12, -23, sideSign * 3, -21);
+        ctx.bezierCurveTo(sideSign * -8, -18, sideSign * -16, -6, sideSign * -19, 5);
+        ctx.stroke();
+
+        // Delicate dusty sakura-pink inner ear
+        ctx.fillStyle = '#efc3c9';
+        ctx.beginPath();
+        ctx.moveTo(sideSign * 11, 10);
+        ctx.bezierCurveTo(sideSign * 11, -3, sideSign * 7, -13, sideSign * 2, -11);
+        ctx.bezierCurveTo(sideSign * -4, -9, sideSign * -9, -1, sideSign * -10, 8);
+        ctx.closePath();
+        ctx.fill();
+
+        // Tiny wispy creamy white Ragdoll ear fluff tufts
+        ctx.strokeStyle = 'rgba(252, 250, 246, 0.85)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(sideSign * -6, 7);
+        ctx.quadraticCurveTo(sideSign * -1, 4, sideSign * 4, 6);
+        ctx.moveTo(sideSign * -3, 10);
+        ctx.quadraticCurveTo(sideSign * 2, 8, sideSign * 7, 10);
+        ctx.stroke();
+        ctx.restore();
+      } else {
+        ctx.fillStyle = catBlack;
+        earPath();
+        ctx.fill();
+      }
+      ctx.restore();
+    };
+
+    drawOneEar(-1, lTwitch);
+    drawOneEar(1, rTwitch);
 
     ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
 
-    // 4) Delicate wispy short cheek whiskers adapting to 2.5D head turn (exact match to 0.3s, 2.2s, reference photo!)
-    ctx.strokeStyle = 'rgba(205, 208, 214, 0.54)';
-    ctx.lineWidth = 1.05;
-    ctx.lineCap = 'round';
     const wShift = this.faceTurnX * 0.72;
+
+    // 4) Ragdoll rosy petting blush + adorable tiny pink nose & gentle kitten smile!
+    if (isRagdoll) {
+      if (this.squintAmount > 0.12) {
+        ctx.fillStyle = `rgba(244, 146, 166, ${(0.42 * this.squintAmount).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.ellipse(wShift - 30, 13, 8.5, 4.6, -0.08, 0, Math.PI * 2);
+        ctx.ellipse(wShift + 30, 13, 8.5, 4.6, 0.08, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Cute rosy-pink Ragdoll nose centered neatly inside the snow-white inverted-V blaze
+      ctx.fillStyle = '#ee8e9e';
+      ctx.beginPath();
+      ctx.moveTo(wShift - 4.1, 9.6);
+      ctx.quadraticCurveTo(wShift, 8.5, wShift + 4.1, 9.6);
+      ctx.quadraticCurveTo(wShift + 3.2, 13.8, wShift, 14.3);
+      ctx.quadraticCurveTo(wShift - 3.2, 13.8, wShift - 4.1, 9.6);
+      ctx.closePath();
+      ctx.fill();
+
+      // Delicate cute kitten "w" mouth
+      ctx.strokeStyle = 'rgba(72, 77, 92, 0.80)';
+      ctx.lineWidth = 1.35;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(wShift - 5.8, 16.6);
+      ctx.quadraticCurveTo(wShift - 2.9, 19.6, wShift, 16.4);
+      ctx.quadraticCurveTo(wShift + 2.9, 19.6, wShift + 5.8, 16.6);
+      ctx.stroke();
+    }
+
+    // 5) Delicate wispy short cheek whiskers adapting to 2.5D head turn
+    ctx.strokeStyle = isRagdoll ? 'rgba(72, 77, 92, 0.58)' : 'rgba(205, 208, 214, 0.54)';
+    ctx.lineWidth = isRagdoll ? 1.1 : 1.05;
+    ctx.lineCap = 'round';
     const leftLen = Math.max(8, 12 - this.faceTurnX * 0.55);
     const rightLen = Math.max(8, 12 + this.faceTurnX * 0.55);
     for (let i = 0; i < 3; i++) {
@@ -935,8 +1171,8 @@ export class KuroCatEngine {
       ctx.stroke();
     }
 
-    // 5) Exact measured lemon-chartreuse eyes (cx = +-23px!)
-    this.drawEyes(ctx, this.faceTurnX * 0.72, -1);
+    // 6) Expressive eyes (lemon-chartreuse for Black Cat / luminous sapphire-blue for Ragdoll!)
+    this.drawEyes(ctx, wShift, -1);
 
     ctx.restore(); // end head
 
@@ -944,6 +1180,7 @@ export class KuroCatEngine {
   }
 
   private drawEyes(ctx: CanvasRenderingContext2D, cx: number, eyeY: number): void {
+    const isRagdoll = this.catBreed === 'ragdoll';
     const blinkVal = this.isBlinking ? 1 - Math.abs(this.blinkProgress - 1) : 0;
     const closedness = Math.max(blinkVal, this.squintAmount * 0.85);
 
@@ -958,14 +1195,32 @@ export class KuroCatEngine {
       ctx.translate(ex, eyeY);
 
       if (this.squintAmount > 0.38 && blinkVal < 0.3) {
-        // Exact sleek thin horizontal lazy-slanted lemon-chartreuse slits from user's reference photo (NO grey lid blob!)
-        ctx.strokeStyle = '#d4f044';
-        ctx.lineWidth = 2.9;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(-13.5, -0.5);
-        ctx.quadraticCurveTo(0, 1.4, 13.5, 1.2);
-        ctx.stroke();
+        if (isRagdoll) {
+          // Sleek lazy drooping slits with a subtle crystal-blue underside shimmer!
+          ctx.strokeStyle = 'rgba(174, 224, 255, 0.72)';
+          ctx.lineWidth = 4.4;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(-12.5, 0.2);
+          ctx.quadraticCurveTo(0, 2.2, 12.5, 1.8);
+          ctx.stroke();
+
+          ctx.strokeStyle = '#212533';
+          ctx.lineWidth = 2.7;
+          ctx.beginPath();
+          ctx.moveTo(-13.5, -0.5);
+          ctx.quadraticCurveTo(0, 1.4, 13.5, 1.2);
+          ctx.stroke();
+        } else {
+          // Exact sleek thin horizontal lazy-slanted lemon-chartreuse slits from user's reference photo (NO grey lid blob!)
+          ctx.strokeStyle = '#d4f044';
+          ctx.lineWidth = 2.9;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(-13.5, -0.5);
+          ctx.quadraticCurveTo(0, 1.4, 13.5, 1.2);
+          ctx.stroke();
+        }
         ctx.restore();
         continue;
       }
@@ -974,24 +1229,59 @@ export class KuroCatEngine {
       const curiousTilt = (idx === 0 ? -0.1 : 0.1) * (0.25 + this.typingHunch * 0.75);
       ctx.rotate(curiousTilt);
 
-      ctx.fillStyle = '#d4f044';
+      if (isRagdoll) {
+        // Luminous jewel-like sapphire blue Ragdoll iris!
+        const irisGrad = ctx.createLinearGradient(0, -openRy, 0, openRy);
+        irisGrad.addColorStop(0.0, '#2a62be');
+        irisGrad.addColorStop(0.48, '#58aaf7');
+        irisGrad.addColorStop(1.0, '#a8e1ff');
+        ctx.fillStyle = irisGrad;
+      } else {
+        ctx.fillStyle = '#d4f044';
+      }
+
       ctx.beginPath();
       ctx.ellipse(0, 0, rx, openRy, 0, 0, Math.PI * 2);
       ctx.fill();
 
+      ctx.save();
       ctx.clip();
 
       if (openRy > 3.2) {
-        // Expressive solid matte black pupil hugging lower rim when looking down at keyboard!
+        // Expressive pupil hugging lower rim when looking down at keyboard!
         const px = this.eyeLookX;
         const py = this.eyeLookY;
         const pupilRx = 6.2;
         const pupilRy = 8.8;
 
-        ctx.fillStyle = '#0e0e10';
+        ctx.fillStyle = isRagdoll ? '#101624' : '#0e0e10';
         ctx.beginPath();
         ctx.ellipse(px, py, pupilRx, pupilRy, 0, 0, Math.PI * 2);
         ctx.fill();
+
+        if (isRagdoll) {
+          // Crisp glossy twin starlight catchlights for dreamy Ragdoll doll eyes!
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
+          ctx.beginPath();
+          ctx.arc(px - 3.6, py - 4.0, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+          ctx.beginPath();
+          ctx.arc(px + 3.2, py + 3.2, 1.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      ctx.restore();
+
+      if (isRagdoll && openRy > 2.2) {
+        // Delicate velvety eye rim so sapphire iris frames cleanly inside the blue-grey mask
+        ctx.strokeStyle = 'rgba(34, 39, 54, 0.85)';
+        ctx.lineWidth = 1.25;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, rx, openRy, 0, 0, Math.PI * 2);
+        ctx.stroke();
       }
 
       ctx.restore();
@@ -1013,7 +1303,10 @@ export class KuroCatEngine {
     ctx.shadowBlur = 6;
     ctx.shadowOffsetY = 3;
 
-    ctx.fillStyle = clicked ? '#d4f044' : '#f0f0ec';
+    const activeColor = this.catBreed === 'ragdoll' ? '#7ac7ff' : '#d4f044';
+    const scrollColor = this.catBreed === 'ragdoll' ? '#4690d8' : '#92ba12';
+
+    ctx.fillStyle = clicked ? activeColor : '#f0f0ec';
     ctx.strokeStyle = '#303136';
     ctx.lineWidth = 1.4;
     ctx.beginPath();
@@ -1022,7 +1315,7 @@ export class KuroCatEngine {
     ctx.shadowBlur = 0;
     ctx.stroke();
 
-    ctx.fillStyle = this.mouseScrollFlash > 0.2 ? '#92ba12' : '#5e6066';
+    ctx.fillStyle = this.mouseScrollFlash > 0.2 ? scrollColor : '#5e6066';
     this.roundRect(ctx, -1.8, -12, 3.6, 7.5, 1.8);
     ctx.fill();
 
@@ -1085,8 +1378,8 @@ export class KuroCatEngine {
       let topColor = '#f8f8f5';
       let sideColor = '#d0d2cc';
       if (press > 0.14) {
-        topColor = '#d2f244';
-        sideColor = '#8cb014';
+        topColor = this.catBreed === 'ragdoll' ? '#7ac7ff' : '#d2f244';
+        sideColor = this.catBreed === 'ragdoll' ? '#4690d8' : '#8cb014';
       } else if (key.accent === 'orange') {
         topColor = '#f4a524';
         sideColor = '#c27a10';
@@ -1154,7 +1447,91 @@ export class KuroCatEngine {
     const pawRx = 14.5 * (1 + squash * 0.14);
     const pawRy = 11.8 * (1 - squash * 0.12);
 
+    const isRagdoll = this.catBreed === 'ragdoll';
     ctx.save();
+
+    if (isRagdoll) {
+      // Seamless pure creamy snow-white Ragdoll mitten arm melting smoothly out of the white chest!
+      const armGrad = ctx.createLinearGradient(sx, sy, px, py);
+      armGrad.addColorStop(0.0, '#f8f6f1');
+      armGrad.addColorStop(0.5, '#fbfaf7');
+      armGrad.addColorStop(1.0, '#fdfcf9');
+
+      ctx.fillStyle = armGrad;
+
+      // Tapered snow-white arm silhouette (NO dark shadow smudge over the white chest!)
+      ctx.beginPath();
+      ctx.moveTo(sx + nx * rShoulder, sy + ny * rShoulder);
+      ctx.quadraticCurveTo(
+        (sx + wx) * 0.5 + nx * (rShoulder * 0.84),
+        (sy + wy) * 0.5 + ny * (rShoulder * 0.84),
+        wx + nx * rWrist,
+        wy + ny * rWrist,
+      );
+      ctx.lineTo(wx - nx * rWrist, wy - ny * rWrist);
+      ctx.quadraticCurveTo(
+        (sx + wx) * 0.5 - nx * (rShoulder * 0.84),
+        (sy + wy) * 0.5 - ny * (rShoulder * 0.84),
+        sx - nx * rShoulder,
+        sy - ny * rShoulder,
+      );
+      ctx.closePath();
+      ctx.fill();
+
+      // Seamless white shoulder merge (invisible against white chest — ZERO grey shoulder blob!)
+      ctx.beginPath();
+      ctx.arc(sx, sy, rShoulder, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Soft subtle contact shadow ONLY under the plump round white mitten paw ball
+      ctx.save();
+      ctx.shadowColor = 'rgba(30, 36, 48, 0.22)';
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetY = 1.5;
+      ctx.fillStyle = '#fdfcf9';
+      ctx.beginPath();
+      ctx.ellipse(px, py, pawRx, pawRy, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Refined slate-grey arm side strokes that fade gently out at the shoulder and stay crisp along forearm & paw!
+      ctx.lineWidth = 1.65;
+      ctx.lineCap = 'round';
+      for (const sgn of [-1, 1]) {
+        const startFrac = withCrease ? 0.16 : 0.08;
+        const esx = sx + ux * (len * startFrac) + nx * sgn * (rShoulder * (1 - startFrac * 0.16));
+        const esy = sy + uy * (len * startFrac) + ny * sgn * (rShoulder * (1 - startFrac * 0.16));
+        const eex = wx + nx * sgn * rWrist;
+        const eey = wy + ny * sgn * rWrist;
+
+        const edgeGrad = ctx.createLinearGradient(esx, esy, eex, eey);
+        edgeGrad.addColorStop(0.0, 'rgba(76, 82, 98, 0.0)');
+        edgeGrad.addColorStop(0.24, 'rgba(76, 82, 98, 0.78)');
+        edgeGrad.addColorStop(1.0, 'rgba(76, 82, 98, 0.92)');
+
+        ctx.strokeStyle = edgeGrad;
+        ctx.beginPath();
+        ctx.moveTo(esx, esy);
+        ctx.quadraticCurveTo(
+          (sx + wx) * 0.5 + nx * sgn * (rShoulder * 0.84),
+          (sy + wy) * 0.5 + ny * sgn * (rShoulder * 0.84),
+          eex,
+          eey,
+        );
+        ctx.stroke();
+      }
+
+      // Crisp rounded mitten paw outline arc so the white paw reads clearly against white keyboard keys!
+      const pawAng = Math.atan2(dy, dx);
+      ctx.strokeStyle = 'rgba(76, 82, 98, 0.92)';
+      ctx.beginPath();
+      ctx.ellipse(px, py, pawRx, pawRy, 0, pawAng - Math.PI * 0.62, pawAng + Math.PI * 0.62);
+      ctx.stroke();
+
+      ctx.restore();
+      return;
+    }
+
     ctx.shadowColor = 'rgba(18, 17, 18, 0.42)';
     ctx.shadowBlur = 1.6;
     ctx.fillStyle = '#141314';
@@ -1231,33 +1608,41 @@ export class KuroCatEngine {
     const elbowX = sh.x + sign * 8;
     const elbowY = cp.y + 8;
 
+    const isRagdoll = this.catBreed === 'ragdoll';
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Continuous bent velvety black arm + plump curled paw
-    ctx.strokeStyle = '#141314';
+    // Continuous bent velvety arm + plump curled paw
+    ctx.strokeStyle = isRagdoll ? '#f7f5f0' : '#141314';
     ctx.lineWidth = 20;
     ctx.beginPath();
     ctx.moveTo(sh.x, sh.y);
     ctx.quadraticCurveTo(elbowX, elbowY, cp.x, cp.y);
     ctx.stroke();
 
-    ctx.fillStyle = '#141314';
+    ctx.fillStyle = isRagdoll ? '#fcfbf8' : '#141314';
     ctx.beginPath();
     ctx.ellipse(cp.x, cp.y, 12.5, 11.0, sign * 0.2, 0, Math.PI * 2);
     ctx.fill();
 
-    // Clear crisp soft-grey contour along the bent curled forearm & kitten paw (exact match to ORIG 10.6s!)
+    // Clear crisp contour along the bent curled forearm & kitten paw
     const grad = ctx.createLinearGradient(elbowX, elbowY - 12, cp.x, cp.y + 12);
-    grad.addColorStop(0.0, 'rgba(214, 216, 220, 0.0)');
-    grad.addColorStop(0.30, 'rgba(214, 216, 220, 0.65)');
-    grad.addColorStop(0.85, 'rgba(220, 222, 226, 0.72)');
-    grad.addColorStop(1.0, 'rgba(220, 222, 226, 0.25)');
+    if (isRagdoll) {
+      grad.addColorStop(0.0, 'rgba(62, 67, 80, 0.0)');
+      grad.addColorStop(0.28, 'rgba(62, 67, 80, 0.68)');
+      grad.addColorStop(0.86, 'rgba(58, 63, 76, 0.78)');
+      grad.addColorStop(1.0, 'rgba(58, 63, 76, 0.35)');
+    } else {
+      grad.addColorStop(0.0, 'rgba(214, 216, 220, 0.0)');
+      grad.addColorStop(0.30, 'rgba(214, 216, 220, 0.65)');
+      grad.addColorStop(0.85, 'rgba(220, 222, 226, 0.72)');
+      grad.addColorStop(1.0, 'rgba(220, 222, 226, 0.25)');
+    }
 
     ctx.strokeStyle = grad;
-    ctx.lineWidth = 1.4;
+    ctx.lineWidth = isRagdoll ? 1.65 : 1.4;
     ctx.beginPath();
     ctx.moveTo(elbowX + sign * 8, elbowY - 16);
     ctx.quadraticCurveTo(elbowX + sign * 4, elbowY + 12, cp.x + sign * 2, cp.y + 10);
@@ -1289,15 +1674,23 @@ export class KuroCatEngine {
         const innerTopX = topSp.x + sign * 6.5;
         const innerBotX = botSp.x + sign * 9.5;
 
-        // Crisp subtle light-grey outer leg curve & inner leg-gap line (4 total lines across both legs — exact ORIG 0.3s!)
+        // Crisp subtle outer leg curve & inner leg-gap line (4 total lines across both legs — exact ORIG 0.3s!)
+        const isRagdoll = this.catBreed === 'ragdoll';
         const lineGrad = ctx.createLinearGradient(topSp.x, topSp.y, botSp.x, botSp.y);
-        lineGrad.addColorStop(0.0, 'rgba(210, 212, 216, 0.0)');
-        lineGrad.addColorStop(0.18, 'rgba(210, 212, 216, 0.64)');
-        lineGrad.addColorStop(0.92, 'rgba(210, 212, 216, 0.62)');
-        lineGrad.addColorStop(1.0, 'rgba(210, 212, 216, 0.25)');
+        if (isRagdoll) {
+          lineGrad.addColorStop(0.0, 'rgba(66, 72, 86, 0.0)');
+          lineGrad.addColorStop(0.18, 'rgba(66, 72, 86, 0.62)');
+          lineGrad.addColorStop(0.92, 'rgba(62, 68, 82, 0.68)');
+          lineGrad.addColorStop(1.0, 'rgba(62, 68, 82, 0.28)');
+        } else {
+          lineGrad.addColorStop(0.0, 'rgba(210, 212, 216, 0.0)');
+          lineGrad.addColorStop(0.18, 'rgba(210, 212, 216, 0.64)');
+          lineGrad.addColorStop(0.92, 'rgba(210, 212, 216, 0.62)');
+          lineGrad.addColorStop(1.0, 'rgba(210, 212, 216, 0.25)');
+        }
 
         ctx.strokeStyle = lineGrad;
-        ctx.lineWidth = 1.4;
+        ctx.lineWidth = isRagdoll ? 1.55 : 1.4;
         ctx.lineCap = 'round';
 
         // Outer front-leg separation line (gently curves inward toward paw!)

@@ -9,7 +9,15 @@
     <canvas id="pet-canvas"></canvas>
 
     <div id="context-menu" class="context-menu hidden">
-      <div class="menu-header">🐈‍⬛ KuroCat 小黑猫</div>
+      <div class="menu-header" id="menu-header">🐈‍⬛ KuroCat 小黑猫</div>
+      <div class="menu-scale-row">
+        <span class="menu-scale-label">猫咪外观</span>
+        <div class="breed-pills">
+          <button class="breed-pill active" data-breed="black">🐈‍⬛ 小黑猫</button>
+          <button class="breed-pill" data-breed="ragdoll">🐱 布偶猫</button>
+        </div>
+      </div>
+      <div class="menu-sep"></div>
       <button class="menu-item" data-action="toggle-bubbles">
         <span>悬浮按键气泡</span>
         <span class="menu-check" id="chk-bubbles">✓</span>
