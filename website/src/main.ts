@@ -4,8 +4,8 @@ import type { KeyboardLayoutId } from '../../src/keyboardLayout';
 import { BUILTIN_WEB_CATS } from './builtinCats';
 import { keyboardEventToVk } from './webKeyMap';
 
-const LOCAL_MIRROR_VERSION = 'v4.6.0';
-const LOCAL_MIRROR_VER_NUM = '4.6.0';
+const LOCAL_MIRROR_VERSION = 'v4.6.1';
+const LOCAL_MIRROR_VER_NUM = '4.6.1';
 
 interface ReleaseAssetMap {
   win65: { name: string; primaryUrl: string; ghUrl: string; sizeText: string };
@@ -25,7 +25,7 @@ function buildDefaultAssets(): ReleaseAssetMap {
     win65: { name: n65, primaryUrl: `${localBase}/${n65}`, ghUrl: `${ghBase}/${n65}`, sizeText: '1.55 MB' },
     win108: { name: n108, primaryUrl: `${localBase}/${n108}`, ghUrl: `${ghBase}/${n108}`, sizeText: '1.55 MB' },
     winPortable: { name: nPort, primaryUrl: `${localBase}/${nPort}`, ghUrl: `${ghBase}/${nPort}`, sizeText: '3.70 MB' },
-    macos: { name: nMac, primaryUrl: `${localBase}/${nMac}`, ghUrl: `${ghBase}/${nMac}`, sizeText: '4.72 MB' },
+    macos: { name: nMac, primaryUrl: `${localBase}/${nMac}`, ghUrl: `${ghBase}/${nMac}`, sizeText: '4.73 MB' },
   };
 }
 
