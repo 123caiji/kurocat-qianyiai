@@ -8,6 +8,16 @@ use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager};
 
+fn default_tray_tooltip() -> &'static str {
+    #[cfg(windows)]
+    {
+        if crate::win_is_elevated() {
+            return "KuroCat（管理员 · 游戏模式就绪）";
+        }
+    }
+    "KuroCat"
+}
+
 pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
     let toggle_show = MenuItem::with_id(app, "toggle_show", "显示 / 隐藏小黑猫", true, None::<&str>)?;
     let pause_guard = CheckMenuItem::with_id(
@@ -18,6 +28,16 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
         false,
         None::<&str>,
     )?;
+    #[cfg(windows)]
+    let restart_as_admin = {
+        let elevated = crate::win_is_elevated();
+        let label = if elevated {
+            "✓ 已管理员运行（游戏键鼠就绪）"
+        } else {
+            "以管理员身份重启（捕获游戏键鼠）"
+        };
+        MenuItem::with_id(app, "restart_as_admin", label, !elevated, None::<&str>)?
+    };
     let click_through = CheckMenuItem::with_id(
         app,
         "click_through",
@@ -32,6 +52,14 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
         "显示悬浮按键气泡",
         true,
         initial.show_key_bubbles,
+        None::<&str>,
+    )?;
+    let privacy_guard = CheckMenuItem::with_id(
+        app,
+        "privacy_guard",
+        "输入密码自动闭眼防偷窥",
+        true,
+        initial.privacy_password_guard,
         None::<&str>,
     )?;
     let sound_toggle = CheckMenuItem::with_id(
@@ -73,9 +101,10 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
     let breed_calico = MenuItem::with_id(app, "breed_calico", "三花猫", true, None::<&str>)?;
     let breed_tuxedo = MenuItem::with_id(app, "breed_tuxedo", "奶牛猫", true, None::<&str>)?;
     let breed_siamese = MenuItem::with_id(app, "breed_siamese", "暹罗猫", true, None::<&str>)?;
+    let breed_dafeiyu = MenuItem::with_id(app, "breed_dafeiyu", "🐳 大肥鱼（鲸鱼娘）", true, None::<&str>)?;
     let breed_menu = Submenu::with_items(
         app,
-        "猫咪外观",
+        "角色外观",
         true,
         &[
             &breed_black,
@@ -84,6 +113,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
             &breed_calico,
             &breed_tuxedo,
             &breed_siamese,
+            &breed_dafeiyu,
         ],
     )?;
 
@@ -178,8 +208,10 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
         &[
             &toggle_show,
             &pause_guard,
+            &restart_as_admin,
             &sep1,
             &click_through,
+            &privacy_guard,
             &key_bubbles,
             &sound_toggle,
             &always_on_top,
@@ -204,6 +236,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
             &pause_guard,
             &sep1,
             &click_through,
+            &privacy_guard,
             &key_bubbles,
             &sound_toggle,
             &always_on_top,
@@ -228,6 +261,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
             &pause_guard,
             &sep1,
             &click_through,
+            &privacy_guard,
             &key_bubbles,
             &sound_toggle,
             &always_on_top,
@@ -248,7 +282,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
 
     TrayIconBuilder::with_id("kuro-tray")
         .icon(icon)
-        .tooltip("KuroCat")
+        .tooltip(default_tray_tooltip())
         .menu(&menu)
         .show_menu_on_left_click(cfg!(target_os = "macos"))
         .on_tray_icon_event(move |tray, event| {
@@ -260,21 +294,30 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
             {
                 let app = tray.app_handle();
                 let state = app.state::<AppState>();
+                let on_top = state.settings.lock().unwrap().always_on_top;
                 if state.paused_guard.load(std::sync::atomic::Ordering::SeqCst) {
                     state
                         .paused_guard
                         .store(false, std::sync::atomic::Ordering::SeqCst);
                     crate::input_hook::set_hooks_paused(false);
                     let _ = pause_guard_for_click.set_checked(false);
-                    let _ = tray.set_tooltip(Some("KuroCat"));
+                    let _ = tray.set_tooltip(Some(default_tray_tooltip()));
                     if let Some(win) = app.get_webview_window("main") {
                         let _ = win.show();
+                        #[cfg(windows)]
+                        if on_top {
+                            crate::win_gentle_reassert_topmost(&win);
+                        }
                     }
                 } else if let Some(win) = app.get_webview_window("main") {
                     if win.is_visible().unwrap_or(true) {
                         let _ = win.hide();
                     } else {
                         let _ = win.show();
+                        #[cfg(windows)]
+                        if on_top {
+                            crate::win_gentle_reassert_topmost(&win);
+                        }
                     }
                 }
             }
@@ -283,6 +326,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
             let state = app.state::<AppState>();
             match event.id().as_ref() {
                 "toggle_show" => {
+                    let on_top = state.settings.lock().unwrap().always_on_top;
                     if state.paused_guard.load(std::sync::atomic::Ordering::SeqCst) {
                         state
                             .paused_guard
@@ -290,16 +334,24 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                         crate::input_hook::set_hooks_paused(false);
                         let _ = pause_guard.set_checked(false);
                         if let Some(tray) = app.tray_by_id("kuro-tray") {
-                            let _ = tray.set_tooltip(Some("KuroCat"));
+                            let _ = tray.set_tooltip(Some(default_tray_tooltip()));
                         }
                         if let Some(win) = app.get_webview_window("main") {
                             let _ = win.show();
+                            #[cfg(windows)]
+                            if on_top {
+                                crate::win_gentle_reassert_topmost(&win);
+                            }
                         }
                     } else if let Some(win) = app.get_webview_window("main") {
                         if win.is_visible().unwrap_or(true) {
                             let _ = win.hide();
                         } else {
                             let _ = win.show();
+                            #[cfg(windows)]
+                            if on_top {
+                                crate::win_gentle_reassert_topmost(&win);
+                            }
                         }
                     }
                 }
@@ -316,7 +368,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                         let tip = if next {
                             "KuroCat（已暂停监听 · 反作弊护航中）"
                         } else {
-                            "KuroCat"
+                            default_tray_tooltip()
                         };
                         let _ = tray.set_tooltip(Some(tip));
                     }
@@ -325,7 +377,17 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                             let _ = win.hide();
                         } else {
                             let _ = win.show();
+                            #[cfg(windows)]
+                            if state.settings.lock().unwrap().always_on_top {
+                                crate::win_gentle_reassert_topmost(&win);
+                            }
                         }
+                    }
+                }
+                #[cfg(windows)]
+                "restart_as_admin" => {
+                    if !crate::win_is_elevated() {
+                        crate::win_restart_as_admin(app.clone());
                     }
                 }
                 "click_through" => {
@@ -342,6 +404,14 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                     let enabled = s.show_key_bubbles;
                     crate::config::save_settings(&s);
                     let _ = key_bubbles.set_checked(enabled);
+                    let _ = app.emit("kuro-settings", s.clone());
+                }
+                "privacy_guard" => {
+                    let mut s = state.settings.lock().unwrap();
+                    s.privacy_password_guard = !s.privacy_password_guard;
+                    let enabled = s.privacy_password_guard;
+                    crate::config::save_settings(&s);
+                    let _ = privacy_guard.set_checked(enabled);
                     let _ = app.emit("kuro-settings", s.clone());
                 }
                 "sound_toggle" => {
@@ -392,6 +462,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                 "breed_calico" => apply_breed_and_save(app, "calico"),
                 "breed_tuxedo" => apply_breed_and_save(app, "tuxedo"),
                 "breed_siamese" => apply_breed_and_save(app, "siamese"),
+                "breed_dafeiyu" => apply_breed_and_save(app, "dafeiyu"),
                 "scale_25" => apply_scale_and_save(app, 0.25),
                 "scale_50" => apply_scale_and_save(app, 0.5),
                 "scale_75" => apply_scale_and_save(app, 0.75),

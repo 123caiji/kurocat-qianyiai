@@ -4,6 +4,7 @@ mod cats;
 mod config;
 mod input_hook;
 mod mcp;
+mod privacy;
 mod tray;
 mod updater;
 
@@ -471,15 +472,134 @@ fn win_force_click_through(win: &tauri::WebviewWindow, ignore: bool) {
 }
 
 #[cfg(windows)]
-fn win_foreground_hwnd() -> isize {
+fn win_foreground_hwnd() -> windows_sys::Win32::Foundation::HWND {
     use windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
-    unsafe { GetForegroundWindow() as isize }
+    unsafe { GetForegroundWindow() }
 }
 
 #[cfg(windows)]
-fn win_gentle_reassert_topmost(win: &tauri::WebviewWindow) {
+fn win_is_topmost(hwnd: windows_sys::Win32::Foundation::HWND) -> bool {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE,
+        GetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TOPMOST,
+    };
+    if hwnd.is_null() {
+        return false;
+    }
+    let ex = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) };
+    (ex & (WS_EX_TOPMOST as isize)) != 0
+}
+
+#[cfg(windows)]
+fn win_is_iconic(hwnd: windows_sys::Win32::Foundation::HWND) -> bool {
+    use windows_sys::Win32::UI::WindowsAndMessaging::IsIconic;
+    if hwnd.is_null() {
+        return false;
+    }
+    unsafe { IsIconic(hwnd) != 0 }
+}
+
+#[cfg(windows)]
+fn win_is_ignored_shell_window(hwnd: windows_sys::Win32::Foundation::HWND) -> bool {
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetClassNameW;
+    let mut buf = [0u16; 64];
+    let len = unsafe { GetClassNameW(hwnd, buf.as_mut_ptr(), buf.len() as i32) };
+    if len <= 0 {
+        return false;
+    }
+    let class_name = String::from_utf16_lossy(&buf[..len as usize]);
+    matches!(
+        class_name.as_str(),
+        "Shell_TrayWnd"
+            | "Shell_SecondaryTrayWnd"
+            | "Progman"
+            | "WorkerW"
+            | "Windows.UI.Core.CoreWindow"
+            | "XamlExplorerHostIslandWindow"
+            | "MultitaskingViewFrame"
+            | "TaskListThumbnailWnd"
+    )
+}
+
+#[cfg(windows)]
+fn win_rects_overlap(
+    a: windows_sys::Win32::Foundation::HWND,
+    b: windows_sys::Win32::Foundation::HWND,
+) -> bool {
+    use windows_sys::Win32::Foundation::RECT;
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetWindowRect;
+    let mut ra = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+    let mut rb = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+    unsafe {
+        if GetWindowRect(a, &mut ra) == 0 || GetWindowRect(b, &mut rb) == 0 {
+            return true;
+        }
+    }
+    ra.left < rb.right && ra.right > rb.left && ra.top < rb.bottom && ra.bottom > rb.top
+}
+
+/// Inspired by BongoCat ADR-0096: determine whether the foreground window is
+/// currently stacked above our pet window in Windows Z-order using early-exit
+/// synchronous EnumWindows (covering both WS_EX_TOPMOST fullscreen windows and
+/// Shell-elevated borderless / FSO fullscreen windows on any monitor).
+#[cfg(windows)]
+fn win_window_is_above(
+    candidate: windows_sys::Win32::Foundation::HWND,
+    model: windows_sys::Win32::Foundation::HWND,
+) -> bool {
+    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
+    use windows_sys::Win32::UI::WindowsAndMessaging::EnumWindows;
+
+    if candidate.is_null() || model.is_null() || candidate == model {
+        return false;
+    }
+    if win_is_ignored_shell_window(candidate) || !win_rects_overlap(candidate, model) {
+        return false;
+    }
+
+    #[repr(C)]
+    struct OrderCtx {
+        candidate: HWND,
+        model: HWND,
+        candidate_above: bool,
+    }
+
+    unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let ctx = &mut *(lparam as *mut OrderCtx);
+        if hwnd == ctx.candidate {
+            ctx.candidate_above = true;
+            0
+        } else if hwnd == ctx.model {
+            0
+        } else {
+            1
+        }
+    }
+
+    let mut ctx = OrderCtx {
+        candidate,
+        model,
+        candidate_above: false,
+    };
+    unsafe {
+        let _ = EnumWindows(Some(enum_proc), (&mut ctx as *mut OrderCtx) as LPARAM);
+    }
+    ctx.candidate_above
+}
+
+#[cfg(windows)]
+pub fn win_gentle_reassert_topmost(win: &tauri::WebviewWindow) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
     };
     let Ok(raw_hwnd) = win.hwnd() else {
         return;
@@ -493,8 +613,138 @@ fn win_gentle_reassert_topmost(win: &tauri::WebviewWindow) {
             0,
             0,
             0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
         );
+    }
+}
+
+#[cfg(windows)]
+pub fn win_is_elevated() -> bool {
+    use std::ffi::c_void;
+    use windows_sys::Win32::Foundation::{BOOL, CloseHandle, HANDLE};
+    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+
+    #[link(name = "advapi32")]
+    extern "system" {
+        fn OpenProcessToken(
+            process_handle: HANDLE,
+            desired_access: u32,
+            token_handle: *mut HANDLE,
+        ) -> BOOL;
+        fn GetTokenInformation(
+            token_handle: HANDLE,
+            token_information_class: u32,
+            token_information: *mut c_void,
+            token_information_length: u32,
+            return_length: *mut u32,
+        ) -> BOOL;
+    }
+
+    const TOKEN_QUERY: u32 = 0x0008;
+    const TOKEN_ELEVATION_CLASS: u32 = 20;
+
+    #[repr(C)]
+    struct TokenElevation {
+        token_is_elevated: u32,
+    }
+
+    unsafe {
+        let mut token: HANDLE = std::ptr::null_mut();
+        if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) == 0 || token.is_null() {
+            return false;
+        }
+        let mut elevation = TokenElevation {
+            token_is_elevated: 0,
+        };
+        let mut ret_len: u32 = 0;
+        let ok = GetTokenInformation(
+            token,
+            TOKEN_ELEVATION_CLASS,
+            (&mut elevation as *mut TokenElevation).cast(),
+            std::mem::size_of::<TokenElevation>() as u32,
+            &mut ret_len,
+        );
+        let _ = CloseHandle(token);
+        ok != 0 && elevation.token_is_elevated != 0
+    }
+}
+
+#[cfg(windows)]
+pub fn win_restart_as_admin(app: AppHandle) {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Foundation::HWND;
+    use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+
+    #[link(name = "shell32")]
+    extern "system" {
+        fn ShellExecuteW(
+            hwnd: HWND,
+            lp_operation: *const u16,
+            lp_file: *const u16,
+            lp_parameters: *const u16,
+            lp_directory: *const u16,
+            n_show_cmd: i32,
+        ) -> isize;
+    }
+
+    let Ok(exe) = std::env::current_exe() else {
+        return;
+    };
+    let current_pid = std::process::id();
+
+    std::thread::spawn(move || {
+        let to_wide = |s: &std::ffi::OsStr| -> Vec<u16> {
+            s.encode_wide().chain(std::iter::once(0)).collect()
+        };
+        let verb = to_wide(std::ffi::OsStr::new("runas"));
+        let file = to_wide(exe.as_os_str());
+        let params_str = format!("--wait-pid {}", current_pid);
+        let params = to_wide(std::ffi::OsStr::new(&params_str));
+        let dir = exe.parent().map(|p| to_wide(p.as_os_str()));
+        let dir_ptr = dir.as_ref().map_or(std::ptr::null(), |v| v.as_ptr());
+
+        let result = unsafe {
+            ShellExecuteW(
+                std::ptr::null_mut(),
+                verb.as_ptr(),
+                file.as_ptr(),
+                params.as_ptr(),
+                dir_ptr,
+                SW_SHOWNORMAL,
+            )
+        };
+        if result > 32 {
+            crate::input_hook::set_hooks_paused(true);
+            app.exit(0);
+        }
+    });
+}
+
+#[cfg(windows)]
+fn win_wait_for_previous_pid_if_requested() {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{OpenProcess, WaitForSingleObject};
+
+    const PROCESS_SYNCHRONIZE: u32 = 0x0010_0000;
+    let mut args = std::env::args();
+    while let Some(arg) = args.next() {
+        if arg == "--wait-pid" {
+            if let Some(pid_str) = args.next() {
+                if let Ok(pid) = pid_str.parse::<u32>() {
+                    if pid != 0 && pid != std::process::id() {
+                        unsafe {
+                            let handle = OpenProcess(PROCESS_SYNCHRONIZE, 0, pid);
+                            if !handle.is_null() {
+                                let _ = WaitForSingleObject(handle, 4000);
+                                let _ = CloseHandle(handle);
+                            }
+                        }
+                        std::thread::sleep(Duration::from_millis(150));
+                    }
+                }
+            }
+            break;
+        }
     }
 }
 
@@ -569,9 +819,11 @@ fn start_hit_test_loop(
         #[cfg(windows)]
         let mut last_fg_hwnd: isize = 0;
         #[cfg(windows)]
-        let mut pending_topmost_ticks: u8 = 0;
+        let mut topmost_check_ticks: u8 = 0;
         #[cfg(windows)]
-        let mut last_topmost_reassert = Instant::now() - Duration::from_secs(2);
+        let mut fg_above_attempts: u8 = 0;
+        #[cfg(windows)]
+        let mut last_topmost_reassert = Instant::now() - Duration::from_secs(5);
 
         loop {
             std::thread::sleep(Duration::from_millis(25));
@@ -611,27 +863,74 @@ fn start_hit_test_loop(
                 )
             };
 
-            // Gentle once-per-foreground-switch topmost guard for borderless fullscreen games:
-            // never spams SetWindowPos in a loop and never steals focus (SWP_NOACTIVATE).
+            let is_menu = menu_open.load(Ordering::Relaxed);
+            let is_drag = dragging.load(Ordering::Relaxed);
+            let is_banner = update_banner_open.load(Ordering::Relaxed);
+
+            // Continuous ADR-0096-style Windows Z-order guard for borderless & FSO fullscreen games:
+            // checks actual topmost band membership + EnumWindows stacking order against the
+            // foreground window every ~150ms (and shortly after foreground switches), reasserting
+            // HWND_TOPMOST strictly on the window owner thread without stealing focus (SWP_NOACTIVATE).
             #[cfg(windows)]
-            if always_on_top {
-                let fg = win_foreground_hwnd();
-                let our_hwnd = win.hwnd().map(|h| h.0 as isize).unwrap_or(0);
-                if fg != 0 && fg != our_hwnd && fg != last_fg_hwnd {
-                    last_fg_hwnd = fg;
-                    pending_topmost_ticks = 5; // ~125ms after target borderless window takes focus
+            if always_on_top && !is_menu && !is_drag {
+                let fg_raw = win_foreground_hwnd();
+                let fg_id = fg_raw as isize;
+                if fg_id != last_fg_hwnd {
+                    last_fg_hwnd = fg_id;
+                    fg_above_attempts = 0;
+                    topmost_check_ticks = 4; // trigger a prompt Z-order check ~50ms after focus switch
                 }
-                if pending_topmost_ticks > 0 {
-                    pending_topmost_ticks -= 1;
-                    if pending_topmost_ticks == 0
-                        && last_topmost_reassert.elapsed() >= Duration::from_millis(350)
-                    {
-                        win_gentle_reassert_topmost(&win);
-                        last_topmost_reassert = Instant::now();
+                topmost_check_ticks = topmost_check_ticks.saturating_add(1);
+                if topmost_check_ticks >= 6 {
+                    topmost_check_ticks = 0;
+                    if let Ok(raw_hwnd) = win.hwnd() {
+                        let our_hwnd = raw_hwnd.0 as windows_sys::Win32::Foundation::HWND;
+                        if !win_is_iconic(our_hwnd) {
+                            let lost_topmost = !win_is_topmost(our_hwnd);
+                            let fg_above = !lost_topmost
+                                && !fg_raw.is_null()
+                                && fg_raw != our_hwnd
+                                && win_window_is_above(fg_raw, our_hwnd);
+
+                            if !lost_topmost && !fg_above {
+                                fg_above_attempts = 0;
+                            } else if lost_topmost {
+                                if last_topmost_reassert.elapsed() >= Duration::from_millis(250) {
+                                    let app_for_top = app.clone();
+                                    let _ = app.run_on_main_thread(move || {
+                                        if let Some(w) = app_for_top.get_webview_window("main") {
+                                            if w.is_visible().unwrap_or(false) {
+                                                win_gentle_reassert_topmost(&w);
+                                            }
+                                        }
+                                    });
+                                    last_topmost_reassert = Instant::now();
+                                }
+                            } else if fg_above_attempts < 3 {
+                                let cooldown = match fg_above_attempts {
+                                    0 => Duration::from_millis(0),
+                                    1 => Duration::from_millis(350),
+                                    _ => Duration::from_millis(900),
+                                };
+                                if last_topmost_reassert.elapsed() >= cooldown {
+                                    let app_for_top = app.clone();
+                                    let _ = app.run_on_main_thread(move || {
+                                        if let Some(w) = app_for_top.get_webview_window("main") {
+                                            if w.is_visible().unwrap_or(false) {
+                                                win_gentle_reassert_topmost(&w);
+                                            }
+                                        }
+                                    });
+                                    last_topmost_reassert = Instant::now();
+                                    fg_above_attempts = fg_above_attempts.saturating_add(1);
+                                }
+                            }
+                        }
                     }
                 }
             } else {
-                pending_topmost_ticks = 0;
+                topmost_check_ticks = 0;
+                fg_above_attempts = 0;
             }
             let alt_override = input_hook::is_alt_pressed();
             let effective_locked = locked && !alt_override;
@@ -658,9 +957,6 @@ fn start_hit_test_loop(
             // aren't misled by squinting eyes when the cat is intentionally click-through.
             let over_cat = if effective_locked { false } else { raw_over_cat };
 
-            let is_menu = menu_open.load(Ordering::Relaxed);
-            let is_drag = dragging.load(Ordering::Relaxed);
-            let is_banner = update_banner_open.load(Ordering::Relaxed);
             let over_banner = is_banner && inside && ry <= 0.19;
 
             let should_ignore = if is_menu || is_drag || over_banner {
@@ -719,6 +1015,9 @@ fn start_hit_test_loop(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(windows)]
+    win_wait_for_previous_pid_if_requested();
+
     let mut initial_settings = load_settings();
     // Always start unlocked so users who accidentally toggled click-through lock can never be permanently trapped across restarts/upgrades
     if initial_settings.click_through_locked {
@@ -778,6 +1077,11 @@ pub fn run() {
 
             tray::setup_tray(&handle, &s)?;
             input_hook::start_global_hooks(handle.clone());
+            privacy::start_password_privacy_watcher(
+                handle.clone(),
+                settings_for_setup.clone(),
+                paused_for_setup.clone(),
+            );
             start_hit_test_loop(
                 handle.clone(),
                 settings_for_setup,
@@ -847,4 +1151,98 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running KuroCat");
+}
+
+#[cfg(all(test, windows))]
+mod windows_zorder_tests {
+    use super::*;
+    use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        CreateWindowExW, DestroyWindow, SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE,
+        SWP_NOSIZE, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
+    };
+
+    #[test]
+    fn detects_and_recovers_topmost_zorder_without_stealing_focus() {
+        let class_name: Vec<u16> = "STATIC\0".encode_utf16().collect();
+        let title: Vec<u16> = "KuroCatZOrderTest\0".encode_utf16().collect();
+        unsafe {
+            let hinst = GetModuleHandleW(std::ptr::null());
+            let ex = WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
+            let model = CreateWindowExW(
+                ex,
+                class_name.as_ptr(),
+                title.as_ptr(),
+                WS_POPUP,
+                100,
+                100,
+                200,
+                200,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                hinst,
+                std::ptr::null(),
+            );
+            let fg = CreateWindowExW(
+                ex,
+                class_name.as_ptr(),
+                title.as_ptr(),
+                WS_POPUP,
+                120,
+                120,
+                200,
+                200,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                hinst,
+                std::ptr::null(),
+            );
+            assert!(!model.is_null() && !fg.is_null());
+            assert!(win_is_topmost(model));
+            assert!(win_is_topmost(fg));
+
+            // Place simulated foreground topmost window above model
+            SetWindowPos(
+                fg,
+                HWND_TOPMOST,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+            );
+            assert!(
+                win_window_is_above(fg, model),
+                "expected fg topmost window to be detected above model"
+            );
+
+            // Reassert model to HWND_TOPMOST (same call as win_gentle_reassert_topmost)
+            SetWindowPos(
+                model,
+                HWND_TOPMOST,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+            );
+            assert!(
+                !win_window_is_above(fg, model),
+                "expected model to sit above fg after HWND_TOPMOST reassert"
+            );
+
+            // Move fg away so rectangles no longer overlap (e.g. another monitor)
+            SetWindowPos(fg, HWND_TOPMOST, 2000, 2000, 200, 200, SWP_NOACTIVATE);
+            assert!(
+                !win_window_is_above(fg, model),
+                "non-overlapping fg window should never trigger topmost reorder"
+            );
+
+            let _ = DestroyWindow(fg);
+            let _ = DestroyWindow(model);
+        }
+
+        // Verify elevation query runs safely without panicking
+        let _ = win_is_elevated();
+    }
 }

@@ -21,6 +21,7 @@ interface AppSettings {
   mcpPort: number;
   keyboardLayout: KeyboardLayoutId;
   keyboardOrientation: KeyboardOrientation;
+  privacyPasswordGuard: boolean;
 }
 
 type InputEvent =
@@ -29,7 +30,8 @@ type InputEvent =
   | { kind: 'mouseDown'; button: string }
   | { kind: 'mouseUp'; button: string }
   | { kind: 'mouseWheel'; delta: number }
-  | { kind: 'mouseMove'; x: number; y: number; nx: number; ny: number };
+  | { kind: 'mouseMove'; x: number; y: number; nx: number; ny: number }
+  | { kind: 'privacyTyping' };
 
 interface WindowCursorInfo {
   relX: number;
@@ -58,7 +60,7 @@ interface UpdateProgressEvent {
   info: UpdateInfo | null;
 }
 
-let appVersion = '4.6.3';
+let appVersion = '4.7.0';
 let latestUpdateInfo: UpdateInfo | null = null;
 let updateBusy = false;
 let dismissedVersion: string | null = null;
@@ -81,6 +83,7 @@ let settings: AppSettings = {
   mcpPort: 27420,
   keyboardLayout: '65',
   keyboardOrientation: 'cat',
+  privacyPasswordGuard: true,
 };
 
 let catList: CatSkinConfig[] = [...DEFAULT_BUILTIN_CATS];
@@ -130,6 +133,7 @@ function syncMenuUI(): void {
     const el = document.getElementById(id);
     if (el) el.textContent = on ? '✓' : '';
   };
+  setCheck('chk-privacy', settings.privacyPasswordGuard !== false);
   setCheck('chk-bubbles', settings.showKeyBubbles);
   setCheck('chk-lock', settings.clickThroughLocked);
   setCheck('chk-sound', settings.soundEnabled);
@@ -500,7 +504,14 @@ async function bootstrap(): Promise<void> {
       case 'mouseWheel':
         engine.onMouseWheel();
         break;
+      case 'privacyTyping':
+        engine.onPrivacyTyping();
+        break;
     }
+  });
+
+  await listen<boolean>('kuro-privacy', (ev) => {
+    engine.setPrivacyMode(Boolean(ev.payload));
   });
 
   await listen<WindowCursorInfo>('kuro-cursor', (ev) => {
@@ -575,6 +586,9 @@ async function bootstrap(): Promise<void> {
     }
 
     switch (target.dataset.action) {
+      case 'toggle-privacy':
+        void applySettingsPatch({ privacyPasswordGuard: !(settings.privacyPasswordGuard !== false) });
+        break;
       case 'toggle-bubbles':
         void applySettingsPatch({ showKeyBubbles: !settings.showKeyBubbles });
         break;

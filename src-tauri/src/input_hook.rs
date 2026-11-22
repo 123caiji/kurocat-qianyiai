@@ -32,6 +32,7 @@ pub enum InputEvent {
         nx: f64,
         ny: f64,
     },
+    PrivacyTyping,
 }
 
 #[allow(dead_code)]
@@ -66,6 +67,11 @@ static HOOK_TX: OnceLock<mpsc::Sender<RawHookMsg>> = OnceLock::new();
 static KEY_EVENTS_RECEIVED: AtomicU64 = AtomicU64::new(0);
 static ALT_HELD: AtomicBool = AtomicBool::new(false);
 static HOOKS_PAUSED: AtomicBool = AtomicBool::new(false);
+static PASSWORD_PRIVACY_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+pub fn set_password_privacy_active(active: bool) {
+    PASSWORD_PRIVACY_ACTIVE.store(active, Ordering::SeqCst);
+}
 #[cfg(windows)]
 static WIN_HOOK_TID: AtomicU32 = AtomicU32::new(0);
 #[cfg(windows)]
@@ -250,6 +256,15 @@ pub fn start_global_hooks(app: AppHandle) {
                     if is_alt_vk(vk) {
                         ALT_HELD.store(true, Ordering::Relaxed);
                     }
+                    if PASSWORD_PRIVACY_ACTIVE.load(Ordering::Relaxed) {
+                        // Zero password keystrokes leave Rust — only emit a content-less privacy pulse!
+                        if let Some(repeat) = dedup.on_key_down(vk, source, Instant::now()) {
+                            if !repeat {
+                                let _ = app.emit("kuro-input", InputEvent::PrivacyTyping);
+                            }
+                        }
+                        continue;
+                    }
                     if let Some(repeat) = dedup.on_key_down(vk, source, Instant::now()) {
                         if !repeat {
                             KEY_EVENTS_RECEIVED.fetch_add(1, Ordering::Relaxed);
@@ -260,6 +275,10 @@ pub fn start_global_hooks(app: AppHandle) {
                 RawHookMsg::KeyUp { vk, scan, source } => {
                     if is_alt_vk(vk) {
                         ALT_HELD.store(false, Ordering::Relaxed);
+                    }
+                    if PASSWORD_PRIVACY_ACTIVE.load(Ordering::Relaxed) {
+                        let _ = dedup.on_key_up(vk, source);
+                        continue;
                     }
                     if dedup.on_key_up(vk, source) {
                         let _ = app.emit("kuro-input", InputEvent::KeyUp { vk, scan });

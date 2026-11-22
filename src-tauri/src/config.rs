@@ -10,6 +10,10 @@ fn default_mcp_enabled() -> bool {
     true
 }
 
+fn default_privacy_password_guard() -> bool {
+    true
+}
+
 fn default_mcp_port() -> u16 {
     27420
 }
@@ -63,6 +67,8 @@ pub struct AppSettings {
     pub keyboard_layout: String,
     #[serde(default = "default_keyboard_orientation")]
     pub keyboard_orientation: String,
+    #[serde(default = "default_privacy_password_guard")]
+    pub privacy_password_guard: bool,
 }
 
 impl Default for AppSettings {
@@ -81,6 +87,7 @@ impl Default for AppSettings {
             mcp_port: default_mcp_port(),
             keyboard_layout: default_keyboard_layout(),
             keyboard_orientation: default_keyboard_orientation(),
+            privacy_password_guard: default_privacy_password_guard(),
         }
     }
 }

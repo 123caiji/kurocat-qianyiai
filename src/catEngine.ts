@@ -9,10 +9,11 @@ import {
 } from './keyboardLayout';
 import { catAudio } from './audio';
 import { resolveCustomSkin, type CatSkinConfig, type ResolvedSkin } from './catSkins';
+import { DaFeiYuRenderer, type DaFeiYuLayout } from './dafeiyuRenderer';
 
 export const LOGICAL_W = 420;
 export const LOGICAL_H = 440;
-export type CatBreed = 'black' | 'ragdoll';
+export type CatBreed = 'black' | 'ragdoll' | 'dafeiyu';
 export type KeyboardOrientation = 'cat' | 'viewer';
 
 interface Vec2 {
@@ -89,12 +90,37 @@ export class KuroCatEngine {
   private elapsed = 0;
 
   public showKeyBubbles = true;
+  public privacyMode = false;
   public catBreed: CatBreed = 'black';
   public customSkin: ResolvedSkin | null = null;
   public keyboardLayout: KeyboardLayoutId = '65';
   public keyboardOrientation: KeyboardOrientation = 'cat';
   private renderScale = 1.0;
   private embedded = false;
+  private dafeiyu = new DaFeiYuRenderer();
+  private privacyClose = 0;
+  private privacyTypingAt = -10000;
+  private lastMouseNX = 0.5;
+  private lastDt = 1 / 60;
+
+  public setPrivacyMode(active: boolean): void {
+    this.privacyMode = active;
+    this.dafeiyu.onPrivacyModeChanged(active);
+    if (active) {
+      this.bubbles.length = 0;
+      for (const anim of this.keyAnims.values()) {
+        anim.pressed = false;
+        anim.pressAmount = 0;
+      }
+    }
+  }
+
+  public onPrivacyTyping(): void {
+    this.privacyTypingAt = performance.now();
+    if (this.catBreed === 'dafeiyu') {
+      this.dafeiyu.onPrivacyTyping();
+    }
+  }
 
   public setRenderScale(scale: number): void {
     this.renderScale = Math.max(0.2, Math.min(1.5, scale));
@@ -104,27 +130,9 @@ export class KuroCatEngine {
     return { w: this.logicalW, h: this.logicalH };
   }
 
-  public setCatAppearance(breedId: string, skin?: CatSkinConfig | null): void {
-    if ((breedId === 'black' || breedId === 'ragdoll') && (!skin || skin.builtin)) {
-      this.catBreed = breedId;
-      this.customSkin = null;
-    } else if (skin) {
-      this.catBreed = 'black';
-      this.customSkin = resolveCustomSkin(skin);
-    } else {
-      this.catBreed = 'black';
-      this.customSkin = null;
-    }
-  }
-
-  public setKeyboardConfig(layout: KeyboardLayoutId, orientation: KeyboardOrientation): void {
-    const nextLayout: KeyboardLayoutId = layout === '108' ? '108' : '65';
-    const nextOrientation: KeyboardOrientation = orientation === 'viewer' ? 'viewer' : 'cat';
-    const layoutChanged = this.keyboardLayout !== nextLayout;
-    this.keyboardLayout = nextLayout;
-    this.keyboardOrientation = nextOrientation;
-
-    if (nextLayout === '108') {
+  private syncLayoutPositions(): void {
+    const isBigFish = this.catBreed === 'dafeiyu';
+    if (this.keyboardLayout === '108') {
       this.logicalW = 540;
       this.logicalH = 456;
       this.catCenterX = 278;
@@ -135,22 +143,49 @@ export class KuroCatEngine {
       this.kbWidth = 398;
       this.kbHeight = 96;
       this.kbTiltRad = (2.4 * Math.PI) / 180;
-      this.mouseBaseX = 46;
-      this.mouseBaseY = 342;
+      this.mouseBaseX = isBigFish ? 54 : 46;
+      this.mouseBaseY = isBigFish ? 332 : 342;
     } else {
       this.logicalW = 420;
       this.logicalH = 440;
       this.catCenterX = 196;
       this.catTopY = 82;
       this.catBaseY = 308;
-      this.kbCenterX = 214;
+      this.kbCenterX = isBigFish ? 234 : 214;
       this.kbCenterY = 353;
       this.kbWidth = 266;
       this.kbHeight = 74;
       this.kbTiltRad = (3.4 * Math.PI) / 180;
-      this.mouseBaseX = 46;
-      this.mouseBaseY = 338;
+      this.mouseBaseX = isBigFish ? 72 : 46;
+      this.mouseBaseY = isBigFish ? 322 : 338;
     }
+  }
+
+  public setCatAppearance(breedId: string, skin?: CatSkinConfig | null): void {
+    if (breedId === 'dafeiyu') {
+      this.catBreed = 'dafeiyu';
+      this.customSkin = null;
+    } else if ((breedId === 'black' || breedId === 'ragdoll') && (!skin || skin.builtin)) {
+      this.catBreed = breedId;
+      this.customSkin = null;
+    } else if (skin) {
+      this.catBreed = 'black';
+      this.customSkin = resolveCustomSkin(skin);
+    } else {
+      this.catBreed = 'black';
+      this.customSkin = null;
+    }
+    this.syncLayoutPositions();
+  }
+
+  public setKeyboardConfig(layout: KeyboardLayoutId, orientation: KeyboardOrientation): void {
+    const nextLayout: KeyboardLayoutId = layout === '108' ? '108' : '65';
+    const nextOrientation: KeyboardOrientation = orientation === 'viewer' ? 'viewer' : 'cat';
+    const layoutChanged = this.keyboardLayout !== nextLayout;
+    this.keyboardLayout = nextLayout;
+    this.keyboardOrientation = nextOrientation;
+
+    this.syncLayoutPositions();
 
     if (layoutChanged) {
       this.leftPaw.pos = { x: this.catCenterX - 18, y: this.catBaseY };
@@ -158,6 +193,35 @@ export class KuroCatEngine {
       this.rightPaw.pos = { x: this.catCenterX + 18, y: this.catBaseY };
       this.rightPaw.target = { x: this.catCenterX + 18, y: this.catBaseY };
     }
+  }
+
+  private buildDaFeiYuLayout(): DaFeiYuLayout {
+    const mx = this.mouseBaseX + this.mouseOffsetX;
+    const my = this.mouseBaseY + this.mouseOffsetY;
+    const isCatFacing = this.keyboardOrientation === 'cat';
+    const localBtnX = this.mouseLeftDown ? -6.5 : this.mouseRightDown ? 6.5 : 0;
+    const localBtnY = -10.5;
+    const ang = this.kbTiltRad + (isCatFacing ? Math.PI : 0);
+    const c = Math.cos(ang);
+    const s = Math.sin(ang);
+    return {
+      logicalW: this.logicalW,
+      kbCenterX: this.kbCenterX,
+      kbCenterY: this.kbCenterY,
+      kbWidth: this.kbWidth,
+      kbHeight: this.kbHeight,
+      kbTiltRad: this.kbTiltRad,
+      mouseBtnX: mx + localBtnX * c - localBtnY * s,
+      mouseBtnY: my + localBtnX * s + localBtnY * c,
+      mouseNX: this.lastMouseNX,
+      mouseLeft: this.mouseLeftDown,
+      mouseRight: this.mouseRightDown,
+      mouseActiveAt: this.lastMouseMoveAt,
+      petEnergy: this.petEnergy,
+      privacyMode: this.privacyMode,
+      privacyTypingAt: this.privacyTypingAt,
+      is108: this.keyboardLayout === '108',
+    };
   }
 
   // Dynamic logical proportions (65% compact = 420x440; 108-key full-size = 540x456)
@@ -363,6 +427,10 @@ export class KuroCatEngine {
   // ---- Input event handlers ----
 
   public onKeyDown(vk: number, repeat: boolean): void {
+    if (this.privacyMode) {
+      if (!repeat) this.onPrivacyTyping();
+      return;
+    }
     const now = performance.now();
     const spec = resolveKeyByVk(vk, this.keyboardLayout);
     if (!spec) return;
@@ -382,6 +450,18 @@ export class KuroCatEngine {
 
     this.bodyBob = Math.min(1.15, this.bodyBob + 0.65);
     this.kbBounce = Math.min(1, this.kbBounce + 0.45);
+
+    if (this.catBreed === 'dafeiyu') {
+      const pt = this.getKeyWorldCenter(spec);
+      this.dafeiyu.onKeyDown(vk, pt, this.buildDaFeiYuLayout(), repeat);
+      if (this.showKeyBubbles) {
+        const label = formatBubbleForVk(vk, spec);
+        if (label) {
+          this.spawnBubble(label, spec.id === 'space', pt.x, now);
+        }
+      }
+      return;
+    }
 
     if (Math.random() < 0.16) {
       if (Math.random() < 0.5) this.earTwitchLeft = 1;
@@ -477,6 +557,8 @@ export class KuroCatEngine {
   }
 
   public onKeyUp(vk: number): void {
+    this.dafeiyu.onKeyUp(vk);
+    if (this.privacyMode) return;
     const spec = resolveKeyByVk(vk, this.keyboardLayout);
     if (!spec) return;
     const anim = this.keyAnims.get(spec.id);
@@ -485,8 +567,9 @@ export class KuroCatEngine {
 
   public onGlobalMouseMove(nx: number, ny: number): void {
     const now = performance.now();
-    this.mouseTargetOffsetX = (nx - 0.5) * 28;
-    this.mouseTargetOffsetY = (ny - 0.5) * 20;
+    this.lastMouseNX = nx;
+    this.mouseTargetOffsetX = (nx - 0.5) * (this.catBreed === 'dafeiyu' ? 14 : 28);
+    this.mouseTargetOffsetY = (ny - 0.5) * (this.catBreed === 'dafeiyu' ? 11 : 20);
     this.lastMouseMoveAt = now;
 
     this.leftPaw.mode = 'mouse';
@@ -496,14 +579,18 @@ export class KuroCatEngine {
   private getMouseButtonColors(): { left: string; right: string; middle: string } {
     const primary = this.customSkin
       ? this.customSkin.accentColor
-      : this.catBreed === 'ragdoll'
-        ? '#7ac7ff'
-        : '#d4f044';
+      : this.catBreed === 'dafeiyu'
+        ? '#5cc8ff'
+        : this.catBreed === 'ragdoll'
+          ? '#7ac7ff'
+          : '#d4f044';
     const scroll = this.customSkin
       ? this.customSkin.accentSideColor
-      : this.catBreed === 'ragdoll'
-        ? '#4690d8'
-        : '#92ba12';
+      : this.catBreed === 'dafeiyu'
+        ? '#2563eb'
+        : this.catBreed === 'ragdoll'
+          ? '#4690d8'
+          : '#92ba12';
 
     // Pick a high-contrast complementary color for RMB so Left vs Right click are unmistakable on every skin
     const isWarmAccent = /^#(f[a-f0-9][89a-c]|ff[789a-c]|e[89a-f][789a])/i.test(primary);
@@ -561,6 +648,7 @@ export class KuroCatEngine {
     }
 
     this.lastMouseMoveAt = now;
+    this.dafeiyu.resetLeftHandForMouse();
     this.leftPaw.mode = 'mouse';
     this.leftPaw.impactSquash = 0.72;
     this.leftPaw.lastActiveAt = now;
@@ -576,6 +664,7 @@ export class KuroCatEngine {
     const now = performance.now();
     this.mouseScrollFlash = 1;
     this.lastMouseMoveAt = now;
+    this.dafeiyu.resetLeftHandForMouse();
     this.leftPaw.mode = 'mouse';
     this.leftPaw.lastActiveAt = now;
   }
@@ -590,7 +679,7 @@ export class KuroCatEngine {
       const py = relY * this.logicalH;
       if (this.lastPetCursorX !== null && this.lastPetCursorY !== null) {
         const dist = Math.hypot(px - this.lastPetCursorX, py - this.lastPetCursorY);
-        if (dist > 1.5 && dist < 160) {
+        if (dist > 1.5 && dist < 80) {
           this.petEnergy = Math.min(1, this.petEnergy + dist * 0.011);
         }
       }
@@ -778,9 +867,15 @@ export class KuroCatEngine {
     this.headTilt += (desiredHeadTilt - this.headTilt) * (1 - Math.exp(-12 * dt));
 
     this.petEnergy = Math.max(0, this.petEnergy - dt * (this.cursorOverCat ? 0.22 : 0.65));
+    this.lastDt = dt;
     const wantSquint = this.petEnergy > 0.3 ? 1 : 0;
     this.squintAmount += (wantSquint - this.squintAmount) * (1 - Math.exp(-12 * dt));
-    catAudio.setPurrIntensity(this.squintAmount > 0.25 ? this.squintAmount : 0);
+    const wantPrivacy = this.privacyMode ? 1 : 0;
+    this.privacyClose += (wantPrivacy - this.privacyClose) * (1 - Math.exp(-14 * dt));
+    catAudio.setPurrIntensity(!this.privacyMode && this.squintAmount > 0.25 ? this.squintAmount : 0);
+    if (this.catBreed === 'dafeiyu') {
+      this.dafeiyu.update(dt, now, this.buildDaFeiYuLayout());
+    }
 
     this.earTwitchLeft = Math.max(0, this.earTwitchLeft - dt * 8);
     this.earTwitchRight = Math.max(0, this.earTwitchRight - dt * 8);
@@ -964,6 +1059,21 @@ export class KuroCatEngine {
     const breath = Math.sin(this.elapsed * 2.1) * 1.0;
     const purrShift = this.squintAmount > 0.4 ? Math.sin(this.elapsed * 22) * 0.45 * this.squintAmount : 0;
 
+    if (this.catBreed === 'dafeiyu') {
+      const now = performance.now();
+      const layout = this.buildDaFeiYuLayout();
+      this.dafeiyu.renderBody(ctx, now, layout);
+      this.drawMiniMouse(ctx);
+      this.drawKeyboard(ctx);
+      this.dafeiyu.renderForeground(ctx, this.lastDt, now, layout);
+      if (this.showKeyBubbles && !this.privacyMode) {
+        this.drawKeyBubbles(ctx);
+        this.drawMouseBadges(ctx);
+      }
+      ctx.restore();
+      return;
+    }
+
     // Layer 1: Thick plush calm low-right S-hook black tail (measured 17px thick, barely drifts!)
     this.drawTail(ctx);
 
@@ -979,7 +1089,7 @@ export class KuroCatEngine {
     this.drawPaw(ctx, this.rightPaw, breath);
 
     // Layer 5: Organic bouncing 3D keycap bubbles & crisp mouse click badges
-    if (this.showKeyBubbles) {
+    if (this.showKeyBubbles && !this.privacyMode) {
       this.drawKeyBubbles(ctx);
       this.drawMouseBadges(ctx);
     }
@@ -1444,12 +1554,11 @@ export class KuroCatEngine {
     ctx.shadowOffsetY = 0;
 
     const wShift = this.faceTurnX * 0.72;
-    const happyAmt = Math.max(0, Math.min(1, (this.squintAmount - 0.16) / 0.54));
 
-    // 4) Petting rosy blush + nose + happy petting mouth
+    // 4) Ragdoll rosy petting blush + adorable tiny pink nose & gentle kitten smile!
     if (isRagdoll) {
       if (this.squintAmount > 0.12) {
-        ctx.fillStyle = `rgba(244, 146, 166, ${(0.44 * this.squintAmount).toFixed(3)})`;
+        ctx.fillStyle = `rgba(244, 146, 166, ${(0.42 * this.squintAmount).toFixed(3)})`;
         ctx.beginPath();
         ctx.ellipse(wShift - 30, 13, 8.5, 4.6, -0.08, 0, Math.PI * 2);
         ctx.ellipse(wShift + 30, 13, 8.5, 4.6, 0.08, 0, Math.PI * 2);
@@ -1466,18 +1575,15 @@ export class KuroCatEngine {
       ctx.closePath();
       ctx.fill();
 
-      this.drawCatMouth(ctx, wShift, 16.5, 'rgba(72, 77, 92, 0.84)', happyAmt, false);
-    } else if (happyAmt > 0.02) {
-      // Classic Black Cat: subtle warm petting blush + adorable happy smiling mouth on head-pat!
-      ctx.save();
-      ctx.fillStyle = `rgba(244, 146, 166, ${(0.28 * happyAmt).toFixed(3)})`;
+      // Delicate cute kitten "w" mouth
+      ctx.strokeStyle = 'rgba(72, 77, 92, 0.80)';
+      ctx.lineWidth = 1.35;
+      ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.ellipse(wShift - 29, 12.5, 8.2, 4.2, -0.08, 0, Math.PI * 2);
-      ctx.ellipse(wShift + 29, 12.5, 8.2, 4.2, 0.08, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
-      this.drawCatMouth(ctx, wShift, 14.2, 'rgba(232, 236, 240, 0.92)', happyAmt, true);
+      ctx.moveTo(wShift - 5.8, 16.6);
+      ctx.quadraticCurveTo(wShift - 2.9, 19.6, wShift, 16.4);
+      ctx.quadraticCurveTo(wShift + 2.9, 19.6, wShift + 5.8, 16.6);
+      ctx.stroke();
     }
 
     // 5) Delicate wispy cheek whiskers adapting to 2.5D head turn
@@ -1508,71 +1614,10 @@ export class KuroCatEngine {
     ctx.restore();
   }
 
-  private drawCatMouth(
-    ctx: CanvasRenderingContext2D,
-    cx: number,
-    my: number,
-    lipColor: string,
-    happyAmt: number,
-    fadeOnlyWhenHappy: boolean,
-  ): void {
-    const h = Math.max(0, Math.min(1, happyAmt));
-    if (fadeOnlyWhenHappy && h <= 0.02) return;
-
-    ctx.save();
-    if (fadeOnlyWhenHappy) {
-      ctx.globalAlpha = h;
-    }
-
-    const halfW = 5.8 + h * 1.4;
-    const openH = h * 7.2;
-
-    // Adorable open happy smile cavity + rosy kitten tongue when petted!
-    if (openH > 0.8) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(cx - halfW * 0.86, my + 0.6);
-      ctx.quadraticCurveTo(cx - halfW * 0.42, my + 2.4, cx, my - 0.1);
-      ctx.quadraticCurveTo(cx + halfW * 0.42, my + 2.4, cx + halfW * 0.86, my + 0.6);
-      ctx.quadraticCurveTo(cx + halfW * 0.72, my + openH + 1.8, cx, my + openH + 2.4);
-      ctx.quadraticCurveTo(cx - halfW * 0.72, my + openH + 1.8, cx - halfW * 0.86, my + 0.6);
-      ctx.closePath();
-
-      ctx.fillStyle = fadeOnlyWhenHappy ? '#682538' : '#732e41';
-      ctx.fill();
-
-      // Clip soft pink kitten tongue inside bottom of open happy mouth
-      ctx.clip();
-      ctx.fillStyle = '#f58ca3';
-      ctx.beginPath();
-      ctx.ellipse(cx, my + openH + 1.9, halfW * 0.56, Math.max(2.0, openH * 0.52), 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = 'rgba(255, 198, 212, 0.55)';
-      ctx.beginPath();
-      ctx.ellipse(cx - 0.8, my + openH + 0.7, halfW * 0.25, Math.max(1.0, openH * 0.22), -0.15, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    // Crisp cute kitten "w" / joyful "ω" upper lip curve
-    ctx.strokeStyle = lipColor;
-    ctx.lineWidth = fadeOnlyWhenHappy ? 1.65 : 1.4;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(cx - halfW, my + 0.2 - h * 0.55);
-    ctx.quadraticCurveTo(cx - halfW * 0.48, my + 3.1, cx, my - 0.15);
-    ctx.quadraticCurveTo(cx + halfW * 0.48, my + 3.1, cx + halfW, my + 0.2 - h * 0.55);
-    ctx.stroke();
-
-    ctx.restore();
-  }
-
   private drawEyes(ctx: CanvasRenderingContext2D, cx: number, eyeY: number): void {
     const isRagdoll = this.catBreed === 'ragdoll';
     const blinkVal = this.isBlinking ? 1 - Math.abs(this.blinkProgress - 1) : 0;
-    const closedness = Math.max(blinkVal, this.squintAmount * 0.85);
+    const closedness = Math.max(blinkVal, this.squintAmount * 0.85, this.privacyClose);
 
     // Exact measured eye spacing & size from original 0.3s & 10.6s!
     const eyeXs = [cx - 23.0, cx + 23.0];
@@ -1583,6 +1628,18 @@ export class KuroCatEngine {
       const ex = eyeXs[idx];
       ctx.save();
       ctx.translate(ex, eyeY);
+
+      if (this.privacyClose > 0.45) {
+        ctx.strokeStyle = isRagdoll ? '#212533' : '#d4f044';
+        ctx.lineWidth = 2.9;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-13.5, -0.5);
+        ctx.quadraticCurveTo(0, 5.2, 13.5, -0.5);
+        ctx.stroke();
+        ctx.restore();
+        continue;
+      }
 
       if (this.squintAmount > 0.38 && blinkVal < 0.3) {
         if (isRagdoll) {
@@ -1889,14 +1946,18 @@ export class KuroCatEngine {
       if (press > 0.14) {
         topColor = this.customSkin
           ? this.customSkin.accentColor
-          : this.catBreed === 'ragdoll'
-            ? '#7ac7ff'
-            : '#d2f244';
+          : this.catBreed === 'dafeiyu'
+            ? '#5cc8ff'
+            : this.catBreed === 'ragdoll'
+              ? '#7ac7ff'
+              : '#d2f244';
         sideColor = this.customSkin
           ? this.customSkin.accentSideColor
-          : this.catBreed === 'ragdoll'
-            ? '#4690d8'
-            : '#8cb014';
+          : this.catBreed === 'dafeiyu'
+            ? '#2563eb'
+            : this.catBreed === 'ragdoll'
+              ? '#4690d8'
+              : '#8cb014';
       } else if (key.accent === 'orange') {
         topColor = '#f4a524';
         sideColor = '#c27a10';
@@ -1944,6 +2005,25 @@ export class KuroCatEngine {
         ctx.fillText(legend, 0, 0);
         ctx.restore();
       }
+    }
+
+    if (this.privacyClose > 0.08) {
+      ctx.save();
+      ctx.globalAlpha = this.privacyClose;
+      ctx.fillStyle = 'rgba(15, 20, 32, 0.74)';
+      this.trapezoidPath(ctx, topHalfW - 2, botHalfW - 2, -halfH + 1.5, halfH - 1.5, 5.5);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(244, 114, 182, 0.45)';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      ctx.font = '700 11.5px "Segoe UI", "PingFang SC", sans-serif';
+      ctx.fillStyle = '#fbcfe8';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const dots = performance.now() - this.privacyTypingAt < 350 ? ' • • •' : '';
+      const label = this.catBreed === 'dafeiyu' ? '🔒 非礼勿视 · 已隐藏按键' : '🔒 密码输入中 · 已隐藏按键';
+      ctx.fillText(label + dots, 0, 0);
+      ctx.restore();
     }
 
     ctx.restore();
@@ -2835,14 +2915,12 @@ export class KuroCatEngine {
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
     const wShift = this.faceTurnX * 0.72;
-    const happyAmt = Math.max(0, Math.min(1, (this.squintAmount - 0.16) / 0.54));
 
-    // Blush on petting (default rosy glow even if dark custom skin omitted blushColor)
-    const blushCol = s.blushColor || (happyAmt > 0.02 ? '#f492a6' : null);
-    if (blushCol && this.squintAmount > 0.12) {
+    // Blush on petting
+    if (s.blushColor && this.squintAmount > 0.12) {
       ctx.save();
-      ctx.globalAlpha = (s.isDarkBase ? 0.28 : 0.44) * this.squintAmount;
-      ctx.fillStyle = blushCol;
+      ctx.globalAlpha = 0.42 * this.squintAmount;
+      ctx.fillStyle = s.blushColor;
       ctx.beginPath();
       ctx.ellipse(wShift - 30, 13, 8.5, 4.6, -0.08, 0, Math.PI * 2);
       ctx.ellipse(wShift + 30, 13, 8.5, 4.6, 0.08, 0, Math.PI * 2);
@@ -2850,7 +2928,7 @@ export class KuroCatEngine {
       ctx.restore();
     }
 
-    // Nose & mouth (with happy smiling petting mouth across all built-in & custom skins!)
+    // Nose & mouth
     if (s.noseColor) {
       ctx.fillStyle = s.noseColor;
       ctx.beginPath();
@@ -2862,10 +2940,14 @@ export class KuroCatEngine {
       ctx.fill();
     }
     if (s.mouthColor) {
-      this.drawCatMouth(ctx, wShift, 16.5, s.mouthColor, happyAmt, false);
-    } else if (happyAmt > 0.02) {
-      const fallbackLip = s.isDarkBase ? 'rgba(232, 236, 240, 0.92)' : 'rgba(72, 68, 76, 0.84)';
-      this.drawCatMouth(ctx, wShift, s.noseColor ? 16.5 : 14.2, fallbackLip, happyAmt, true);
+      ctx.strokeStyle = s.mouthColor;
+      ctx.lineWidth = 1.35;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(wShift - 5.8, 16.6);
+      ctx.quadraticCurveTo(wShift - 2.9, 19.6, wShift, 16.4);
+      ctx.quadraticCurveTo(wShift + 2.9, 19.6, wShift + 5.8, 16.6);
+      ctx.stroke();
     }
 
     // Whiskers
@@ -2895,7 +2977,7 @@ export class KuroCatEngine {
 
   private drawCustomEyes(ctx: CanvasRenderingContext2D, s: ResolvedSkin, cx: number, eyeY: number): void {
     const blinkVal = this.isBlinking ? 1 - Math.abs(this.blinkProgress - 1) : 0;
-    const closedness = Math.max(blinkVal, this.squintAmount * 0.85);
+    const closedness = Math.max(blinkVal, this.squintAmount * 0.85, this.privacyClose);
     const eyeXs = [cx - 23.0, cx + 23.0];
     const rx = 14.8 + this.typingHunch * 1.0;
     const ry = 13.4 - this.typingHunch * 0.5;
@@ -2903,6 +2985,18 @@ export class KuroCatEngine {
     for (let idx = 0; idx < 2; idx++) {
       ctx.save();
       ctx.translate(eyeXs[idx], eyeY);
+
+      if (this.privacyClose > 0.45) {
+        ctx.strokeStyle = s.squintColor;
+        ctx.lineWidth = 2.9;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-13.5, -0.5);
+        ctx.quadraticCurveTo(0, 5.2, 13.5, -0.5);
+        ctx.stroke();
+        ctx.restore();
+        continue;
+      }
 
       if (this.squintAmount > 0.38 && blinkVal < 0.3) {
         if (s.squintGlowColor) {
