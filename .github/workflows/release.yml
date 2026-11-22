@@ -36,29 +36,34 @@ jobs:
       - name: Build Tauri app (Windows x64)
         run: npm run tauri -- build --bundles msi,nsis
 
-      - name: Rename standalone Windows exe
+      - name: Rename Windows release assets (ensure setup.exe sorts #1 on GitHub Releases)
         shell: pwsh
         run: |
           $tag = if ($env:GITHUB_REF_NAME -match '^v') { $env:GITHUB_REF_NAME } else { 'latest' }
+          $ver = $tag.TrimStart('v')
           Copy-Item "src-tauri/target/release/KuroCat.exe" "KuroCat-$tag-windows-x64.exe"
+          $nsis = Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1
+          if ($nsis) {
+            Copy-Item $nsis.FullName "KuroCat-$ver-x64-setup.exe"
+          }
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
           name: kurocat-windows-x64
           path: |
+            KuroCat-*-x64-setup.exe
             KuroCat-*-windows-x64.exe
             src-tauri/target/release/bundle/msi/*.msi
-            src-tauri/target/release/bundle/nsis/*.exe
 
       - name: Publish Windows assets to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            KuroCat-*-x64-setup.exe
             KuroCat-*-windows-x64.exe
             src-tauri/target/release/bundle/msi/*.msi
-            src-tauri/target/release/bundle/nsis/*.exe
 
   build-macos:
     runs-on: macos-latest
