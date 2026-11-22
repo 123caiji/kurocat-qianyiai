@@ -4,15 +4,15 @@
 
 ## 📥 直接下载使用（Windows & macOS）
 
-前往 [Releases](https://github.com/qianyiai/kurocat/releases) 页面或直接点击下方最新 **`v4.5.0`** 安装包下载（所有版本均内置右键一键切换 **65% 紧凑 / 108 全尺寸小键盘** 与 **面向猫咪 / 面向观众** 方向，并支持 App 内自动新版本提醒与一键自升级）：
+前往 [Releases](https://github.com/qianyiai/kurocat/releases) 页面或直接点击下方最新 **`v4.6.0`** 安装包下载（所有版本均内置 **20%–150% 丝滑缩放滑动条**、右键一键切换 **65% 紧凑 / 108 全尺寸小键盘** 与 **面向猫咪 / 面向观众** 方向，并支持 App 内自动新版本提醒与一键自升级）：
 
-- **🪟 Windows 10 / 11（推荐：65% 经典正式安装包）**：[**`KuroCat-4.5.0-x64-setup.exe`**](https://github.com/qianyiai/kurocat/releases/download/v4.5.0/KuroCat-4.5.0-x64-setup.exe)（约 1.5 MB）
+- **🪟 Windows 10 / 11（推荐：65% 经典正式安装包）**：[**`KuroCat-4.6.0-x64-setup.exe`**](https://github.com/qianyiai/kurocat/releases/download/v4.6.0/KuroCat-4.6.0-x64-setup.exe)（约 1.55 MB）
   - 默认 65% 紧凑机械键盘，自动创建桌面 **`KuroCat`** 图标、开始菜单与系统卸载入口；右键随时可切换 108 键全尺寸。
-- **🪟 Windows 10 / 11（108 键全尺寸直出安装包，含数字小键盘）**：[**`KuroCat-v4.5.0-108key-x64-setup.exe`**](https://github.com/qianyiai/kurocat/releases/download/v4.5.0/KuroCat-v4.5.0-108key-x64-setup.exe)（约 1.5 MB）
+- **🪟 Windows 10 / 11（108 键全尺寸直出安装包，含数字小键盘）**：[**`KuroCat-v4.6.0-108key-x64-setup.exe`**](https://github.com/qianyiai/kurocat/releases/download/v4.6.0/KuroCat-v4.6.0-108key-x64-setup.exe)（约 1.55 MB）
   - 装完开箱默认即 **108 键全尺寸机械键盘（完整 F1~F12 + 独立编辑/方向键 + 数字小键盘）**，同样支持右键随时切回 65%。
-- **🪟 Windows 10 / 11（绿色免安装单文件）**：[**`KuroCat-v4.5.0-windows-x64.exe`**](https://github.com/qianyiai/kurocat/releases/download/v4.5.0/KuroCat-v4.5.0-windows-x64.exe)（约 3.7 MB）
+- **🪟 Windows 10 / 11（绿色免安装单文件）**：[**`KuroCat-v4.6.0-windows-x64.exe`**](https://github.com/qianyiai/kurocat/releases/download/v4.6.0/KuroCat-v4.6.0-windows-x64.exe)（约 3.7 MB）
   - 双击即运行，右键猫咪或系统托盘支持一键切换 65% / 108 键、「创建桌面图标」与「检查更新」。
-- **🍎 macOS 11+（Apple Silicon M1/M2/M3/M4 & Intel 通用版）**：[**`KuroCat-v4.5.0-macos-universal.dmg`**](https://github.com/qianyiai/kurocat/releases/download/v4.5.0/KuroCat-v4.5.0-macos-universal.dmg)（约 4.7 MB）
+- **🍎 macOS 11+（Apple Silicon M1/M2/M3/M4 & Intel 通用版）**：[**`KuroCat-v4.6.0-macos-universal.dmg`**](https://github.com/qianyiai/kurocat/releases/download/v4.6.0/KuroCat-v4.6.0-macos-universal.dmg)（约 4.72 MB）
   - 打开 `.dmg` 将 `KuroCat.app` 拖入「应用程序」文件夹运行。
   - **首次打开说明（开源未公证应用）**：若提示「无法验证开发者」或「已损坏」，在终端执行一次 `xattr -cr /Applications/KuroCat.app` 后即可正常打开（后续 App 内一键升级会自动处理，无需再敲命令）。
   - **辅助功能权限（用于全局监听敲键盘/鼠标）**：首次启动会自动弹出系统授权引导，在「系统设置 → 隐私与安全性 → 辅助功能」中打开 `KuroCat` 开关即可立即生效（无需重启）。
@@ -31,7 +31,7 @@
 - **App 内自动新版本提醒 & 一键升级**：启动后及定时静默检测 GitHub Releases 新版本，有更新时自动在猫头上方弹出轻量提醒条，右键猫咪或系统托盘点 **「检查更新」** 即可自动下载、SHA-256 校验并静默安装重启（Windows 安装版 / 绿色单文件版 / macOS 通用版均支持）。
 - **摸头眯眼与呼噜互动**：鼠标移到猫头上自动切换为黑白描边小手光标，来回抚摸即触发慵懒细眯眼表情，并伴随 Web Audio 实时合成的温柔猫咪呼噜声（默认开启，可随时开关，不干扰自身键鼠声音）。
 - **错落弹跳 3D 按键气泡**：键盘上方实时弹出白底立体键帽，支持一键隐藏（输密码更安心）。
-- **智能鼠标穿透 & 系统托盘**：透明区域自动点击穿透不遮挡办公或游戏，右键猫咪或系统托盘可一键切换外观、调整缩放（75%–150%）、开关 MCP 服务并**一键复制 MCP 配置**。
+- **智能鼠标穿透 & 系统托盘**：透明区域自动点击穿透不遮挡办公或游戏，右键猫咪或系统托盘可一键切换外观、使用 **20%–150% 丝滑滑动条**无级调节尺寸、开关 MCP 服务并**一键复制 MCP 配置**。
 
 ## 🤖 MCP 接入指南（用 AI 改猫 / 加自己的猫）
 
