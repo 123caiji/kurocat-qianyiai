@@ -590,7 +590,7 @@ export class KuroCatEngine {
       const py = relY * this.logicalH;
       if (this.lastPetCursorX !== null && this.lastPetCursorY !== null) {
         const dist = Math.hypot(px - this.lastPetCursorX, py - this.lastPetCursorY);
-        if (dist > 1.5 && dist < 80) {
+        if (dist > 1.5 && dist < 160) {
           this.petEnergy = Math.min(1, this.petEnergy + dist * 0.011);
         }
       }
@@ -1444,11 +1444,12 @@ export class KuroCatEngine {
     ctx.shadowOffsetY = 0;
 
     const wShift = this.faceTurnX * 0.72;
+    const happyAmt = Math.max(0, Math.min(1, (this.squintAmount - 0.16) / 0.54));
 
-    // 4) Ragdoll rosy petting blush + adorable tiny pink nose & gentle kitten smile!
+    // 4) Petting rosy blush + nose + happy petting mouth
     if (isRagdoll) {
       if (this.squintAmount > 0.12) {
-        ctx.fillStyle = `rgba(244, 146, 166, ${(0.42 * this.squintAmount).toFixed(3)})`;
+        ctx.fillStyle = `rgba(244, 146, 166, ${(0.44 * this.squintAmount).toFixed(3)})`;
         ctx.beginPath();
         ctx.ellipse(wShift - 30, 13, 8.5, 4.6, -0.08, 0, Math.PI * 2);
         ctx.ellipse(wShift + 30, 13, 8.5, 4.6, 0.08, 0, Math.PI * 2);
@@ -1465,15 +1466,18 @@ export class KuroCatEngine {
       ctx.closePath();
       ctx.fill();
 
-      // Delicate cute kitten "w" mouth
-      ctx.strokeStyle = 'rgba(72, 77, 92, 0.80)';
-      ctx.lineWidth = 1.35;
-      ctx.lineCap = 'round';
+      this.drawCatMouth(ctx, wShift, 16.5, 'rgba(72, 77, 92, 0.84)', happyAmt, false);
+    } else if (happyAmt > 0.02) {
+      // Classic Black Cat: subtle warm petting blush + adorable happy smiling mouth on head-pat!
+      ctx.save();
+      ctx.fillStyle = `rgba(244, 146, 166, ${(0.28 * happyAmt).toFixed(3)})`;
       ctx.beginPath();
-      ctx.moveTo(wShift - 5.8, 16.6);
-      ctx.quadraticCurveTo(wShift - 2.9, 19.6, wShift, 16.4);
-      ctx.quadraticCurveTo(wShift + 2.9, 19.6, wShift + 5.8, 16.6);
-      ctx.stroke();
+      ctx.ellipse(wShift - 29, 12.5, 8.2, 4.2, -0.08, 0, Math.PI * 2);
+      ctx.ellipse(wShift + 29, 12.5, 8.2, 4.2, 0.08, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      this.drawCatMouth(ctx, wShift, 14.2, 'rgba(232, 236, 240, 0.92)', happyAmt, true);
     }
 
     // 5) Delicate wispy cheek whiskers adapting to 2.5D head turn
@@ -1500,6 +1504,67 @@ export class KuroCatEngine {
     this.drawEyes(ctx, wShift, -1);
 
     ctx.restore(); // end head
+
+    ctx.restore();
+  }
+
+  private drawCatMouth(
+    ctx: CanvasRenderingContext2D,
+    cx: number,
+    my: number,
+    lipColor: string,
+    happyAmt: number,
+    fadeOnlyWhenHappy: boolean,
+  ): void {
+    const h = Math.max(0, Math.min(1, happyAmt));
+    if (fadeOnlyWhenHappy && h <= 0.02) return;
+
+    ctx.save();
+    if (fadeOnlyWhenHappy) {
+      ctx.globalAlpha = h;
+    }
+
+    const halfW = 5.8 + h * 1.4;
+    const openH = h * 7.2;
+
+    // Adorable open happy smile cavity + rosy kitten tongue when petted!
+    if (openH > 0.8) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(cx - halfW * 0.86, my + 0.6);
+      ctx.quadraticCurveTo(cx - halfW * 0.42, my + 2.4, cx, my - 0.1);
+      ctx.quadraticCurveTo(cx + halfW * 0.42, my + 2.4, cx + halfW * 0.86, my + 0.6);
+      ctx.quadraticCurveTo(cx + halfW * 0.72, my + openH + 1.8, cx, my + openH + 2.4);
+      ctx.quadraticCurveTo(cx - halfW * 0.72, my + openH + 1.8, cx - halfW * 0.86, my + 0.6);
+      ctx.closePath();
+
+      ctx.fillStyle = fadeOnlyWhenHappy ? '#682538' : '#732e41';
+      ctx.fill();
+
+      // Clip soft pink kitten tongue inside bottom of open happy mouth
+      ctx.clip();
+      ctx.fillStyle = '#f58ca3';
+      ctx.beginPath();
+      ctx.ellipse(cx, my + openH + 1.9, halfW * 0.56, Math.max(2.0, openH * 0.52), 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255, 198, 212, 0.55)';
+      ctx.beginPath();
+      ctx.ellipse(cx - 0.8, my + openH + 0.7, halfW * 0.25, Math.max(1.0, openH * 0.22), -0.15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Crisp cute kitten "w" / joyful "ω" upper lip curve
+    ctx.strokeStyle = lipColor;
+    ctx.lineWidth = fadeOnlyWhenHappy ? 1.65 : 1.4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - halfW, my + 0.2 - h * 0.55);
+    ctx.quadraticCurveTo(cx - halfW * 0.48, my + 3.1, cx, my - 0.15);
+    ctx.quadraticCurveTo(cx + halfW * 0.48, my + 3.1, cx + halfW, my + 0.2 - h * 0.55);
+    ctx.stroke();
 
     ctx.restore();
   }
@@ -2770,12 +2835,14 @@ export class KuroCatEngine {
     ctx.shadowBlur = 0;
     ctx.shadowOffsetY = 0;
     const wShift = this.faceTurnX * 0.72;
+    const happyAmt = Math.max(0, Math.min(1, (this.squintAmount - 0.16) / 0.54));
 
-    // Blush on petting
-    if (s.blushColor && this.squintAmount > 0.12) {
+    // Blush on petting (default rosy glow even if dark custom skin omitted blushColor)
+    const blushCol = s.blushColor || (happyAmt > 0.02 ? '#f492a6' : null);
+    if (blushCol && this.squintAmount > 0.12) {
       ctx.save();
-      ctx.globalAlpha = 0.42 * this.squintAmount;
-      ctx.fillStyle = s.blushColor;
+      ctx.globalAlpha = (s.isDarkBase ? 0.28 : 0.44) * this.squintAmount;
+      ctx.fillStyle = blushCol;
       ctx.beginPath();
       ctx.ellipse(wShift - 30, 13, 8.5, 4.6, -0.08, 0, Math.PI * 2);
       ctx.ellipse(wShift + 30, 13, 8.5, 4.6, 0.08, 0, Math.PI * 2);
@@ -2783,7 +2850,7 @@ export class KuroCatEngine {
       ctx.restore();
     }
 
-    // Nose & mouth
+    // Nose & mouth (with happy smiling petting mouth across all built-in & custom skins!)
     if (s.noseColor) {
       ctx.fillStyle = s.noseColor;
       ctx.beginPath();
@@ -2795,14 +2862,10 @@ export class KuroCatEngine {
       ctx.fill();
     }
     if (s.mouthColor) {
-      ctx.strokeStyle = s.mouthColor;
-      ctx.lineWidth = 1.35;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(wShift - 5.8, 16.6);
-      ctx.quadraticCurveTo(wShift - 2.9, 19.6, wShift, 16.4);
-      ctx.quadraticCurveTo(wShift + 2.9, 19.6, wShift + 5.8, 16.6);
-      ctx.stroke();
+      this.drawCatMouth(ctx, wShift, 16.5, s.mouthColor, happyAmt, false);
+    } else if (happyAmt > 0.02) {
+      const fallbackLip = s.isDarkBase ? 'rgba(232, 236, 240, 0.92)' : 'rgba(72, 68, 76, 0.84)';
+      this.drawCatMouth(ctx, wShift, s.noseColor ? 16.5 : 14.2, fallbackLip, happyAmt, true);
     }
 
     // Whiskers
