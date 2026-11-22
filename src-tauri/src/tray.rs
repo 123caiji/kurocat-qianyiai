@@ -57,12 +57,23 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
     )?;
 
     let breed_black = MenuItem::with_id(app, "breed_black", "经典小黑猫", true, None::<&str>)?;
-    let breed_ragdoll = MenuItem::with_id(app, "breed_ragdoll", "布偶猫（定制花色）", true, None::<&str>)?;
+    let breed_ragdoll = MenuItem::with_id(app, "breed_ragdoll", "暖奶茶布偶猫", true, None::<&str>)?;
+    let breed_orange = MenuItem::with_id(app, "breed_orange", "大橘猫（虎斑）", true, None::<&str>)?;
+    let breed_calico = MenuItem::with_id(app, "breed_calico", "三花猫", true, None::<&str>)?;
+    let breed_tuxedo = MenuItem::with_id(app, "breed_tuxedo", "奶牛猫", true, None::<&str>)?;
+    let breed_siamese = MenuItem::with_id(app, "breed_siamese", "暹罗猫", true, None::<&str>)?;
     let breed_menu = Submenu::with_items(
         app,
         "猫咪外观",
         true,
-        &[&breed_black, &breed_ragdoll],
+        &[
+            &breed_black,
+            &breed_ragdoll,
+            &breed_orange,
+            &breed_calico,
+            &breed_tuxedo,
+            &breed_siamese,
+        ],
     )?;
 
     let scale_75 = MenuItem::with_id(app, "scale_75", "75%（小巧）", true, None::<&str>)?;
@@ -195,6 +206,10 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                 }
                 "breed_black" => apply_breed_and_save(app, "black"),
                 "breed_ragdoll" => apply_breed_and_save(app, "ragdoll"),
+                "breed_orange" => apply_breed_and_save(app, "orange-tabby"),
+                "breed_calico" => apply_breed_and_save(app, "calico"),
+                "breed_tuxedo" => apply_breed_and_save(app, "tuxedo"),
+                "breed_siamese" => apply_breed_and_save(app, "siamese"),
                 "scale_75" => apply_scale_and_save(app, 0.75),
                 "scale_100" => apply_scale_and_save(app, 1.0),
                 "scale_125" => apply_scale_and_save(app, 1.25),
