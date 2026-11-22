@@ -22,6 +22,8 @@ pub const BASE_WIDTH: f64 = 420.0;
 pub const BASE_HEIGHT: f64 = 440.0;
 pub const BASE_WIDTH_108: f64 = 540.0;
 pub const BASE_HEIGHT_108: f64 = 456.0;
+pub const MIN_WINDOW_WIDTH: f64 = 260.0;
+pub const MIN_WINDOW_HEIGHT: f64 = 410.0;
 
 pub fn base_dimensions(layout: &str) -> (f64, f64) {
     if layout == "108" {
@@ -29,6 +31,40 @@ pub fn base_dimensions(layout: &str) -> (f64, f64) {
     } else {
         (BASE_WIDTH, BASE_HEIGHT)
     }
+}
+
+pub fn window_dimensions(layout: &str, scale: f64) -> (f64, f64) {
+    let (bw, bh) = base_dimensions(layout);
+    let s = scale.clamp(0.20, 1.50);
+    (
+        (bw * s).round().max(MIN_WINDOW_WIDTH),
+        (bh * s).round().max(MIN_WINDOW_HEIGHT),
+    )
+}
+
+fn resize_window_anchored_bottom_right(
+    win: &tauri::WebviewWindow,
+    layout: &str,
+    scale: f64,
+) -> Option<(i32, i32)> {
+    let (new_w, new_h) = window_dimensions(layout, scale);
+    let old_pos = win.outer_position().ok();
+    let old_size = win.outer_size().ok();
+    let sf = win.scale_factor().unwrap_or(1.0);
+
+    let _ = win.set_size(Size::Logical(LogicalSize::new(new_w, new_h)));
+
+    if let (Some(pos), Some(sz)) = (old_pos, old_size) {
+        let new_pw = (new_w * sf).round() as i32;
+        let new_ph = (new_h * sf).round() as i32;
+        let new_x = (pos.x + sz.width as i32 - new_pw).max(0);
+        let new_y = (pos.y + sz.height as i32 - new_ph).max(0);
+        if new_x != pos.x || new_y != pos.y {
+            let _ = win.set_position(PhysicalPosition::new(new_x, new_y));
+        }
+        return Some((new_x, new_y));
+    }
+    None
 }
 
 pub fn run_mcp_stdio() {
@@ -82,7 +118,7 @@ fn get_mcp_config(state: State<'_, AppState>) -> String {
 
 #[tauri::command]
 fn update_settings(app: AppHandle, state: State<'_, AppState>, mut patch: AppSettings) -> AppSettings {
-    patch.scale = patch.scale.clamp(0.6, 1.8);
+    patch.scale = patch.scale.clamp(0.20, 1.50);
     let clean_breed = sanitize_cat_id(&patch.cat_breed);
     patch.cat_breed = if cat_exists(&clean_breed) {
         clean_breed
@@ -95,19 +131,27 @@ fn update_settings(app: AppHandle, state: State<'_, AppState>, mut patch: AppSet
     patch.keyboard_layout = normalize_keyboard_layout(&patch.keyboard_layout);
     patch.keyboard_orientation = normalize_keyboard_orientation(&patch.keyboard_orientation);
 
-    let prev_autostart = state.settings.lock().unwrap().autostart;
+    let (prev_autostart, prev_scale, prev_layout) = {
+        let s = state.settings.lock().unwrap();
+        (s.autostart, s.scale, s.keyboard_layout.clone())
+    };
     if patch.autostart != prev_autostart {
         let _ = set_windows_autostart(patch.autostart);
     }
 
     state.mcp_enabled.store(patch.mcp_enabled, Ordering::Relaxed);
 
+    let size_changed = (patch.scale - prev_scale).abs() > 0.005 || patch.keyboard_layout != prev_layout;
     if let Some(win) = app.get_webview_window("main") {
         let _ = win.set_always_on_top(patch.always_on_top);
-        let (bw, bh) = base_dimensions(&patch.keyboard_layout);
-        let w = (bw * patch.scale).round();
-        let h = (bh * patch.scale).round();
-        let _ = win.set_size(Size::Logical(LogicalSize::new(w, h)));
+        if size_changed {
+            if let Some((nx, ny)) =
+                resize_window_anchored_bottom_right(&win, &patch.keyboard_layout, patch.scale)
+            {
+                patch.x = Some(nx);
+                patch.y = Some(ny);
+            }
+        }
     }
 
     {
@@ -224,11 +268,11 @@ pub fn reload_and_emit_all(app: &AppHandle) {
             let _ = win.set_always_on_top(disk_settings.always_on_top);
         }
         if size_changed {
-            let (bw, bh) = base_dimensions(&disk_settings.keyboard_layout);
-            let _ = win.set_size(Size::Logical(LogicalSize::new(
-                (bw * disk_settings.scale).round(),
-                (bh * disk_settings.scale).round(),
-            )));
+            let _ = resize_window_anchored_bottom_right(
+                &win,
+                &disk_settings.keyboard_layout,
+                disk_settings.scale,
+            );
         }
     }
 
@@ -261,40 +305,42 @@ fn start_storage_watcher(app: AppHandle) {
 }
 
 pub fn apply_scale_and_save(app: &AppHandle, scale: f64) {
-    let clamped = scale.clamp(0.6, 1.8);
+    let clamped = scale.clamp(0.20, 1.50);
     let state = app.state::<AppState>();
+    let layout = { state.settings.lock().unwrap().keyboard_layout.clone() };
+    let new_pos = app
+        .get_webview_window("main")
+        .and_then(|win| resize_window_anchored_bottom_right(&win, &layout, clamped));
     let updated = {
         let mut s = state.settings.lock().unwrap();
         s.scale = clamped;
+        if let Some((nx, ny)) = new_pos {
+            s.x = Some(nx);
+            s.y = Some(ny);
+        }
         save_settings(&s);
         s.clone()
     };
-    if let Some(win) = app.get_webview_window("main") {
-        let (bw, bh) = base_dimensions(&updated.keyboard_layout);
-        let _ = win.set_size(Size::Logical(LogicalSize::new(
-            (bw * clamped).round(),
-            (bh * clamped).round(),
-        )));
-    }
     let _ = app.emit("kuro-settings", updated);
 }
 
 pub fn apply_keyboard_layout_and_save(app: &AppHandle, layout: &str) {
     let normalized = normalize_keyboard_layout(layout);
     let state = app.state::<AppState>();
+    let cur_scale = { state.settings.lock().unwrap().scale };
+    let new_pos = app
+        .get_webview_window("main")
+        .and_then(|win| resize_window_anchored_bottom_right(&win, &normalized, cur_scale));
     let updated = {
         let mut s = state.settings.lock().unwrap();
         s.keyboard_layout = normalized;
+        if let Some((nx, ny)) = new_pos {
+            s.x = Some(nx);
+            s.y = Some(ny);
+        }
         save_settings(&s);
         s.clone()
     };
-    if let Some(win) = app.get_webview_window("main") {
-        let (bw, bh) = base_dimensions(&updated.keyboard_layout);
-        let _ = win.set_size(Size::Logical(LogicalSize::new(
-            (bw * updated.scale).round(),
-            (bh * updated.scale).round(),
-        )));
-    }
     let _ = app.emit("kuro-settings", updated);
 }
 
@@ -430,12 +476,30 @@ fn start_hit_test_loop(
             let rx = (cx - pos.x) as f64 / w;
             let ry = (cy - pos.y) as f64 / h;
             let inside = rx >= 0.0 && rx <= 1.0 && ry >= 0.0 && ry <= 1.0;
-            let (locked, is_108) = {
+            let (locked, is_108, cur_scale, layout_str) = {
                 let s = settings.lock().unwrap();
-                (s.click_through_locked, s.keyboard_layout == "108")
+                (
+                    s.click_through_locked,
+                    s.keyboard_layout == "108",
+                    s.scale.clamp(0.20, 1.50),
+                    s.keyboard_layout.clone(),
+                )
             };
-            let (over_interactive, over_cat) = if inside {
-                is_over_interactive_silhouette(rx, ry, is_108)
+            // Map window-relative (rx, ry) into exact pet-local (pet_rx, pet_ry),
+            // since at small scales (20%..90%) the pet is anchored bottom-right inside a min-safe menu window!
+            let (bw, bh) = base_dimensions(&layout_str);
+            let win_log_w = (w / sf).max(1.0);
+            let win_log_h = (h / sf).max(1.0);
+            let pet_w_frac = ((bw * cur_scale) / win_log_w).clamp(0.05, 1.0);
+            let pet_h_frac = ((bh * cur_scale) / win_log_h).clamp(0.05, 1.0);
+            let pet_x0 = 1.0 - pet_w_frac;
+            let pet_y0 = 1.0 - pet_h_frac;
+            let pet_rx = (rx - pet_x0) / pet_w_frac;
+            let pet_ry = (ry - pet_y0) / pet_h_frac;
+            let inside_pet = pet_rx >= 0.0 && pet_rx <= 1.0 && pet_ry >= 0.0 && pet_ry <= 1.0;
+
+            let (over_interactive, over_cat) = if inside_pet {
+                is_over_interactive_silhouette(pet_rx, pet_ry, is_108)
             } else {
                 (false, false)
             };
@@ -463,9 +527,9 @@ fn start_hit_test_loop(
                 let _ = app.emit(
                     "kuro-cursor",
                     WindowCursorInfo {
-                        rel_x: rx,
-                        rel_y: ry,
-                        inside_window: inside,
+                        rel_x: pet_rx,
+                        rel_y: pet_ry,
+                        inside_window: inside_pet,
                         over_cat,
                     },
                 );
@@ -512,11 +576,8 @@ pub fn run() {
                 {
                     let _ = win.set_visible_on_all_workspaces(true);
                 }
-                let (bw, bh) = base_dimensions(&s.keyboard_layout);
-                let _ = win.set_size(Size::Logical(LogicalSize::new(
-                    (bw * s.scale).round(),
-                    (bh * s.scale).round(),
-                )));
+                let (win_w, win_h) = window_dimensions(&s.keyboard_layout, s.scale);
+                let _ = win.set_size(Size::Logical(LogicalSize::new(win_w, win_h)));
                 if let (Some(x), Some(y)) = (s.x, s.y) {
                     let _ = win.set_position(PhysicalPosition::new(x, y));
                 } else {

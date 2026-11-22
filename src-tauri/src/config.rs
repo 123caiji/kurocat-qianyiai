@@ -119,7 +119,7 @@ pub fn load_settings() -> AppSettings {
     let path = config_path();
     if let Ok(content) = fs::read_to_string(&path) {
         if let Ok(mut parsed) = serde_json::from_str::<AppSettings>(&content) {
-            parsed.scale = parsed.scale.clamp(0.6, 1.8);
+            parsed.scale = parsed.scale.clamp(0.20, 1.50);
             return parsed;
         }
     }

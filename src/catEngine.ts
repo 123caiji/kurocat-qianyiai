@@ -93,6 +93,11 @@ export class KuroCatEngine {
   public customSkin: ResolvedSkin | null = null;
   public keyboardLayout: KeyboardLayoutId = '65';
   public keyboardOrientation: KeyboardOrientation = 'cat';
+  private renderScale = 1.0;
+
+  public setRenderScale(scale: number): void {
+    this.renderScale = Math.max(0.2, Math.min(1.5, scale));
+  }
 
   public setCatAppearance(breedId: string, skin?: CatSkinConfig | null): void {
     if ((breedId === 'black' || breedId === 'ragdoll') && (!skin || skin.builtin)) {
@@ -927,11 +932,14 @@ export class KuroCatEngine {
     ctx.clearRect(0, 0, cw, ch);
 
     ctx.save();
-    const scaleX = cw / this.logicalW;
-    const scaleY = ch / this.logicalH;
-    const uniformScale = Math.min(scaleX, scaleY);
-    const offsetX = (cw - this.logicalW * uniformScale) * 0.5;
-    const offsetY = (ch - this.logicalH * uniformScale) * 0.5;
+    const cssW = Math.max(1, window.innerWidth);
+    const dpr = cw / cssW;
+    const fitScale = Math.min(cw / this.logicalW, ch / this.logicalH);
+    const uniformScale = Math.min(fitScale, this.renderScale * dpr);
+    const drawW = this.logicalW * uniformScale;
+    const drawH = this.logicalH * uniformScale;
+    const offsetX = cw - drawW;
+    const offsetY = ch - drawH;
     ctx.translate(offsetX, offsetY);
     ctx.scale(uniformScale, uniformScale);
 

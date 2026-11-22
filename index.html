@@ -67,12 +67,25 @@
         </div>
       </div>
       <div class="menu-scale-row">
-        <span class="menu-scale-label">缩放</span>
-        <div class="scale-pills">
-          <button class="scale-pill" data-scale="0.75">75%</button>
-          <button class="scale-pill" data-scale="1">100%</button>
-          <button class="scale-pill" data-scale="1.25">125%</button>
-          <button class="scale-pill" data-scale="1.5">150%</button>
+        <div class="scale-header">
+          <span class="menu-scale-label">尺寸缩放</span>
+          <button class="scale-value-btn" id="scale-value" type="button" title="点击复位 100%">100%</button>
+        </div>
+        <div class="scale-slider-wrap">
+          <input
+            type="range"
+            id="scale-slider"
+            class="scale-slider"
+            min="20"
+            max="150"
+            step="1"
+            value="100"
+          />
+          <div class="scale-ticks">
+            <span>20%</span>
+            <span class="scale-tick-mid">100%</span>
+            <span>150%</span>
+          </div>
         </div>
       </div>
       <div class="menu-sep"></div>
@@ -85,7 +98,7 @@
       </button>
       <button class="menu-item" data-action="check-update" id="btn-check-update">
         <span>检查更新</span>
-        <span class="menu-hint" id="update-hint">v4.5.0</span>
+        <span class="menu-hint" id="update-hint">v4.6.0</span>
       </button>
       <button class="menu-item danger" data-action="quit">
         <span>退出 KuroCat</span>

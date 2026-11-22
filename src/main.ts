@@ -57,11 +57,12 @@ interface UpdateProgressEvent {
   info: UpdateInfo | null;
 }
 
-let appVersion = '4.5.0';
+let appVersion = '4.6.0';
 let latestUpdateInfo: UpdateInfo | null = null;
 let updateBusy = false;
 let dismissedVersion: string | null = null;
 let toastAutoHideTimer: number | null = null;
+let sliderDragging = false;
 
 let settings: AppSettings = {
   x: null,
@@ -84,6 +85,8 @@ let catList: CatSkinConfig[] = [...DEFAULT_BUILTIN_CATS];
 const canvas = document.getElementById('pet-canvas') as HTMLCanvasElement;
 const menuEl = document.getElementById('context-menu') as HTMLDivElement;
 const breedPillsEl = document.getElementById('breed-pills') as HTMLDivElement;
+const scaleSliderEl = document.getElementById('scale-slider') as HTMLInputElement;
+const scaleValueEl = document.getElementById('scale-value') as HTMLButtonElement;
 const updateToastEl = document.getElementById('update-toast') as HTMLDivElement;
 const updateToastTextEl = document.getElementById('update-toast-text') as HTMLSpanElement;
 const btnToastInstallEl = document.getElementById('btn-toast-install') as HTMLButtonElement;
@@ -107,6 +110,18 @@ function renderBreedPills(): void {
   }
 }
 
+function updateScaleSliderVisual(scaleVal: number): void {
+  const pctNum = Math.round(Math.max(20, Math.min(150, scaleVal * 100)));
+  if (scaleSliderEl) {
+    scaleSliderEl.value = String(pctNum);
+    const fillPct = ((pctNum - 20) / (150 - 20)) * 100;
+    scaleSliderEl.style.setProperty('--pct', `${fillPct.toFixed(1)}%`);
+  }
+  if (scaleValueEl) {
+    scaleValueEl.textContent = `${pctNum}%`;
+  }
+}
+
 function syncMenuUI(): void {
   const setCheck = (id: string, on: boolean) => {
     const el = document.getElementById(id);
@@ -119,10 +134,9 @@ function syncMenuUI(): void {
   setCheck('chk-autostart', settings.autostart);
   setCheck('chk-mcp', settings.mcpEnabled);
 
-  document.querySelectorAll<HTMLButtonElement>('.scale-pill').forEach((btn) => {
-    const v = Number(btn.dataset.scale);
-    btn.classList.toggle('active', Math.abs(v - settings.scale) < 0.05);
-  });
+  if (!sliderDragging) {
+    updateScaleSliderVisual(settings.scale);
+  }
 
   const kbLayout: KeyboardLayoutId = settings.keyboardLayout === '108' ? '108' : '65';
   const kbOrient: KeyboardOrientation = settings.keyboardOrientation === 'viewer' ? 'viewer' : 'cat';
@@ -146,6 +160,9 @@ function syncMenuUI(): void {
   engine.showKeyBubbles = settings.showKeyBubbles;
   engine.setCatAppearance(activeCat?.id || 'black', activeCat);
   engine.setKeyboardConfig(kbLayout, kbOrient);
+  if (!sliderDragging) {
+    engine.setRenderScale(settings.scale);
+  }
   catAudio.setEnabled(settings.soundEnabled);
 }
 
@@ -406,6 +423,36 @@ async function bootstrap(): Promise<void> {
     }
     hideUpdateToast();
   });
+
+  if (scaleSliderEl) {
+    scaleSliderEl.addEventListener('pointerdown', () => {
+      sliderDragging = true;
+    });
+    scaleSliderEl.addEventListener('input', () => {
+      sliderDragging = true;
+      const nextScale = Math.max(0.2, Math.min(1.5, Number(scaleSliderEl.value) / 100));
+      updateScaleSliderVisual(nextScale);
+      engine.setRenderScale(nextScale);
+    });
+    const commitSliderScale = () => {
+      sliderDragging = false;
+      const nextScale = Math.max(0.2, Math.min(1.5, Number(scaleSliderEl.value) / 100));
+      void applySettingsPatch({ scale: nextScale });
+    };
+    scaleSliderEl.addEventListener('change', commitSliderScale);
+    scaleSliderEl.addEventListener('pointerup', () => {
+      sliderDragging = false;
+    });
+  }
+
+  if (scaleValueEl) {
+    scaleValueEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sliderDragging = false;
+      updateScaleSliderVisual(1.0);
+      void applySettingsPatch({ scale: 1.0 });
+    });
+  }
 
   await listen<AppSettings>('kuro-settings', (ev) => {
     settings = ev.payload;

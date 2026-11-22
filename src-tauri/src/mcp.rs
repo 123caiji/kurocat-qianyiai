@@ -143,12 +143,14 @@ fn tool_definitions() -> Value {
         },
         {
             "name": "update_settings",
-            "description": "Update KuroCat desktop pet settings live (scale 0.6-1.8, showKeyBubbles, soundEnabled, alwaysOnTop, clickThroughLocked, catBreed, autostart).",
+            "description": "Update KuroCat desktop pet settings live (scale 0.2-1.5, showKeyBubbles, soundEnabled, alwaysOnTop, clickThroughLocked, catBreed, keyboardLayout 65|108, keyboardOrientation cat|viewer, autostart).",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "catBreed": { "type": "string" },
-                    "scale": { "type": "number", "minimum": 0.6, "maximum": 1.8 },
+                    "scale": { "type": "number", "minimum": 0.2, "maximum": 1.5 },
+                    "keyboardLayout": { "type": "string", "enum": ["65", "108"] },
+                    "keyboardOrientation": { "type": "string", "enum": ["cat", "viewer"] },
                     "showKeyBubbles": { "type": "boolean" },
                     "soundEnabled": { "type": "boolean" },
                     "alwaysOnTop": { "type": "boolean" },
@@ -275,7 +277,13 @@ fn execute_tool(name: &str, args: &Value, on_change: &dyn Fn()) -> Value {
                 }
             }
             if let Some(scale) = args.get("scale").and_then(|v| v.as_f64()) {
-                s.scale = scale.clamp(0.6, 1.8);
+                s.scale = scale.clamp(0.20, 1.50);
+            }
+            if let Some(layout) = args.get("keyboardLayout").and_then(|v| v.as_str()) {
+                s.keyboard_layout = crate::config::normalize_keyboard_layout(layout);
+            }
+            if let Some(orient) = args.get("keyboardOrientation").and_then(|v| v.as_str()) {
+                s.keyboard_orientation = crate::config::normalize_keyboard_orientation(orient);
             }
             if let Some(b) = args.get("showKeyBubbles").and_then(|v| v.as_bool()) {
                 s.show_key_bubbles = b;
