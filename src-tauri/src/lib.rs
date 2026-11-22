@@ -52,7 +52,7 @@ fn get_mcp_config(state: State<'_, AppState>) -> String {
     let port = state.settings.lock().unwrap().mcp_port;
     let exe = std::env::current_exe()
         .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|_| "KuroCatPet.exe".to_string());
+        .unwrap_or_else(|_| "KuroCat.exe".to_string());
     serde_json::to_string_pretty(&serde_json::json!({
         "mcpServers": {
             "kurocat": {
@@ -126,6 +126,11 @@ fn save_window_pos(app: AppHandle, state: State<'_, AppState>) {
 #[tauri::command]
 fn reset_position(app: AppHandle) {
     reset_window_position(&app);
+}
+
+#[tauri::command]
+fn create_desktop_shortcut() -> Result<String, String> {
+    config::create_desktop_shortcut()
 }
 
 #[tauri::command]
@@ -479,8 +484,9 @@ pub fn run() {
             set_dragging,
             save_window_pos,
             reset_position,
+            create_desktop_shortcut,
             quit_app,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running KuroCat Pet");
+        .expect("error while running KuroCat");
 }

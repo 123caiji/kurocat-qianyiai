@@ -88,11 +88,36 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
     )?;
 
     let reset_pos = MenuItem::with_id(app, "reset_pos", "重置位置到右下角", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "退出黑猫桌宠", true, None::<&str>)?;
+    #[cfg(windows)]
+    let desktop_shortcut =
+        MenuItem::with_id(app, "desktop_shortcut", "创建桌面快捷方式 (KuroCat)", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "退出 KuroCat", true, None::<&str>)?;
 
     let sep1 = PredefinedMenuItem::separator(app)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
 
+    #[cfg(windows)]
+    let menu = Menu::with_items(
+        app,
+        &[
+            &toggle_show,
+            &sep1,
+            &click_through,
+            &key_bubbles,
+            &sound_toggle,
+            &always_on_top,
+            &breed_menu,
+            &scale_menu,
+            &desktop_shortcut,
+            &reset_pos,
+            &autostart,
+            &mcp_toggle,
+            &sep2,
+            &quit,
+        ],
+    )?;
+
+    #[cfg(not(windows))]
     let menu = Menu::with_items(
         app,
         &[
@@ -112,11 +137,11 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
         ],
     )?;
 
-    let icon = Image::from_bytes(include_bytes!("../icons/32x32.png"))?;
+    let icon = Image::from_bytes(include_bytes!("../icons/tray-icon.png"))?;
 
     TrayIconBuilder::with_id("kuro-tray")
         .icon(icon)
-        .tooltip("KuroCat 桌面猫咪")
+        .tooltip("KuroCat")
         .menu(&menu)
         .show_menu_on_left_click(cfg!(target_os = "macos"))
         .on_tray_icon_event(|tray, event| {
@@ -214,6 +239,9 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                 "scale_100" => apply_scale_and_save(app, 1.0),
                 "scale_125" => apply_scale_and_save(app, 1.25),
                 "scale_150" => apply_scale_and_save(app, 1.5),
+                "desktop_shortcut" => {
+                    let _ = crate::config::create_desktop_shortcut();
+                }
                 "reset_pos" => reset_window_position(app),
                 "quit" => {
                     app.exit(0);

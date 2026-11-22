@@ -119,7 +119,8 @@ pub fn set_windows_autostart(enabled: bool) -> Result<(), String> {
     }
 
     let subkey = to_wide("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
-    let value_name = to_wide("KuroCatPet");
+    let value_name = to_wide("KuroCat");
+    let legacy_value_name = to_wide("KuroCatPet");
 
     unsafe {
         let mut hkey: HKEY = std::ptr::null_mut();
@@ -133,6 +134,9 @@ pub fn set_windows_autostart(enabled: bool) -> Result<(), String> {
         if status != 0 {
             return Err(format!("RegOpenKeyExW failed with code {}", status));
         }
+
+        // Clean up legacy autostart key so users upgrading from <=v4.2 never run two copies
+        let _ = RegDeleteValueW(hkey, legacy_value_name.as_ptr());
 
         let result = if enabled {
             let exe = std::env::current_exe()
@@ -207,4 +211,57 @@ pub fn set_windows_autostart(enabled: bool) -> Result<(), String> {
 #[cfg(all(not(windows), not(target_os = "macos")))]
 pub fn set_windows_autostart(_enabled: bool) -> Result<(), String> {
     Ok(())
+}
+
+#[cfg(windows)]
+pub fn create_desktop_shortcut() -> Result<String, String> {
+    use std::os::windows::process::CommandExt;
+    use std::process::Command;
+
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    let exe_path = std::env::current_exe().map_err(|e| e.to_string())?;
+    let exe_str = exe_path.to_string_lossy().replace('\'', "''");
+    let work_dir = exe_path
+        .parent()
+        .map(|p| p.to_string_lossy().replace('\'', "''"))
+        .unwrap_or_default();
+
+    let script = format!(
+        "$desktop = [Environment]::GetFolderPath('Desktop'); \
+         $lnk = Join-Path $desktop 'KuroCat.lnk'; \
+         $ws = New-Object -ComObject WScript.Shell; \
+         $s = $ws.CreateShortcut($lnk); \
+         $s.TargetPath = '{exe}'; \
+         $s.WorkingDirectory = '{wd}'; \
+         $s.IconLocation = '{exe},0'; \
+         $s.Description = 'KuroCat Desktop Companion'; \
+         $s.Save(); \
+         Write-Output $lnk",
+        exe = exe_str,
+        wd = work_dir,
+    );
+
+    let output = Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", &script])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map_err(|e| format!("Failed to invoke PowerShell: {}", e))?;
+
+    if output.status.success() {
+        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        Ok(path)
+    } else {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        Err(if err.is_empty() {
+            "Failed to create desktop shortcut".to_string()
+        } else {
+            err
+        })
+    }
+}
+
+#[cfg(not(windows))]
+pub fn create_desktop_shortcut() -> Result<String, String> {
+    Ok("Desktop shortcut is managed via Applications on this OS".to_string())
 }

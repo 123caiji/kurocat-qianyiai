@@ -19,7 +19,7 @@
 KuroCat `v4.0.0+` 单文件程序原生内置 **Stdio** 与 **本机 Streamable HTTP（`127.0.0.1:27420`）** 双模式 MCP Server，无需任何额外依赖！
 
 ### 最快接入方式
-1. 运行 `KuroCatPet.exe`，右键猫咪 → 确认勾选 **「开启 MCP 扩展」** → 点击 **「复制 MCP 配置」**。
+1. 运行 `KuroCat`，右键猫咪 → 确认勾选 **「开启 MCP 扩展」** → 点击 **「复制 MCP 配置」**。
 2. 粘贴到你常用的 AI 客户端 MCP 配置文件（Claude Desktop / Cursor / Antigravity / Windsurf / Cline）：
 
 **方式 A：Stdio 模式（通用推荐，所有 MCP 客户端均支持）**
@@ -27,7 +27,7 @@ KuroCat `v4.0.0+` 单文件程序原生内置 **Stdio** 与 **本机 Streamable 
 {
   "mcpServers": {
     "kurocat": {
-      "command": "D:\\path\\to\\KuroCatPet.exe",
+      "command": "C:\\Users\\<你的用户名>\\AppData\\Local\\KuroCat\\KuroCat.exe",
       "args": ["--mcp"]
     }
   }
@@ -68,13 +68,15 @@ KuroCat `v4.0.0+` 单文件程序原生内置 **Stdio** 与 **本机 Streamable 
 
 ## 📥 直接下载使用（Windows & macOS）
 
-前往 [Releases](https://github.com/qianyiai/kurocat/releases) 页面下载最新 `v4.2.0` 安装包：
+前往 [Releases](https://github.com/qianyiai/kurocat/releases) 页面下载最新 `v4.3.0` 安装包：
 
-- **Windows 10 / 11（x64）**：下载免安装绿色单文件 `KuroCatPet-v4.2.0-windows-x64.exe`（约 3.4 MB），双击即可运行。
-- **macOS 11+（Apple Silicon M1/M2/M3/M4 & Intel 通用版）**：下载 `KuroCatPet-v4.2.0-macos-universal.dmg`，将 `KuroCatPet.app` 拖入「应用程序」文件夹运行。
-  - **首次打开说明（开源未公证应用）**：若提示「无法验证开发者」或「已损坏」，在终端执行一次 `xattr -cr /Applications/KuroCatPet.app` 后即可正常打开。
-  - **辅助功能权限（用于全局监听敲键盘/鼠标）**：首次启动会自动弹出系统授权引导，在「系统设置 → 隐私与安全性 → 辅助功能」中打开 `KuroCatPet` 开关即可立即生效（无需重启）。
-  - **macOS Stdio MCP 路径**：`/Applications/KuroCatPet.app/Contents/MacOS/KuroCatPet`（参数 `--mcp`），或在桌宠运行时直接连接 `http://127.0.0.1:27420/mcp`。
+- **Windows 10 / 11（x64）**：
+  - **推荐：正式安装包** `KuroCat_4.3.0_x64-setup.exe` — 专属品牌安装向导，自动创建 **`KuroCat`** 桌面图标、开始菜单与系统应用卸载入口。
+  - **绿色免安装单文件**：`KuroCat-v4.3.0-windows-x64.exe` — 双击即运行，右键猫咪或系统托盘也可一键 **「创建桌面图标」**。
+- **macOS 11+（Apple Silicon M1/M2/M3/M4 & Intel 通用版）**：下载 `KuroCat-v4.3.0-macos-universal.dmg`，将 `KuroCat.app` 拖入「应用程序」文件夹运行。
+  - **首次打开说明（开源未公证应用）**：若提示「无法验证开发者」或「已损坏」，在终端执行一次 `xattr -cr /Applications/KuroCat.app` 后即可正常打开。
+  - **辅助功能权限（用于全局监听敲键盘/鼠标）**：首次启动会自动弹出系统授权引导，在「系统设置 → 隐私与安全性 → 辅助功能」中打开 `KuroCat` 开关即可立即生效（无需重启）。
+  - **macOS Stdio MCP 路径**：`/Applications/KuroCat.app/Contents/MacOS/KuroCat`（参数 `--mcp`），或在桌宠运行时直接连接 `http://127.0.0.1:27420/mcp`。
 
 ## 🛠️ 本地源码构建
 

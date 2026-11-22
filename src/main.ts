@@ -159,8 +159,31 @@ async function copyMcpConfig(): Promise<void> {
   }
 }
 
+async function createDesktopShortcut(): Promise<void> {
+  const hint = document.getElementById('shortcut-hint');
+  try {
+    await invoke<string>('create_desktop_shortcut');
+    if (hint) {
+      hint.textContent = '✓ 已创建';
+      hint.classList.add('copied');
+      setTimeout(() => {
+        hint.textContent = 'KuroCat';
+        hint.classList.remove('copied');
+      }, 1800);
+    }
+  } catch (err) {
+    console.error('Failed to create desktop shortcut:', err);
+  }
+}
+
 async function bootstrap(): Promise<void> {
   engine.start();
+
+  // Hide Windows-only desktop shortcut button on macOS
+  if (/Mac/i.test(navigator.platform) || /Macintosh/i.test(navigator.userAgent)) {
+    const shortcutBtn = document.getElementById('btn-desktop-shortcut');
+    if (shortcutBtn) shortcutBtn.style.display = 'none';
+  }
 
   try {
     const [loadedSettings, loadedCats] = await Promise.all([
@@ -287,6 +310,9 @@ async function bootstrap(): Promise<void> {
         break;
       case 'copy-mcp':
         void copyMcpConfig();
+        break;
+      case 'desktop-shortcut':
+        void createDesktopShortcut();
         break;
       case 'reset-pos':
         void invoke('reset_position');
