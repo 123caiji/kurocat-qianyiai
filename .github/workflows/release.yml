@@ -33,30 +33,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Tauri app (Windows x64 - Standard 65% default)
-        run: npm run tauri -- build --bundles msi,nsis
+      - name: Build Tauri app (Windows x64 - 65% Classic Installer)
+        run: npm run tauri -- build --bundles nsis
 
-      - name: Rename Standard Windows release assets (setup.exe sorts #1 on GitHub Releases)
+      - name: Rename Windows installer asset
         shell: pwsh
         run: |
           $tag = if ($env:GITHUB_REF_NAME -match '^v') { $env:GITHUB_REF_NAME } else { 'latest' }
           $ver = $tag.TrimStart('v')
-          Copy-Item "src-tauri/target/release/KuroCat.exe" "KuroCat-$tag-windows-x64.exe"
           $nsis = Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1
           if ($nsis) {
             Copy-Item $nsis.FullName "KuroCat-$ver-x64-setup.exe"
-          }
-
-      - name: Build Tauri app (Windows x64 - 108-Key Full-Size default)
-        run: npm run tauri -- build --bundles nsis --features layout-108
-
-      - name: Rename 108-Key Windows installer (sorts #2 right below Standard setup.exe)
-        shell: pwsh
-        run: |
-          $tag = if ($env:GITHUB_REF_NAME -match '^v') { $env:GITHUB_REF_NAME } else { 'latest' }
-          $nsis = Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1
-          if ($nsis) {
-            Copy-Item $nsis.FullName "KuroCat-$tag-108key-x64-setup.exe"
           }
 
       - name: Upload Windows artifacts
@@ -65,9 +52,6 @@ jobs:
           name: kurocat-windows-x64
           path: |
             KuroCat-*-x64-setup.exe
-            KuroCat-*-108key-x64-setup.exe
-            KuroCat-*-windows-x64.exe
-            src-tauri/target/release/bundle/msi/*.msi
 
       - name: Publish Windows assets to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -76,9 +60,6 @@ jobs:
           draft: true
           files: |
             KuroCat-*-x64-setup.exe
-            KuroCat-*-108key-x64-setup.exe
-            KuroCat-*-windows-x64.exe
-            src-tauri/target/release/bundle/msi/*.msi
 
   build-macos:
     runs-on: macos-latest

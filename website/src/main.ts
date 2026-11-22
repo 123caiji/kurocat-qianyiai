@@ -9,8 +9,6 @@ const LOCAL_MIRROR_VER_NUM = '4.6.1';
 
 interface ReleaseAssetMap {
   win65: { name: string; primaryUrl: string; ghUrl: string; sizeText: string };
-  win108: { name: string; primaryUrl: string; ghUrl: string; sizeText: string };
-  winPortable: { name: string; primaryUrl: string; ghUrl: string; sizeText: string };
   macos: { name: string; primaryUrl: string; ghUrl: string; sizeText: string };
 }
 
@@ -18,13 +16,9 @@ function buildDefaultAssets(): ReleaseAssetMap {
   const localBase = `/kurocat/releases/${LOCAL_MIRROR_VERSION}`;
   const ghBase = `https://github.com/qianyiai/kurocat/releases/download/${LOCAL_MIRROR_VERSION}`;
   const n65 = `KuroCat-${LOCAL_MIRROR_VER_NUM}-x64-setup.exe`;
-  const n108 = `KuroCat-${LOCAL_MIRROR_VERSION}-108key-x64-setup.exe`;
-  const nPort = `KuroCat-${LOCAL_MIRROR_VERSION}-windows-x64.exe`;
   const nMac = `KuroCat-${LOCAL_MIRROR_VERSION}-macos-universal.dmg`;
   return {
     win65: { name: n65, primaryUrl: `${localBase}/${n65}`, ghUrl: `${ghBase}/${n65}`, sizeText: '1.55 MB' },
-    win108: { name: n108, primaryUrl: `${localBase}/${n108}`, ghUrl: `${ghBase}/${n108}`, sizeText: '1.55 MB' },
-    winPortable: { name: nPort, primaryUrl: `${localBase}/${nPort}`, ghUrl: `${ghBase}/${nPort}`, sizeText: '3.70 MB' },
     macos: { name: nMac, primaryUrl: `${localBase}/${nMac}`, ghUrl: `${ghBase}/${nMac}`, sizeText: '4.73 MB' },
   };
 }
@@ -193,24 +187,16 @@ async function syncGithubMetadata(): Promise<void> {
       const ghAssets: Array<{ name: string; browser_download_url: string; size: number }> = Array.isArray(rel.assets)
         ? rel.assets
         : [];
-      if (tag && tag !== LOCAL_MIRROR_VERSION && ghAssets.length >= 4) {
+      if (tag && tag !== LOCAL_MIRROR_VERSION && ghAssets.length >= 2) {
         const defaults = buildDefaultAssets();
         const find = (pred: (n: string) => boolean) => ghAssets.find((a) => pred(a.name));
         const a65 = find((n) => n.endsWith('-x64-setup.exe') && !n.includes('108key'));
-        const a108 = find((n) => n.includes('108key') && n.endsWith('-setup.exe'));
-        const aPort = find((n) => n.endsWith('-windows-x64.exe'));
         const aMac = find((n) => n.endsWith('-macos-universal.dmg'));
 
         const updated: ReleaseAssetMap = {
           win65: a65
             ? { name: a65.name, primaryUrl: a65.browser_download_url, ghUrl: a65.browser_download_url, sizeText: formatBytesMB(a65.size) }
             : defaults.win65,
-          win108: a108
-            ? { name: a108.name, primaryUrl: a108.browser_download_url, ghUrl: a108.browser_download_url, sizeText: formatBytesMB(a108.size) }
-            : defaults.win108,
-          winPortable: aPort
-            ? { name: aPort.name, primaryUrl: aPort.browser_download_url, ghUrl: aPort.browser_download_url, sizeText: formatBytesMB(aPort.size) }
-            : defaults.winPortable,
           macos: aMac
             ? { name: aMac.name, primaryUrl: aMac.browser_download_url, ghUrl: aMac.browser_download_url, sizeText: formatBytesMB(aMac.size) }
             : defaults.macos,
