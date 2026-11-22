@@ -150,16 +150,6 @@ function initDownloadTracking(): void {
       }
     });
   });
-
-  // Refresh live counter shortly after clicking any direct download link
-  document.querySelectorAll<HTMLAnchorElement>('[data-dl-primary], #hero-primary-dl').forEach((link) => {
-    link.addEventListener('click', () => {
-      window.setTimeout(refreshLiveDownloadStats, 2500);
-    });
-  });
-
-  refreshLiveDownloadStats();
-  window.setInterval(refreshLiveDownloadStats, 30_000);
 }
 
 async function syncGithubMetadata(): Promise<void> {

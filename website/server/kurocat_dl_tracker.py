@@ -857,6 +857,15 @@ class TrackerHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/kurocat/api/stats":
+            valid_token = self._check_admin_token(qs)
+            if not valid_token:
+                self._send_bytes(
+                    HTTPStatus.FORBIDDEN,
+                    "application/json; charset=utf-8",
+                    b'{"error":"forbidden"}',
+                    {"Cache-Control": "no-store"},
+                )
+                return
             data = query_stats(include_raw=False, limit=1)
             gh = get_github_stats_snapshot()
             qianyi_dl = int(data["total_downloads"])
@@ -879,7 +888,7 @@ class TrackerHandler(BaseHTTPRequestHandler):
                 HTTPStatus.OK,
                 "application/json; charset=utf-8",
                 body,
-                {"Cache-Control": "public, max-age=10"},
+                {"Cache-Control": "no-store"},
             )
             return
 
