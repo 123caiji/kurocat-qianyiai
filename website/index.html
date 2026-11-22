@@ -446,6 +446,39 @@
         </div>
       </article>
     </section>
+
+    <!-- LIVE DOWNLOAD STATS -->
+    <section class="section live-stats-section" id="live-stats" aria-label="实时下载统计">
+      <div class="live-stats-card">
+        <div class="live-stats-head">
+          <div class="live-stats-badge">
+            <span class="live-pulse-dot" aria-hidden="true"></span>
+            <span>实时下载统计</span>
+          </div>
+          <div class="live-stats-meta" id="live-stats-updated">正在同步实时数据…</div>
+        </div>
+
+        <div class="live-stats-grid">
+          <div class="live-stat-item is-primary">
+            <div class="live-stat-label">全网累计下载</div>
+            <div class="live-stat-num" id="live-dl-total">--</div>
+            <div class="live-stat-sub">GitHub + qianyi.one 独立统计合计</div>
+          </div>
+
+          <a class="live-stat-item live-stat-link" href="https://github.com/qianyiai/kurocat/releases" target="_blank" rel="noopener">
+            <div class="live-stat-label">GitHub Releases</div>
+            <div class="live-stat-num" id="live-dl-github">--</div>
+            <div class="live-stat-sub">全历史版本累计下载 ↗</div>
+          </a>
+
+          <div class="live-stat-item">
+            <div class="live-stat-label">qianyi.one 高速直链</div>
+            <div class="live-stat-num" id="live-dl-qianyi">--</div>
+            <div class="live-stat-sub">今日新增 <strong id="live-dl-today">--</strong> 次 · 去重有效下载</div>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <footer>

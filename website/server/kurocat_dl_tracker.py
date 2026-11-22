@@ -27,6 +27,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urlparse
+from urllib.request import Request, urlopen
 
 CST = timezone(timedelta(hours=8))
 
@@ -36,11 +37,109 @@ RELEASES_ROOT = Path(os.environ.get("KUROCAT_RELEASES_ROOT", "/var/www/qianyi.on
 DATA_DIR = Path(os.environ.get("KUROCAT_DATA_DIR", "/var/lib/kurocat-stats")).resolve()
 DB_PATH = DATA_DIR / "downloads.db"
 JSONL_PATH = DATA_DIR / "downloads.jsonl"
+GITHUB_CACHE_PATH = DATA_DIR / "github_cache.json"
+GITHUB_REPO = os.environ.get("KUROCAT_GITHUB_REPO", "qianyiai/kurocat").strip()
+GITHUB_TOKEN = os.environ.get("KUROCAT_GITHUB_TOKEN", "").strip()
+GITHUB_REFRESH_SEC = int(os.environ.get("KUROCAT_GITHUB_REFRESH_SEC", "180"))
 STATS_TOKEN = os.environ.get("KUROCAT_STATS_TOKEN", "").strip()
 DEDUP_WINDOW_SEC = 15
 
 DB_LOCK = threading.Lock()
+GITHUB_LOCK = threading.Lock()
+GITHUB_CACHE: dict[str, Any] = {
+    "github_downloads": 0,
+    "github_win_downloads": 0,
+    "github_mac_downloads": 0,
+    "github_release_count": 0,
+    "github_updated_at_cst": "",
+    "fetched_at_unix": 0.0,
+}
 ALLOWED_FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]{3,120}$")
+
+
+def load_github_cache_from_disk() -> None:
+    if not GITHUB_CACHE_PATH.exists():
+        return
+    try:
+        raw = json.loads(GITHUB_CACHE_PATH.read_text(encoding="utf-8"))
+        if isinstance(raw, dict) and isinstance(raw.get("github_downloads"), int):
+            with GITHUB_LOCK:
+                GITHUB_CACHE.update(raw)
+    except Exception:
+        pass
+
+
+def fetch_github_downloads_once() -> None:
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "kurocat-dl-tracker/1.0 (+https://qianyi.one/kurocat/)",
+    }
+    if GITHUB_TOKEN:
+        headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
+
+    total = 0
+    win = 0
+    mac = 0
+    release_count = 0
+
+    for page in range(1, 6):
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/releases?per_page=100&page={page}"
+        req = Request(url, headers=headers)
+        with urlopen(req, timeout=12) as resp:
+            items = json.loads(resp.read().decode("utf-8", errors="replace"))
+        if not isinstance(items, list) or not items:
+            break
+        release_count += len(items)
+        for rel in items:
+            assets = rel.get("assets") or []
+            for asset in assets:
+                cnt = int(asset.get("download_count") or 0)
+                name = str(asset.get("name") or "").lower()
+                total += cnt
+                if "macos" in name or name.endswith(".dmg") or name.endswith(".app.tar.gz"):
+                    mac += cnt
+                else:
+                    win += cnt
+        if len(items) < 100:
+            break
+
+    ts_unix, _, ts_cst, _ = now_utc_and_cst()
+    snapshot = {
+        "github_downloads": total,
+        "github_win_downloads": win,
+        "github_mac_downloads": mac,
+        "github_release_count": release_count,
+        "github_updated_at_cst": ts_cst,
+        "fetched_at_unix": ts_unix,
+    }
+    with GITHUB_LOCK:
+        GITHUB_CACHE.update(snapshot)
+    try:
+        tmp = GITHUB_CACHE_PATH.with_suffix(".tmp")
+        tmp.write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, GITHUB_CACHE_PATH)
+    except OSError:
+        pass
+
+
+def get_github_stats_snapshot() -> dict[str, Any]:
+    with GITHUB_LOCK:
+        return dict(GITHUB_CACHE)
+
+
+def start_github_sync_thread() -> None:
+    load_github_cache_from_disk()
+
+    def _worker() -> None:
+        while True:
+            try:
+                fetch_github_downloads_once()
+            except Exception as exc:
+                print(f"[github-sync] refresh failed (keeping cached value): {exc}", flush=True)
+            time.sleep(max(60, GITHUB_REFRESH_SEC))
+
+    t = threading.Thread(target=_worker, name="github-dl-sync", daemon=True)
+    t.start()
 
 
 def now_utc_and_cst() -> tuple[float, str, str, str]:
@@ -759,19 +858,28 @@ class TrackerHandler(BaseHTTPRequestHandler):
 
         if path == "/kurocat/api/stats":
             data = query_stats(include_raw=False, limit=1)
+            gh = get_github_stats_snapshot()
+            qianyi_dl = int(data["total_downloads"])
+            github_dl = int(gh.get("github_downloads") or 0)
             safe_payload = {
-                "total_downloads": data["total_downloads"],
-                "today_downloads": data["today_downloads"],
-                "github_clicks": data["github_clicks"],
+                "total_downloads": qianyi_dl,
+                "qianyi_downloads": qianyi_dl,
+                "today_downloads": int(data["today_downloads"]),
+                "github_downloads": github_dl,
+                "github_win_downloads": int(gh.get("github_win_downloads") or 0),
+                "github_mac_downloads": int(gh.get("github_mac_downloads") or 0),
+                "combined_downloads": qianyi_dl + github_dl,
+                "github_clicks": int(data["github_clicks"]),
                 "by_file": {x["filename"]: x["count"] for x in data["by_file"]},
                 "updated_at_cst": data["updated_at_cst"],
+                "github_updated_at_cst": gh.get("github_updated_at_cst") or "",
             }
             body = json.dumps(safe_payload, ensure_ascii=False).encode("utf-8")
             self._send_bytes(
                 HTTPStatus.OK,
                 "application/json; charset=utf-8",
                 body,
-                {"Cache-Control": "public, max-age=15"},
+                {"Cache-Control": "public, max-age=10"},
             )
             return
 
@@ -864,6 +972,7 @@ class TrackerHandler(BaseHTTPRequestHandler):
 
 def main() -> None:
     init_storage()
+    start_github_sync_thread()
     server = ThreadingHTTPServer((HOST, PORT), TrackerHandler)
     print(f"kurocat-dl-tracker listening on http://{HOST}:{PORT} (root={RELEASES_ROOT}, db={DB_PATH})", flush=True)
     try:

@@ -70,6 +70,66 @@ function applyReleaseUI(tag: string, assets: ReleaseAssetMap): void {
   });
 }
 
+interface LiveStatsPayload {
+  total_downloads?: number;
+  qianyi_downloads?: number;
+  today_downloads?: number;
+  github_downloads?: number;
+  combined_downloads?: number;
+  updated_at_cst?: string;
+}
+
+function formatCount(n: number): string {
+  return Math.max(0, Math.floor(n)).toLocaleString('en-US');
+}
+
+function refreshLiveDownloadStats(): void {
+  void fetch('/kurocat/api/stats', { cache: 'no-cache' })
+    .then((r) => (r.ok ? (r.json() as Promise<LiveStatsPayload>) : null))
+    .then((data) => {
+      if (!data) return;
+      const qianyiDl =
+        typeof data.qianyi_downloads === 'number'
+          ? data.qianyi_downloads
+          : typeof data.total_downloads === 'number'
+            ? data.total_downloads
+            : 0;
+      const githubDl = typeof data.github_downloads === 'number' ? data.github_downloads : 0;
+      const combinedDl =
+        typeof data.combined_downloads === 'number' ? data.combined_downloads : qianyiDl + githubDl;
+      const todayDl = typeof data.today_downloads === 'number' ? data.today_downloads : 0;
+
+      if (combinedDl > 0) {
+        const sep = document.getElementById('site-dl-sep');
+        const txt = document.getElementById('site-dl-text');
+        if (sep && txt) {
+          sep.style.display = '';
+          txt.style.display = '';
+          txt.textContent = `累计下载 ${formatCount(combinedDl)} 次`;
+        }
+      }
+
+      const totalEl = document.getElementById('live-dl-total');
+      const ghEl = document.getElementById('live-dl-github');
+      const qyEl = document.getElementById('live-dl-qianyi');
+      const todayEl = document.getElementById('live-dl-today');
+      const updatedEl = document.getElementById('live-stats-updated');
+
+      if (totalEl) totalEl.textContent = `${formatCount(combinedDl)}`;
+      if (ghEl) ghEl.textContent = `${formatCount(githubDl)}`;
+      if (qyEl) qyEl.textContent = `${formatCount(qianyiDl)}`;
+      if (todayEl) todayEl.textContent = formatCount(todayDl);
+      if (updatedEl) {
+        const timePart =
+          typeof data.updated_at_cst === 'string' && data.updated_at_cst.length >= 19
+            ? data.updated_at_cst.slice(11, 19)
+            : new Date().toTimeString().slice(0, 8);
+        updatedEl.textContent = `更新于 ${timePart} (UTC+8) · 每 30 秒自动刷新`;
+      }
+    })
+    .catch(() => {});
+}
+
 function initDownloadTracking(): void {
   document.querySelectorAll<HTMLAnchorElement>('[data-dl-gh]').forEach((link) => {
     link.addEventListener('click', () => {
@@ -94,20 +154,15 @@ function initDownloadTracking(): void {
     });
   });
 
-  void fetch('/kurocat/api/stats')
-    .then((r) => (r.ok ? r.json() : null))
-    .then((data) => {
-      if (data && typeof data.total_downloads === 'number' && data.total_downloads > 0) {
-        const sep = document.getElementById('site-dl-sep');
-        const txt = document.getElementById('site-dl-text');
-        if (sep && txt) {
-          sep.style.display = '';
-          txt.style.display = '';
-          txt.textContent = `本站下载 ${data.total_downloads} 次`;
-        }
-      }
-    })
-    .catch(() => {});
+  // Refresh live counter shortly after clicking any direct download link
+  document.querySelectorAll<HTMLAnchorElement>('[data-dl-primary], #hero-primary-dl').forEach((link) => {
+    link.addEventListener('click', () => {
+      window.setTimeout(refreshLiveDownloadStats, 2500);
+    });
+  });
+
+  refreshLiveDownloadStats();
+  window.setInterval(refreshLiveDownloadStats, 30_000);
 }
 
 async function syncGithubMetadata(): Promise<void> {
