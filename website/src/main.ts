@@ -4,8 +4,8 @@ import type { KeyboardLayoutId } from '../../src/keyboardLayout';
 import { BUILTIN_WEB_CATS } from './builtinCats';
 import { keyboardEventToVk } from './webKeyMap';
 
-const LOCAL_MIRROR_VERSION = 'v4.6.2';
-const LOCAL_MIRROR_VER_NUM = '4.6.2';
+const LOCAL_MIRROR_VERSION = 'v4.7.0';
+const LOCAL_MIRROR_VER_NUM = '4.7.0';
 const MACOS_MIRROR_VERSION = 'v4.5.0';
 
 interface ReleaseAssetMap {
@@ -21,7 +21,7 @@ function buildDefaultAssets(): ReleaseAssetMap {
   const n65 = `KuroCat-${LOCAL_MIRROR_VER_NUM}-x64-setup.exe`;
   const nMac = `KuroCat-${MACOS_MIRROR_VERSION}-macos-universal.dmg`;
   return {
-    win65: { name: n65, primaryUrl: `${localBase}/${n65}`, ghUrl: `${ghBase}/${n65}`, sizeText: '1.55 MB' },
+    win65: { name: n65, primaryUrl: `${localBase}/${n65}`, ghUrl: `${ghBase}/${n65}`, sizeText: '1.62 MB' },
     macos: { name: nMac, primaryUrl: `${macLocalBase}/${nMac}`, ghUrl: `${macGhBase}/${nMac}`, sizeText: '4.72 MB' },
   };
 }
@@ -337,6 +337,41 @@ function initPlayground(): void {
     });
   }
 
+  // Password privacy interactive demo (manual toggle OR focusing the real <input type="password">)
+  const btnPrivacy = document.getElementById('btn-privacy-demo');
+  const pwdInput = document.getElementById('web-pwd-test') as HTMLInputElement | null;
+  let manualPrivacyPinned = false;
+  let pwdInputFocused = false;
+  const syncPrivacyState = () => {
+    const active = manualPrivacyPinned || pwdInputFocused;
+    engine.setPrivacyMode(active);
+    if (btnPrivacy) {
+      btnPrivacy.classList.toggle('active', active);
+      btnPrivacy.textContent = active ? '🙈 密码防偷窥中' : '🔒 密码防偷窥';
+    }
+  };
+  if (btnPrivacy) {
+    btnPrivacy.addEventListener('click', () => {
+      manualPrivacyPinned = !manualPrivacyPinned;
+      if (manualPrivacyPinned && autoDemoRunning) stopAutoDemo();
+      syncPrivacyState();
+    });
+  }
+  if (pwdInput) {
+    pwdInput.addEventListener('focus', () => {
+      pwdInputFocused = true;
+      if (autoDemoRunning) stopAutoDemo();
+      syncPrivacyState();
+    });
+    pwdInput.addEventListener('blur', () => {
+      pwdInputFocused = false;
+      syncPrivacyState();
+    });
+    pwdInput.addEventListener('keydown', () => {
+      engine.onPrivacyTyping();
+    });
+  }
+
   // Scale slider (20% - 150%)
   const scaleSlider = document.getElementById('web-scale-slider') as HTMLInputElement | null;
   const scaleValBtn = document.getElementById('web-scale-val');
@@ -435,6 +470,11 @@ function initPlayground(): void {
   window.addEventListener('keydown', (e) => {
     const tag = (e.target as HTMLElement | null)?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (engine.privacyMode) {
+      if (autoDemoRunning) stopAutoDemo();
+      engine.onPrivacyTyping();
+      return;
+    }
     const vk = keyboardEventToVk(e);
     if (vk !== null) {
       if (autoDemoRunning) stopAutoDemo();

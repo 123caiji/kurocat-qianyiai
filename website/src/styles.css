@@ -677,6 +677,35 @@ main {
   padding-top: 2px;
 }
 
+.privacy-row {
+  padding-top: 2px;
+}
+
+.pwd-test-input {
+  flex: 1;
+  min-width: 170px;
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.42);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.pwd-test-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.pwd-test-input:focus {
+  border-color: rgba(212, 240, 68, 0.6);
+  background: rgba(16, 20, 14, 0.72);
+  box-shadow: 0 0 0 3px rgba(212, 240, 68, 0.12);
+}
+
 .scale-slider {
   flex: 1;
   min-width: 140px;
