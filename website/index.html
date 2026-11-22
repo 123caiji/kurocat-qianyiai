@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>KuroCat · 桌面打字小黑猫伴侣 — 谦一 (Qianyi)</title>
+  <meta name="description" content="KuroCat 是一款轻量级 Windows & macOS 透明置顶桌面打字猫咪伴侣：6 款手绘猫咪皮肤、65% / 108 键全尺寸可选、鼠标左右键独立识别、20%–150% 丝滑缩放、原生内置 MCP 协议支持 AI 一句话捏自己的猫。" />
+  <meta property="og:title" content="KuroCat · 桌面打字小黑猫伴侣" />
+  <meta property="og:description" content="免费开源的 Windows & macOS 桌面键鼠猫咪伴侣，支持网页端在线互动试玩、6 款猫咪皮肤、108 键小键盘与 AI MCP 定制。" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://qianyi.one/kurocat/" />
+  <meta property="og:image" content="https://qianyi.one/kurocat/assets/kurocat-icon.png" />
+  <link rel="icon" href="/kurocat/assets/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" href="/kurocat/assets/kurocat-icon.png" />
+  <link rel="apple-touch-icon" href="/kurocat/assets/apple-touch-icon.png" />
+  <link rel="stylesheet" href="./src/styles.css" />
+</head>
+<body>
+  <div class="ambient-light"></div>
+
+  <!-- Frosted Glass Global Nav -->
+  <header class="global-nav">
+    <div class="nav-inner">
+      <div class="nav-brand-group">
+        <a class="brand-back" href="/" aria-label="返回谦一主页">← 谦一</a>
+        <span class="brand-sep">/</span>
+        <a class="brand-current" href="#top">
+          <img class="nav-icon" src="/kurocat/assets/kurocat-icon.png" alt="KuroCat" width="20" height="20" />
+          <span>KuroCat</span>
+          <span class="ver-pill" id="nav-ver-pill">v4.6.0</span>
+        </a>
+      </div>
+      <nav class="nav-links" aria-label="主导航">
+        <a href="#playground">在线试玩</a>
+        <a href="#download">立即下载</a>
+        <a href="#features">核心特性</a>
+        <a href="#mcp">AI 捏猫</a>
+        <a href="https://github.com/qianyiai/kurocat" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- Hero + Live Interactive Playground -->
+    <section class="hero-stage reveal visible" id="playground">
+      <div class="hero-copy">
+        <div class="hero-badge-row">
+          <img class="hero-app-icon" src="/kurocat/assets/kurocat-icon.png" alt="KuroCat 图标" width="56" height="56" />
+          <div>
+            <div class="eyebrow" style="margin-bottom:4px;">Windows &amp; macOS · Open Source</div>
+            <div class="hero-meta-line">
+              <span class="live-dot"></span>
+              <span id="hero-release-label">最新版本 v4.6.0</span>
+              <span class="meta-divider" id="github-stats-sep" style="display:none;">·</span>
+              <span id="github-stats-text" style="display:none;"></span>
+            </div>
+          </div>
+        </div>
+
+        <h1 class="hero-title">
+          一只敲键盘的小黑猫<br />
+          <span>住进你的桌面</span>
+        </h1>
+
+        <p class="hero-sub">
+          基于 <strong>Tauri v2 + Rust 原生钩子 + Canvas 2D</strong> 打造的透明置顶桌面键鼠伴侣。
+          零外部依赖、约 24 MB 轻量常驻；内置 <strong>6 款手绘猫咪</strong>、<strong>65% / 108 键全尺寸键盘</strong>、<strong>独立鼠标左右键识别</strong> 与 <strong>原生 MCP 协议</strong>，发张照片就能让 AI 一句话捏出你家的猫。
+        </p>
+
+        <div class="hero-actions">
+          <a class="btn-lime" id="hero-primary-dl" href="/kurocat/releases/v4.6.0/KuroCat-4.6.0-x64-setup.exe" download>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2.2v7.6m0 0L4.8 6.6M8 9.8l3.2-3.2M2.5 12.8h11" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span id="hero-primary-dl-label">免费下载 Windows 版（1.55 MB）</span>
+          </a>
+          <a class="btn-outline" href="#download">全部平台与版本</a>
+          <a class="btn-ghost" href="https://github.com/qianyiai/kurocat" target="_blank" rel="noopener">
+            GitHub 源码 ›
+          </a>
+        </div>
+
+        <div class="hero-specs">
+          <div class="hero-spec-item">
+            <div class="spec-val">1.55 MB</div>
+            <div class="spec-lbl">原生 Rust 安装包体积</div>
+          </div>
+          <div class="hero-spec-item">
+            <div class="spec-val">6 款 + MCP</div>
+            <div class="spec-lbl">开箱皮肤 · AI 无限定制</div>
+          </div>
+          <div class="hero-spec-item">
+            <div class="spec-val">Win &amp; Mac</div>
+            <div class="spec-lbl">支持 Apple Silicon &amp; Intel</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Real Live Interactive KuroCat Canvas Card -->
+      <div class="playground-card">
+        <div class="playground-bar">
+          <div class="playground-bar-left">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="playground-title">实时网页引擎 · 直接敲键盘或摸猫头</span>
+          </div>
+          <div class="backdrop-pills" role="group" aria-label="预览桌布背景">
+            <button class="mini-pill active" data-backdrop="dark" type="button">深色桌布</button>
+            <button class="mini-pill" data-backdrop="light" type="button">浅色桌布</button>
+          </div>
+        </div>
+
+        <div class="canvas-viewport backdrop-dark" id="canvas-viewport">
+          <canvas id="kurocat-canvas" aria-label="KuroCat 实时交互试玩画布"></canvas>
+          <div class="stage-hint" id="stage-hint">
+            <span>⌨️ 敲键盘</span>
+            <span>🖱️ 点左/右键</span>
+            <span>🤚 来回摸猫头</span>
+          </div>
+          <div class="stage-status-pill" id="stage-status-pill">65% 紧凑 · 面向猫咪</div>
+        </div>
+
+        <div class="playground-dock">
+          <!-- Row 1: 6 Built-in Skins -->
+          <div class="dock-row">
+            <span class="dock-label">切换猫咪</span>
+            <div class="skin-pills" id="skin-pills" role="group" aria-label="选择猫咪皮肤"></div>
+          </div>
+
+          <!-- Row 2: Layout, Orientation & Actions -->
+          <div class="dock-row dock-row-split">
+            <div class="seg-group">
+              <div class="seg-control" role="group" aria-label="键盘配列">
+                <button class="seg-btn active" data-layout="65" type="button">65% 紧凑</button>
+                <button class="seg-btn" data-layout="108" type="button">108 全尺寸</button>
+              </div>
+              <div class="seg-control" role="group" aria-label="键盘视角">
+                <button class="seg-btn active" data-orient="cat" type="button">面向猫咪</button>
+                <button class="seg-btn" data-orient="viewer" type="button">面向观众</button>
+              </div>
+            </div>
+
+            <div class="action-group">
+              <button class="chip-btn active" id="btn-auto-demo" type="button" title="自动演示打字与鼠标点击">▶ 自动演示</button>
+              <button class="chip-btn" id="btn-mouse-demo" type="button" title="演示独立左/右键点击">🖱️ 左右键</button>
+              <button class="chip-btn active" id="btn-bubbles" type="button" title="开关悬浮按键气泡">💬 气泡</button>
+              <button class="chip-btn active" id="btn-purr" type="button" title="开关摸头呼噜声">🔊 呼噜</button>
+            </div>
+          </div>
+
+          <!-- Row 3: 20%-150% Smooth Scale Slider -->
+          <div class="dock-row scale-row">
+            <span class="dock-label">无级缩放</span>
+            <input id="web-scale-slider" class="scale-slider" type="range" min="20" max="150" step="1" value="100" aria-label="缩放比例 20% 到 150%" />
+            <button class="scale-val-btn" id="web-scale-val" type="button" title="点击重置为 100%">100%</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Download Section -->
+    <section class="section-block reveal" id="download">
+      <div class="section-header">
+        <div class="eyebrow">Direct Downloads · Cloudflare Edge CDN</div>
+        <h2 class="section-title">免费下载，3 秒住进你的桌面</h2>
+        <p class="section-sub">
+          所有安装包均内置 <strong>20%–150% 无级缩放</strong>、<strong>65% / 108 键随时切换</strong> 与 <strong>App 内自动更新</strong>。<br />
+          默认提供 <code>qianyi.one</code> 国内高速直链，同时保留 GitHub Releases 官方原链与 SHA-256 校验。
+        </p>
+      </div>
+
+      <div class="download-grid">
+        <!-- Card 1: Windows 65% Setup -->
+        <article class="dl-card featured">
+          <div class="dl-card-top">
+            <div class="dl-platform">
+              <span class="platform-icon">🪟</span>
+              <div>
+                <div class="dl-name">Windows 65% 经典安装版</div>
+                <div class="dl-sub">Windows 10 / 11 (x64)</div>
+              </div>
+            </div>
+            <span class="dl-tag tag-lime">推荐</span>
+          </div>
+          <p class="dl-desc">
+            开箱即 65% 紧凑机械键盘，自动创建桌面 <code>KuroCat</code> 图标、开始菜单与系统卸载入口；右键随时可切换 108 全尺寸小键盘。
+          </p>
+          <div class="dl-meta">
+            <span class="dl-filename" data-asset-name="win65">KuroCat-4.6.0-x64-setup.exe</span>
+            <span class="dl-size" data-asset-size="win65">1.55 MB</span>
+          </div>
+          <div class="dl-actions">
+            <a class="btn-lime btn-full" data-dl-primary="win65" href="/kurocat/releases/v4.6.0/KuroCat-4.6.0-x64-setup.exe" download>
+              高速直链下载
+            </a>
+            <a class="dl-alt-link" data-dl-gh="win65" href="https://github.com/qianyiai/kurocat/releases/download/v4.6.0/KuroCat-4.6.0-x64-setup.exe" target="_blank" rel="noopener">
+              GitHub 官方源 ›
+            </a>
+          </div>
+        </article>
+
+        <!-- Card 2: Windows 108-key Setup -->
+        <article class="dl-card">
+          <div class="dl-card-top">
+            <div class="dl-platform">
+              <span class="platform-icon">⌨️</span>
+              <div>
+                <div class="dl-name">Windows 108 键全尺寸版</div>
+                <div class="dl-sub">Windows 10 / 11 (x64)</div>
+              </div>
+            </div>
+            <span class="dl-tag tag-blue">含小键盘</span>
+          </div>
+          <p class="dl-desc">
+            装完默认即为完整 <strong>108 键 ANSI 机械键盘</strong>（含 F1–F12、独立编辑/方向区、数字小键盘及 2U <code>+</code> / <code>Num↵</code>），同样支持右键切回 65%。
+          </p>
+          <div class="dl-meta">
+            <span class="dl-filename" data-asset-name="win108">KuroCat-v4.6.0-108key-x64-setup.exe</span>
+            <span class="dl-size" data-asset-size="win108">1.55 MB</span>
+          </div>
+          <div class="dl-actions">
+            <a class="btn-solid btn-full" data-dl-primary="win108" href="/kurocat/releases/v4.6.0/KuroCat-v4.6.0-108key-x64-setup.exe" download>
+              高速直链下载
+            </a>
+            <a class="dl-alt-link" data-dl-gh="win108" href="https://github.com/qianyiai/kurocat/releases/download/v4.6.0/KuroCat-v4.6.0-108key-x64-setup.exe" target="_blank" rel="noopener">
+              GitHub 官方源 ›
+            </a>
+          </div>
+        </article>
+
+        <!-- Card 3: Windows Portable -->
+        <article class="dl-card">
+          <div class="dl-card-top">
+            <div class="dl-platform">
+              <span class="platform-icon">⚡</span>
+              <div>
+                <div class="dl-name">Windows 绿色免安装版</div>
+                <div class="dl-sub">单文件便携版 (x64)</div>
+              </div>
+            </div>
+            <span class="dl-tag tag-subtle">即开即用</span>
+          </div>
+          <p class="dl-desc">
+            无需安装、不写多余文件，双击单个 <code>.exe</code> 即运行；右键或托盘支持一键「创建桌面图标」、切换 108 键与自动更新替换。
+          </p>
+          <div class="dl-meta">
+            <span class="dl-filename" data-asset-name="winPortable">KuroCat-v4.6.0-windows-x64.exe</span>
+            <span class="dl-size" data-asset-size="winPortable">3.70 MB</span>
+          </div>
+          <div class="dl-actions">
+            <a class="btn-solid btn-full" data-dl-primary="winPortable" href="/kurocat/releases/v4.6.0/KuroCat-v4.6.0-windows-x64.exe" download>
+              高速直链下载
+            </a>
+            <a class="dl-alt-link" data-dl-gh="winPortable" href="https://github.com/qianyiai/kurocat/releases/download/v4.6.0/KuroCat-v4.6.0-windows-x64.exe" target="_blank" rel="noopener">
+              GitHub 官方源 ›
+            </a>
+          </div>
+        </article>
+
+        <!-- Card 4: macOS Universal -->
+        <article class="dl-card">
+          <div class="dl-card-top">
+            <div class="dl-platform">
+              <span class="platform-icon">🍎</span>
+              <div>
+                <div class="dl-name">macOS 通用版（M 芯片 &amp; Intel）</div>
+                <div class="dl-sub">macOS 11+ Universal DMG</div>
+              </div>
+            </div>
+            <span class="dl-tag tag-subtle">Apple Silicon</span>
+          </div>
+          <p class="dl-desc">
+            原生编译 ARM64 + x86_64 通用镜像，完美兼容 M1/M2/M3/M4 与 Intel Mac。打开 <code>.dmg</code> 拖入「应用程序」即可运行。
+          </p>
+          <div class="dl-meta">
+            <span class="dl-filename" data-asset-name="macos">KuroCat-v4.6.0-macos-universal.dmg</span>
+            <span class="dl-size" data-asset-size="macos">4.72 MB</span>
+          </div>
+          <div class="dl-actions">
+            <a class="btn-solid btn-full" data-dl-primary="macos" href="/kurocat/releases/v4.6.0/KuroCat-v4.6.0-macos-universal.dmg" download>
+              高速直链下载
+            </a>
+            <a class="dl-alt-link" data-dl-gh="macos" href="https://github.com/qianyiai/kurocat/releases/download/v4.6.0/KuroCat-v4.6.0-macos-universal.dmg" target="_blank" rel="noopener">
+              GitHub 官方源 ›
+            </a>
+          </div>
+        </article>
+      </div>
+
+      <!-- macOS First-Run Tip -->
+      <div class="macos-tip-card">
+        <div class="macos-tip-left">
+          <div class="tip-title">🍎 macOS 首次打开说明（仅需一次）</div>
+          <p class="tip-body">
+            由于本项目为免费开源未公证应用，首次拖入「应用程序」后若提示「无法验证开发者」或「已损坏」，在终端执行右侧命令一次即可正常打开（后续 App 内一键更新会自动清除隔离属性）。全局键鼠响应请在<strong>「系统设置 → 隐私与安全性 → 辅助功能」</strong>中勾选 <code>KuroCat</code>，即开即生效。
+          </p>
+        </div>
+        <div class="cli-pill">
+          <code id="macos-xattr-cmd">xattr -cr /Applications/KuroCat.app</code>
+          <button class="copy-trigger" id="copy-xattr-btn" type="button">复制命令</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Showcase -->
+    <section class="section-block reveal" id="features">
+      <div class="section-header">
+        <div class="eyebrow">Crafted Every Pixel · v4.6.0</div>
+        <h2 class="section-title">把桌宠，做到强迫症级别的丝滑</h2>
+      </div>
+
+      <div class="showcase-stack">
+        <!-- Feature 1: 108-key + Orientation -->
+        <article class="stage-card reveal">
+          <div class="split-grid">
+            <div>
+              <div class="eyebrow">65% / 108-Key · Dual Perspective</div>
+              <h3 class="card-headline">65% 紧凑或 108 键全尺寸<br />正反双视角，随手切换</h3>
+              <p class="card-body">
+                无论你习惯极简 65% 小键盘，还是财务/工程必备的 108 键完整小键盘，右键一秒切换并自动锚定右下角平滑调整窗口宽度。
+                支持<strong>「面向猫咪（180° 真实视角）」</strong>与<strong>「面向观众（正向字母易读视角）」</strong>双透视重投影，鼠标左右键也同步自动翻转。
+              </p>
+              <div class="specs-row">
+                <div>
+                  <div class="spec-val">108 键</div>
+                  <div class="spec-lbl">完整 F 区与数字小键盘</div>
+                </div>
+                <div>
+                  <div class="spec-val">双视角</div>
+                  <div class="spec-lbl">面向猫咪 / 面向观众</div>
+                </div>
+                <div>
+                  <div class="spec-val">真键值</div>
+                  <div class="spec-lbl">独立区分主回车与 Num↵</div>
+                </div>
+              </div>
+              <div class="card-cta-row">
+                <button class="btn-outline" id="try-108-btn" type="button">在上方画布试玩 108 键 ↑</button>
+              </div>
+            </div>
+            <div class="media-frame">
+              <img src="/kurocat/assets/showcase-108key.webp" alt="KuroCat 65% 与 108 键全尺寸及双视角对比展示" loading="lazy" />
+            </div>
+          </div>
+        </article>
+
+        <!-- Feature 2: Independent L/R/M Mouse & Built-in Auto Updater -->
+        <article class="stage-card reveal">
+          <div class="split-grid reverse">
+            <div class="media-frame">
+              <img src="/kurocat/assets/showcase-mouse.webp" alt="KuroCat 独立鼠标左右键识别与内置新版本提醒展示" loading="lazy" />
+            </div>
+            <div>
+              <div class="eyebrow">Independent L / R / M · Auto Updater</div>
+              <h3 class="card-headline">左右键独立分色按压<br />还有无感自升级</h3>
+              <p class="card-body">
+                鼠标左键（<code>L</code>）、右键（<code>R</code>）与中键滚轮彻底独立分区：左键亮起猫咪主强调色，右键呈现高对比珊瑚橙或天蓝色，带 3D 按下内阴影与 <code>LMB</code>/<code>RMB</code> 迷你气泡，支持双键同时按住！
+                启动后自动静默检查 GitHub Releases，发现新版时在猫头上方浮现轻量提醒条，点一下即可完成 SHA-256 校验与一键自升级。
+              </p>
+              <div class="specs-row">
+                <div>
+                  <div class="spec-val">L / R / M</div>
+                  <div class="spec-lbl">左右中键完全独立高亮</div>
+                </div>
+                <div>
+                  <div class="spec-val">SHA-256</div>
+                  <div class="spec-lbl">自动更新摘要校验</div>
+                </div>
+                <div>
+                  <div class="spec-val">一键升级</div>
+                  <div class="spec-lbl">Win / Mac 静默重启</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- 4-tile Bento Highlights -->
+        <div class="bento-4 reveal">
+          <div class="bento-tile">
+            <div class="bento-icon">🎚️</div>
+            <h4>20%–150% 无级滑动缩放</h4>
+            <p>自定义丝滑滑动条 60fps 实时预览、右下角锚定防漂移；就算缩到最小 20%，右键菜单与更新提醒依然完整不裁切。</p>
+          </div>
+          <div class="bento-tile">
+            <div class="bento-icon">🐾</div>
+            <h4>摸头眯眼 &amp; 合成呼噜声</h4>
+            <p>鼠标移到猫头自动变身小手光标，来回抚摸触发慵懒眯眼与 Web Audio 24.5Hz 实时合成的温柔猫咪呼噜声。</p>
+          </div>
+          <div class="bento-tile">
+            <div class="bento-icon">✨</div>
+            <h4>智能透明穿透 &amp; 隐私模式</h4>
+            <p>猫身以外的透明像素 100% 穿透不挡办公和游戏；右键一键隐藏悬浮按键气泡，输入密码更安心。</p>
+          </div>
+          <div class="bento-tile">
+            <div class="bento-icon">⚡</div>
+            <h4>Rust 原生极低开销</h4>
+            <p>无 Electron 臃肿内核，单文件约 24 MB 内存常驻，原生全局键鼠监听几乎零 CPU 占用。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- AI x MCP Section -->
+    <section class="section-block reveal" id="mcp">
+      <article class="stage-card">
+        <div class="split-grid">
+          <div>
+            <div class="eyebrow">Built-in MCP Server · AI Customizer</div>
+            <h2 class="card-headline">发张自家猫的照片<br />让 AI 0.4 秒捏进你的桌面</h2>
+            <p class="card-body">
+              KuroCat 原生内置 <strong>Stdio</strong> 与 <strong>本机 Streamable HTTP（<code>127.0.0.1:27420</code>）</strong> 双模式 MCP 服务端，无需安装 Node.js 或 Python。
+              右键猫咪点「复制 MCP 配置」粘贴进 <strong>Claude Desktop / Cursor / Antigravity / Windsurf</strong>，即可用自然语言捏出任何毛色、虎斑、三花、胎记斑块与主题高亮，实时热更新无需重启。
+            </p>
+
+            <div class="prompt-chips">
+              <button class="prompt-chip" type="button" data-prompt="帮我用 KuroCat MCP 新增一只英短蓝猫，琥珀色大眼睛、浅灰蓝键盘高亮，并立刻切过去">
+                <span>💬 “帮我用 KuroCat MCP 捏一只英短蓝猫并切过去”</span>
+                <em>复制</em>
+              </button>
+              <button class="prompt-chip" type="button" data-prompt="看这张我家猫的照片，用 KuroCat MCP 按它的花色、耳尖和斑块位置给我定制一只专属桌宠！">
+                <span>📸 “按这张我家猫的照片，给我定制一只专属桌宠！”</span>
+                <em>复制</em>
+              </button>
+              <button class="prompt-chip" type="button" data-prompt="把 KuroCat 缩放到 85%，切换为 108 键全尺寸键盘和面向观众视角">
+                <span>⚙️ “把桌宠缩放到 85%，切到 108 键面向观众”</span>
+                <em>复制</em>
+              </button>
+            </div>
+          </div>
+
+          <div class="code-window">
+            <div class="window-bar">
+              <div class="dots"><i></i><i></i><i></i></div>
+              <div class="tabs" role="tablist">
+                <button class="tab-btn active" data-mcp-tab="win" type="button">Windows Stdio</button>
+                <button class="tab-btn" data-mcp-tab="mac" type="button">macOS Stdio</button>
+                <button class="tab-btn" data-mcp-tab="http" type="button">本机 HTTP</button>
+              </div>
+            </div>
+            <pre class="code-content" id="mcp-code"></pre>
+            <div class="window-footer">
+              <span>支持 7 个内置工具 · 0.4s 热重载</span>
+              <button class="copy-trigger" id="copy-mcp-btn" type="button">复制配置</button>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <footer>
+    <div>KuroCat · MIT Open Source · Built by <a class="footer-home" href="/">谦一 (Qianyi)</a></div>
+    <div class="footer-links">
+      <a href="/">谦一主页</a>
+      <a href="/pelican/">鹈鹕测试专区</a>
+      <a href="/game/drift/">Q1 Drift</a>
+      <a href="https://github.com/qianyiai/kurocat/releases" target="_blank" rel="noopener">所有版本 (Releases)</a>
+      <a href="https://github.com/qianyiai/kurocat" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </footer>
+
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>

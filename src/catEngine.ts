@@ -94,9 +94,14 @@ export class KuroCatEngine {
   public keyboardLayout: KeyboardLayoutId = '65';
   public keyboardOrientation: KeyboardOrientation = 'cat';
   private renderScale = 1.0;
+  private embedded = false;
 
   public setRenderScale(scale: number): void {
     this.renderScale = Math.max(0.2, Math.min(1.5, scale));
+  }
+
+  public getLogicalSize(): { w: number; h: number } {
+    return { w: this.logicalW, h: this.logicalH };
   }
 
   public setCatAppearance(breedId: string, skin?: CatSkinConfig | null): void {
@@ -241,8 +246,9 @@ export class KuroCatEngine {
   private bubbles: KeyBubble[] = [];
   private nextBubbleId = 1;
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, options?: { embedded?: boolean }) {
     this.canvas = canvas;
+    this.embedded = Boolean(options?.embedded);
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Could not initialize 2D canvas context');
     this.ctx = ctx;
@@ -294,8 +300,8 @@ export class KuroCatEngine {
 
   public resize(): void {
     const dpr = Math.max(window.devicePixelRatio || 1, 1);
-    const cssW = Math.max(1, window.innerWidth);
-    const cssH = Math.max(1, window.innerHeight);
+    const cssW = Math.max(1, this.embedded ? (this.canvas.clientWidth || 420) : window.innerWidth);
+    const cssH = Math.max(1, this.embedded ? (this.canvas.clientHeight || 440) : window.innerHeight);
     this.canvas.width = Math.round(cssW * dpr);
     this.canvas.height = Math.round(cssH * dpr);
   }
@@ -932,16 +938,28 @@ export class KuroCatEngine {
     ctx.clearRect(0, 0, cw, ch);
 
     ctx.save();
-    const cssW = Math.max(1, window.innerWidth);
-    const dpr = cw / cssW;
-    const fitScale = Math.min(cw / this.logicalW, ch / this.logicalH);
-    const uniformScale = Math.min(fitScale, this.renderScale * dpr);
-    const drawW = this.logicalW * uniformScale;
-    const drawH = this.logicalH * uniformScale;
-    const offsetX = cw - drawW;
-    const offsetY = ch - drawH;
-    ctx.translate(offsetX, offsetY);
-    ctx.scale(uniformScale, uniformScale);
+    if (this.embedded) {
+      const baseFit = Math.min((cw * 0.86) / this.logicalW, (ch * 0.86) / this.logicalH);
+      const effectiveMul = this.renderScale <= 1.0 ? this.renderScale : 1.0 + (this.renderScale - 1.0) * 0.30;
+      const uniformScale = baseFit * effectiveMul;
+      const drawW = this.logicalW * uniformScale;
+      const drawH = this.logicalH * uniformScale;
+      const offsetX = (cw - drawW) * 0.5;
+      const offsetY = (ch - drawH) * 0.52;
+      ctx.translate(offsetX, offsetY);
+      ctx.scale(uniformScale, uniformScale);
+    } else {
+      const cssW = Math.max(1, window.innerWidth);
+      const dpr = cw / cssW;
+      const fitScale = Math.min(cw / this.logicalW, ch / this.logicalH);
+      const uniformScale = Math.min(fitScale, this.renderScale * dpr);
+      const drawW = this.logicalW * uniformScale;
+      const drawH = this.logicalH * uniformScale;
+      const offsetX = cw - drawW;
+      const offsetY = ch - drawH;
+      ctx.translate(offsetX, offsetY);
+      ctx.scale(uniformScale, uniformScale);
+    }
 
     const breath = Math.sin(this.elapsed * 2.1) * 1.0;
     const purrShift = this.squintAmount > 0.4 ? Math.sin(this.elapsed * 22) * 0.45 * this.squintAmount : 0;
