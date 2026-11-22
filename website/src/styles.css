@@ -1083,6 +1083,67 @@ main {
   display: block;
 }
 
+/* Whale Girl 9:16 Vertical Demo Video Card */
+#whale-demo,
+#features,
+#download,
+#mcp {
+  scroll-margin-top: 78px;
+}
+
+.whale-demo-card {
+  border-color: rgba(92, 200, 255, 0.22);
+  background:
+    radial-gradient(620px circle at 84% 48%, rgba(56, 189, 248, 0.11), transparent 60%),
+    radial-gradient(480px circle at 76% 78%, rgba(244, 114, 182, 0.08), transparent 55%),
+    var(--surface);
+}
+
+.whale-split-grid {
+  grid-template-columns: 1.18fr 0.82fr;
+}
+
+.whale-video-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.phone-video-shell {
+  width: min(312px, 100%);
+  aspect-ratio: 9 / 16;
+  border-radius: 26px;
+  overflow: hidden;
+  border: 1.5px solid rgba(140, 205, 255, 0.34);
+  background: #070b16;
+  box-shadow:
+    0 28px 70px rgba(0, 0, 0, 0.68),
+    0 0 0 5px rgba(255, 255, 255, 0.03),
+    0 0 42px rgba(56, 189, 248, 0.16);
+}
+
+.phone-video-shell video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  background: #070b16;
+}
+
+.whale-video-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.whale-video-meta {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
 /* 4-Tile Bento */
 .bento-4 {
   display: grid;

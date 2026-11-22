@@ -306,6 +306,45 @@ function initPlayground(): void {
     });
   }
 
+  // Feature card button to switch live playground directly to BigFish (鲸鱼娘)
+  const tryDafeiyuBtn = document.getElementById('try-dafeiyu-btn');
+  if (tryDafeiyuBtn) {
+    tryDafeiyuBtn.addEventListener('click', () => {
+      const fish = BUILTIN_WEB_CATS.find((c) => c.id === 'dafeiyu');
+      if (fish) {
+        currentSkinId = fish.id;
+        engine.setCatAppearance(fish.id, fish);
+        skinHost?.querySelectorAll('.skin-btn').forEach((el) => {
+          el.classList.toggle('active', (el as HTMLElement).dataset.skinId === fish.id);
+        });
+      }
+      setLayout('65');
+      setOrient('viewer');
+      document.getElementById('playground')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      startAutoDemo();
+    });
+  }
+
+  // Whale demo vertical video sound toggle
+  const whaleVideo = document.getElementById('whale-demo-video') as HTMLVideoElement | null;
+  const whaleSoundBtn = document.getElementById('whale-sound-toggle');
+  if (whaleVideo && whaleSoundBtn) {
+    const syncSoundBtn = () => {
+      const muted = whaleVideo.muted;
+      whaleSoundBtn.classList.toggle('active', !muted);
+      whaleSoundBtn.textContent = muted ? '🔇 点此开启音效' : '🔊 音效已开启';
+    };
+    whaleSoundBtn.addEventListener('click', () => {
+      whaleVideo.muted = !whaleVideo.muted;
+      if (!whaleVideo.muted && whaleVideo.paused) {
+        void whaleVideo.play().catch(() => {});
+      }
+      syncSoundBtn();
+    });
+    whaleVideo.addEventListener('volumechange', syncSoundBtn);
+    syncSoundBtn();
+  }
+
   // Backdrop switcher (Dark / Light desktop wallpaper preview)
   document.querySelectorAll('[data-backdrop]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -627,16 +666,24 @@ function initPolish(): void {
     });
   });
 
-  // Scroll reveal
+  // Scroll reveal (low threshold so tall sections on mobile & hash jumps never stay hidden)
   const observer = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) entry.target.classList.add('visible');
       });
     },
-    { threshold: 0.08 }
+    { threshold: 0.01 }
   );
   document.querySelectorAll('.reveal').forEach((el) => observer.observe(el));
+
+  if (window.location.hash) {
+    const target = document.querySelector(window.location.hash);
+    if (target) {
+      target.classList.add('visible');
+      target.closest('.reveal')?.classList.add('visible');
+    }
+  }
 }
 
 applyReleaseUI(LOCAL_MIRROR_VERSION, buildDefaultAssets());

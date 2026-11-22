@@ -32,6 +32,7 @@
       </div>
       <nav class="nav-links" aria-label="主导航">
         <a href="#playground">在线试玩</a>
+        <a href="#whale-demo">鲸鱼娘视频</a>
         <a href="#download">立即下载</a>
         <a href="#features">核心特性</a>
         <a href="#mcp">AI 捏猫</a>
@@ -276,13 +277,67 @@
     </section>
 
     <!-- Features Showcase -->
-    <section class="section-block reveal" id="features">
+    <section class="section-block reveal visible" id="features">
       <div class="section-header">
         <div class="eyebrow">Crafted Every Pixel · v4.7.0</div>
         <h2 class="section-title">把桌宠，做到强迫症级别的丝滑</h2>
       </div>
 
       <div class="showcase-stack">
+        <!-- Feature 0: Whale Girl (BigFish) 14s Vertical Demo Video -->
+        <article class="stage-card whale-demo-card reveal visible" id="whale-demo">
+          <div class="split-grid whale-split-grid">
+            <div>
+              <div class="eyebrow">New Skin · 🐳 BigFish (鲸鱼娘) · 14s Video</div>
+              <h3 class="card-headline">新皮肤「大肥鱼」登场<br />鲸尾拍键 · 脸红大笑 · 密码捂眼</h3>
+              <p class="card-body">
+                内置全新 <strong>🐳 大肥鱼（鲸鱼娘）</strong> 桌宠皮肤：支持<strong>左手点鼠标 + 右手敲键盘 + 大鲸尾甩拍回车/退格</strong>三线同时开工；
+                打字手速越快越害羞脸红，飙到高能连打直接笑开花；检测到系统密码输入框时自动<strong>乖巧闭眼、双手捂眼</strong>并隐藏所有键帽与气泡。
+              </p>
+              <div class="specs-row">
+                <div>
+                  <div class="spec-val">三线同动</div>
+                  <div class="spec-lbl">鼠标 + 手打字 + 鲸尾甩拍</div>
+                </div>
+                <div>
+                  <div class="spec-val">手速感应</div>
+                  <div class="spec-lbl">加速触发害羞脸红 → 大笑</div>
+                </div>
+                <div>
+                  <div class="spec-val">自动捂眼</div>
+                  <div class="spec-lbl">输密码自动闭眼防偷窥</div>
+                </div>
+              </div>
+              <div class="card-cta-row">
+                <button class="btn-lime" id="try-dafeiyu-btn" type="button">在上方画布切到大肥鱼试玩 ↑</button>
+                <a class="btn-outline" href="/kurocat/media/whale-douyin-14s.mp4" download="KuroCat-鲸鱼娘-14s竖屏演示.mp4">
+                  下载 1080P 竖屏演示（14s）
+                </a>
+              </div>
+            </div>
+
+            <div class="whale-video-stage">
+              <div class="phone-video-shell">
+                <video
+                  id="whale-demo-video"
+                  src="/kurocat/media/whale-douyin-14s.mp4"
+                  poster="/kurocat/assets/whale-douyin-poster.webp"
+                  autoplay
+                  muted
+                  loop
+                  playsinline
+                  controls
+                  preload="metadata"
+                ></video>
+              </div>
+              <div class="whale-video-bar">
+                <span class="whale-video-meta">1080×1920 · 60fps · 14s 含同步键鼠音效</span>
+                <button class="chip-btn" id="whale-sound-toggle" type="button">🔇 点此开启音效</button>
+              </div>
+            </div>
+          </div>
+        </article>
+
         <!-- Feature 1: 108-key + Orientation -->
         <article class="stage-card reveal">
           <div class="split-grid">
