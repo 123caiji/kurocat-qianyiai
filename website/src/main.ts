@@ -6,6 +6,7 @@ import { keyboardEventToVk } from './webKeyMap';
 
 const LOCAL_MIRROR_VERSION = 'v4.6.1';
 const LOCAL_MIRROR_VER_NUM = '4.6.1';
+const MACOS_MIRROR_VERSION = 'v4.5.0';
 
 interface ReleaseAssetMap {
   win65: { name: string; primaryUrl: string; ghUrl: string; sizeText: string };
@@ -15,11 +16,13 @@ interface ReleaseAssetMap {
 function buildDefaultAssets(): ReleaseAssetMap {
   const localBase = `/kurocat/releases/${LOCAL_MIRROR_VERSION}`;
   const ghBase = `https://github.com/qianyiai/kurocat/releases/download/${LOCAL_MIRROR_VERSION}`;
+  const macLocalBase = `/kurocat/releases/${MACOS_MIRROR_VERSION}`;
+  const macGhBase = `https://github.com/qianyiai/kurocat/releases/download/${MACOS_MIRROR_VERSION}`;
   const n65 = `KuroCat-${LOCAL_MIRROR_VER_NUM}-x64-setup.exe`;
-  const nMac = `KuroCat-${LOCAL_MIRROR_VERSION}-macos-universal.dmg`;
+  const nMac = `KuroCat-${MACOS_MIRROR_VERSION}-macos-universal.dmg`;
   return {
     win65: { name: n65, primaryUrl: `${localBase}/${n65}`, ghUrl: `${ghBase}/${n65}`, sizeText: '1.55 MB' },
-    macos: { name: nMac, primaryUrl: `${localBase}/${nMac}`, ghUrl: `${ghBase}/${nMac}`, sizeText: '4.73 MB' },
+    macos: { name: nMac, primaryUrl: `${macLocalBase}/${nMac}`, ghUrl: `${macGhBase}/${nMac}`, sizeText: '4.72 MB' },
   };
 }
 
