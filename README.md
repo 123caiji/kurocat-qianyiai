@@ -6,10 +6,13 @@
 
 ## 📥 直接下载使用（Windows & macOS）
 
-前往 [Releases](https://github.com/qianyiai/kurocat/releases) 页面或直接点击下方最新 **`v4.6.1`** 安装包下载（所有版本均内置 **20%–150% 丝滑缩放滑动条**、右键一键切换 **65% 紧凑 / 108 全尺寸小键盘** 与 **面向猫咪 / 面向观众** 方向、**按住 `Alt` 随时解锁鼠标穿透**、托盘一键 **游戏反作弊护航暂停** 与 App 内自动新版本提醒及一键自升级）：
+前往 [Releases](https://github.com/qianyiai/kurocat/releases) 页面或直接点击下方最新 **`v4.6.2`** 安装包下载（所有版本均内置 **20%–150% 丝滑缩放滑动条**、右键一键切换 **65% 紧凑 / 108 全尺寸小键盘** 与 **面向猫咪 / 面向观众** 方向、**按住 `Alt` 随时解锁鼠标穿透**、**无边框 / 全屏优化游戏温和置顶守护**、托盘一键 **游戏反作弊护航暂停** 与 App 内自动新版本提醒及一键自升级）：
 
-- **🪟 Windows 10 / 11（65% 经典安装版 · `v4.6.1`）**：[**`KuroCat-4.6.1-x64-setup.exe`**](https://github.com/qianyiai/kurocat/releases/download/v4.6.1/KuroCat-4.6.1-x64-setup.exe)（约 1.55 MB）
+- **🪟 Windows 10 / 11（65% 经典安装版 · `v4.6.2`）**：[**`KuroCat-4.6.2-x64-setup.exe`**](https://github.com/qianyiai/kurocat/releases/download/v4.6.2/KuroCat-4.6.2-x64-setup.exe)（约 1.55 MB）
   - 默认 65% 紧凑机械键盘，自动创建桌面 **`KuroCat`** 图标、开始菜单与系统卸载入口；右键或托盘随时一键切换 **108 键全尺寸小键盘**与 App 内一键更新。
+  - **常见问题说明**：
+    - 极少数老版 Win10 / LTSC 精简版若提示缺少 `WebView2 Runtime`，安装微软官方 1.8 MB 引导程序（右键「以管理员身份运行」）即可：[`MicrosoftEdgeWebview2Setup.exe`](https://go.microsoft.com/fwlink/p/?LinkId=2124703)（暂不支持 Windows 7）。
+    - **游戏全屏 / 直播提示**：单机与常规游戏在 Win10/11 全屏优化（FSO）或「无边框窗口化」下均可满屏显示且切屏温和保置顶（建议开启「锁定鼠标穿透」，按 `Alt` 随时解锁）；直播录屏推荐 OBS 添加「窗口捕获」叠加；玩无畏契约 / 三角洲行动等强内核反作弊网游建议右键托盘开启 **「暂停监听并隐藏（游戏反作弊护航）」**。
 - **🍎 macOS 11+（Apple Silicon M1/M2/M3/M4 & Intel 通用稳定版 · `v4.5.0`）**：[**`KuroCat-v4.5.0-macos-universal.dmg`**](https://github.com/qianyiai/kurocat/releases/download/v4.5.0/KuroCat-v4.5.0-macos-universal.dmg)（约 4.72 MB）
   - 打开 `.dmg` 将 `KuroCat.app` 拖入「应用程序」文件夹运行，同样内置 65% / 108 键切换与 6 款皮肤。
   - **首次打开说明（开源未公证应用）**：若提示「无法验证开发者」或「已损坏」，在终端执行一次 `xattr -cr /Applications/KuroCat.app` 后即可正常打开（后续 App 内一键升级会自动处理，无需再敲命令）。

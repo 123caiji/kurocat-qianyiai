@@ -27,7 +27,7 @@
         <a class="brand-current" href="#top">
           <img class="nav-icon" src="/kurocat/assets/kurocat-icon.png" alt="KuroCat" width="20" height="20" />
           <span>KuroCat</span>
-          <span class="ver-pill" id="nav-ver-pill">v4.6.1</span>
+          <span class="ver-pill" id="nav-ver-pill">v4.6.2</span>
         </a>
       </div>
       <nav class="nav-links" aria-label="主导航">
@@ -50,7 +50,7 @@
             <div class="eyebrow" style="margin-bottom:4px;">Windows &amp; macOS · Open Source</div>
             <div class="hero-meta-line">
               <span class="live-dot"></span>
-              <span id="hero-release-label">最新版本 v4.6.1</span>
+              <span id="hero-release-label">最新版本 v4.6.2</span>
               <span class="meta-divider" id="github-stats-sep" style="display:none;">·</span>
               <span id="github-stats-text" style="display:none;"></span>
               <span class="meta-divider" id="site-dl-sep" style="display:none;">·</span>
@@ -70,7 +70,7 @@
         </p>
 
         <div class="hero-actions">
-          <a class="btn-lime" id="hero-primary-dl" href="/kurocat/releases/v4.6.1/KuroCat-4.6.1-x64-setup.exe" download>
+          <a class="btn-lime" id="hero-primary-dl" href="/kurocat/releases/v4.6.2/KuroCat-4.6.2-x64-setup.exe" download>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2.2v7.6m0 0L4.8 6.6M8 9.8l3.2-3.2M2.5 12.8h11" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
             <span id="hero-primary-dl-label">免费下载 Windows 版（1.55 MB）</span>
           </a>
@@ -185,14 +185,14 @@
             开箱即 65% 紧凑机械键盘，自动创建桌面 <code>KuroCat</code> 图标、开始菜单与系统卸载入口；右键随时可一键切换 <strong>108 键全尺寸小键盘</strong>与内置自更新。
           </p>
           <div class="dl-meta">
-            <span class="dl-filename" data-asset-name="win65">KuroCat-4.6.1-x64-setup.exe</span>
+            <span class="dl-filename" data-asset-name="win65">KuroCat-4.6.2-x64-setup.exe</span>
             <span class="dl-size" data-asset-size="win65">1.55 MB</span>
           </div>
           <div class="dl-actions">
-            <a class="btn-lime btn-full" data-dl-primary="win65" href="/kurocat/releases/v4.6.1/KuroCat-4.6.1-x64-setup.exe" download>
+            <a class="btn-lime btn-full" data-dl-primary="win65" href="/kurocat/releases/v4.6.2/KuroCat-4.6.2-x64-setup.exe" download>
               高速直链下载
             </a>
-            <a class="dl-alt-link" data-dl-gh="win65" href="https://github.com/qianyiai/kurocat/releases/download/v4.6.1/KuroCat-4.6.1-x64-setup.exe" target="_blank" rel="noopener">
+            <a class="dl-alt-link" data-dl-gh="win65" href="https://github.com/qianyiai/kurocat/releases/download/v4.6.2/KuroCat-4.6.2-x64-setup.exe" target="_blank" rel="noopener">
               GitHub 官方源 ›
             </a>
           </div>
@@ -241,12 +241,37 @@
           <button class="copy-trigger" id="copy-xattr-btn" type="button">复制命令</button>
         </div>
       </div>
+
+      <!-- Windows WebView2 Self-Help Tip -->
+      <div class="macos-tip-card">
+        <div class="macos-tip-left">
+          <div class="tip-title">🪟 Windows 提示「Could not find the WebView2 Runtime」怎么办？</div>
+          <p class="tip-body">
+            常见于较老 Win10 / LTSC 精简版、卸过 Edge 浏览器或直接运行绿色单文件版的电脑（Win7 暂不支持）。优先推荐安装上方<strong>正式安装版（setup.exe）</strong>，或点击右侧下载微软官方 WebView2 引导程序（1.8 MB），<strong>右键 → 以管理员身份运行</strong>装完即可全机生效。
+          </p>
+        </div>
+        <a class="btn-outline" href="https://go.microsoft.com/fwlink/p/?LinkId=2124703" target="_blank" rel="noopener" style="white-space:nowrap;">
+          下载微软 WebView2 运行环境 ›
+        </a>
+      </div>
+
+      <!-- Game Fullscreen & Anti-Cheat Guide -->
+      <div class="macos-tip-card">
+        <div class="macos-tip-left">
+          <div class="tip-title">🎮 游戏全屏 / 直播怎么显示小黑猫？（含反作弊安全提示）</div>
+          <p class="tip-body">
+            <strong>① 单机与常规游戏</strong>：在 Win10/11 全屏优化（FSO）或「无边框窗口化」下均可满屏显示，切入游戏自动温和保持置顶不抢焦点；建议开启「锁定鼠标穿透」（按住 <code>Alt</code> 键随时临时拖动或右键解锁）。
+            <strong>② 直播 / 录屏</strong>：游戏可随意开独占全屏，在 OBS 中添加「窗口捕获 → KuroCat」分层叠加即可。
+            <strong>③ 强内核反作弊网游</strong>（无畏契约、三角洲行动等）：建议游玩前右键系统托盘点一下<strong>「暂停监听并隐藏（游戏反作弊护航）」</strong>，彻底卸载钩子保护账号安全。
+          </p>
+        </div>
+      </div>
     </section>
 
     <!-- Features Showcase -->
     <section class="section-block reveal" id="features">
       <div class="section-header">
-        <div class="eyebrow">Crafted Every Pixel · v4.6.1</div>
+        <div class="eyebrow">Crafted Every Pixel · v4.6.2</div>
         <h2 class="section-title">把桌宠，做到强迫症级别的丝滑</h2>
       </div>
 

@@ -4,8 +4,8 @@ import type { KeyboardLayoutId } from '../../src/keyboardLayout';
 import { BUILTIN_WEB_CATS } from './builtinCats';
 import { keyboardEventToVk } from './webKeyMap';
 
-const LOCAL_MIRROR_VERSION = 'v4.6.1';
-const LOCAL_MIRROR_VER_NUM = '4.6.1';
+const LOCAL_MIRROR_VERSION = 'v4.6.2';
+const LOCAL_MIRROR_VER_NUM = '4.6.2';
 const MACOS_MIRROR_VERSION = 'v4.5.0';
 
 interface ReleaseAssetMap {
