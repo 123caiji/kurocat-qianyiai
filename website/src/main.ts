@@ -62,8 +62,52 @@ function applyReleaseUI(tag: string, assets: ReleaseAssetMap): void {
     if (nameEl) nameEl.textContent = item.name;
     if (sizeEl) sizeEl.textContent = item.sizeText;
     if (primaryEl) primaryEl.href = item.primaryUrl;
-    if (ghEl) ghEl.href = item.ghUrl;
+    if (ghEl) {
+      ghEl.href = item.ghUrl;
+      ghEl.dataset.filename = item.name;
+      ghEl.dataset.version = tag;
+    }
   });
+}
+
+function initDownloadTracking(): void {
+  document.querySelectorAll<HTMLAnchorElement>('[data-dl-gh]').forEach((link) => {
+    link.addEventListener('click', () => {
+      const filename = link.dataset.filename || '';
+      const version = link.dataset.version || LOCAL_MIRROR_VERSION;
+      if (!filename) return;
+      const body = JSON.stringify({ filename, version });
+      try {
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon('/kurocat/api/track-outbound', new Blob([body], { type: 'application/json' }));
+        } else {
+          void fetch('/kurocat/api/track-outbound', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body,
+            keepalive: true,
+          });
+        }
+      } catch {
+        // Never block outbound navigation
+      }
+    });
+  });
+
+  void fetch('/kurocat/api/stats')
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) => {
+      if (data && typeof data.total_downloads === 'number' && data.total_downloads > 0) {
+        const sep = document.getElementById('site-dl-sep');
+        const txt = document.getElementById('site-dl-text');
+        if (sep && txt) {
+          sep.style.display = '';
+          txt.style.display = '';
+          txt.textContent = `本站下载 ${data.total_downloads} 次`;
+        }
+      }
+    })
+    .catch(() => {});
 }
 
 async function syncGithubMetadata(): Promise<void> {
@@ -512,6 +556,7 @@ function initPolish(): void {
 }
 
 applyReleaseUI(LOCAL_MIRROR_VERSION, buildDefaultAssets());
+initDownloadTracking();
 initPlayground();
 initMcpCodeTabs();
 initPolish();
