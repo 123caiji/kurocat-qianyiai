@@ -1,6 +1,6 @@
 # 🐈‍⬛ KuroCat
 
-轻量级 Windows 透明置顶桌面打字猫咪伴侣（开箱自带 **6 款手绘猫咪皮肤**：经典小黑猫、暖奶茶布偶猫、大橘猫、三花猫、奶牛猫、暹罗猫，并原生内置 **MCP 协议服务端**，支持用 AI 一句话定制或新增更多你自己的猫咪！），基于 **Tauri v2（Rust Win32 全局钩子 + 内置 MCP 引擎 + HTML5 Canvas 2D）** 打造。单文件仅约 **3.4 MB**，常驻内存 ~24 MB，零外部运行时依赖。
+轻量级 **Windows & macOS（Apple Silicon + Intel 通用版）** 透明置顶桌面打字猫咪伴侣（开箱自带 **6 款手绘猫咪皮肤**：经典小黑猫、暖奶茶布偶猫、大橘猫、三花猫、奶牛猫、暹罗猫，并原生内置 **MCP 协议服务端**，支持用 AI 一句话定制或新增更多你自己的猫咪！），基于 **Tauri v2（Rust 全局原生钩子 + 内置 MCP 引擎 + HTML5 Canvas 2D）** 打造。单文件轻量低耗，零外部运行时依赖。
 
 ## ✨ 核心特性
 
@@ -60,15 +60,25 @@ KuroCat `v4.0.0+` 单文件程序原生内置 **Stdio** 与 **本机 Streamable 
 | `delete_cat` | 删除指定自定义猫咪（或重置内置外观） |
 | `get_settings` / `update_settings` | 读取或实时修改缩放比例、按键气泡、呼噜声、置顶、穿透锁定与开机自启 |
 
-自定义猫咪配置保存在 `%APPDATA%\kuro-cat-pet\cats.json`，也可手动编辑，桌宠自动实时热重载。
+自定义猫咪配置保存在：
+- **Windows**：`%APPDATA%\kuro-cat-pet\cats.json`
+- **macOS**：`~/Library/Application Support/kuro-cat-pet/cats.json`
 
-## 📥 直接下载使用（Windows 10 / 11）
+也可手动编辑，桌宠自动实时热重载。
 
-前往 [Releases](https://github.com/qianyiai/kurocat/releases) 页面下载最新的免安装绿色版 `KuroCatPet-v4.1.0-windows-x64.exe`（约 3.4 MB），双击即可运行。
+## 📥 直接下载使用（Windows & macOS）
+
+前往 [Releases](https://github.com/qianyiai/kurocat/releases) 页面下载最新 `v4.2.0` 安装包：
+
+- **Windows 10 / 11（x64）**：下载免安装绿色单文件 `KuroCatPet-v4.2.0-windows-x64.exe`（约 3.4 MB），双击即可运行。
+- **macOS 11+（Apple Silicon M1/M2/M3/M4 & Intel 通用版）**：下载 `KuroCatPet-v4.2.0-macos-universal.dmg`，将 `KuroCatPet.app` 拖入「应用程序」文件夹运行。
+  - **首次打开说明（开源未公证应用）**：若提示「无法验证开发者」或「已损坏」，在终端执行一次 `xattr -cr /Applications/KuroCatPet.app` 后即可正常打开。
+  - **辅助功能权限（用于全局监听敲键盘/鼠标）**：首次启动会自动弹出系统授权引导，在「系统设置 → 隐私与安全性 → 辅助功能」中打开 `KuroCatPet` 开关即可立即生效（无需重启）。
+  - **macOS Stdio MCP 路径**：`/Applications/KuroCatPet.app/Contents/MacOS/KuroCatPet`（参数 `--mcp`），或在桌宠运行时直接连接 `http://127.0.0.1:27420/mcp`。
 
 ## 🛠️ 本地源码构建
 
-前置环境：Windows 10/11、Node.js 18+、Rust 工具链（`cargo`）。
+前置环境：Windows 10/11 或 macOS 11+、Node.js 18+、Rust 工具链（`cargo`）。
 
 ```bash
 git clone https://github.com/qianyiai/kurocat.git

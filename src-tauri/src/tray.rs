@@ -116,9 +116,9 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
 
     TrayIconBuilder::with_id("kuro-tray")
         .icon(icon)
-        .tooltip("KuroCat 小黑猫桌宠")
+        .tooltip("KuroCat 桌面猫咪")
         .menu(&menu)
-        .show_menu_on_left_click(false)
+        .show_menu_on_left_click(cfg!(target_os = "macos"))
         .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,

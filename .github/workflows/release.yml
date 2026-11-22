@@ -1,4 +1,4 @@
-name: Build Windows Release
+name: Build Cross-Platform Release
 
 on:
   push:
@@ -33,23 +33,86 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Tauri app
-        run: npm run tauri:build
+      - name: Build Tauri app (Windows x64)
+        run: npm run tauri -- build --bundles msi,nsis
 
-      - name: Upload build artifacts
+      - name: Rename standalone Windows exe
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_REF_NAME -match '^v') { $env:GITHUB_REF_NAME } else { 'latest' }
+          Copy-Item "src-tauri/target/release/kuro-cat-pet.exe" "KuroCatPet-$tag-windows-x64.exe"
+
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: kuro-cat-pet-windows
+          name: kurocat-windows-x64
           path: |
-            src-tauri/target/release/kuro-cat-pet.exe
+            KuroCatPet-*-windows-x64.exe
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*.exe
 
-      - name: Publish GitHub Release
+      - name: Publish Windows assets to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            src-tauri/target/release/kuro-cat-pet.exe
+            KuroCatPet-*-windows-x64.exe
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*.exe
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust stable (Apple Silicon + Intel Universal)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Tauri Universal macOS .app
+        run: npm run tauri -- build --target universal-apple-darwin --bundles app
+
+      - name: Package Universal macOS .dmg and .app.tar.gz
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if [[ ! "$TAG" =~ ^v ]]; then TAG="latest"; fi
+          APP_PATH="src-tauri/target/universal-apple-darwin/release/bundle/macos/KuroCatPet.app"
+          test -d "$APP_PATH"
+          mkdir -p dmg_staging
+          cp -R "$APP_PATH" dmg_staging/
+          ln -s /Applications dmg_staging/Applications
+          hdiutil create -volname "KuroCat" -srcfolder dmg_staging -ov -format UDZO "KuroCatPet-${TAG}-macos-universal.dmg"
+          tar -czf "KuroCatPet-${TAG}-macos-universal.app.tar.gz" -C "src-tauri/target/universal-apple-darwin/release/bundle/macos" "KuroCatPet.app"
+          ls -lh "KuroCatPet-${TAG}-macos-universal.dmg" "KuroCatPet-${TAG}-macos-universal.app.tar.gz"
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kurocat-macos-universal
+          path: |
+            KuroCatPet-*-macos-universal.dmg
+            KuroCatPet-*-macos-universal.app.tar.gz
+
+      - name: Publish macOS assets to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            KuroCatPet-*-macos-universal.dmg
+            KuroCatPet-*-macos-universal.app.tar.gz

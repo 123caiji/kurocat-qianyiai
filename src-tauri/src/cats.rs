@@ -129,10 +129,7 @@ fn default_eye_top() -> String {
 }
 
 pub fn cats_path() -> PathBuf {
-    let base = std::env::var("APPDATA")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("."));
-    base.join("kuro-cat-pet").join("cats.json")
+    crate::config::app_data_dir().join("cats.json")
 }
 
 pub fn sanitize_cat_id(raw: &str) -> String {

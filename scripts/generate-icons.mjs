@@ -135,13 +135,31 @@ function buildIco(pngBuffers) {
   return Buffer.concat([header, ...entries, ...pngBuffers.map((x) => x.buf)]);
 }
 
+function buildIcns(entries) {
+  const chunks = entries.map(({ type, buf }) => {
+    const hdr = Buffer.alloc(8);
+    hdr.write(type, 0, 4, 'ascii');
+    hdr.writeUInt32BE(8 + buf.length, 4);
+    return Buffer.concat([hdr, buf]);
+  });
+  const totalLen = 8 + chunks.reduce((sum, c) => sum + c.length, 0);
+  const fileHdr = Buffer.alloc(8);
+  fileHdr.write('icns', 0, 4, 'ascii');
+  fileHdr.writeUInt32BE(totalLen, 4);
+  return Buffer.concat([fileHdr, ...chunks]);
+}
+
 const iconDir = path.join('src-tauri', 'icons');
 fs.mkdirSync(iconDir, { recursive: true });
+const p16 = renderCatIcon(16);
 const p32 = renderCatIcon(32);
+const p64 = renderCatIcon(64);
 const p128 = renderCatIcon(128);
 const p256 = renderCatIcon(256);
+const p512 = renderCatIcon(512);
 fs.writeFileSync(path.join(iconDir, '32x32.png'), p32);
 fs.writeFileSync(path.join(iconDir, '128x128.png'), p128);
+fs.writeFileSync(path.join(iconDir, '128x128@2x.png'), p256);
 fs.writeFileSync(path.join(iconDir, '256x256.png'), p256);
 fs.writeFileSync(
   path.join(iconDir, 'icon.ico'),
@@ -151,4 +169,15 @@ fs.writeFileSync(
     { size: 256, buf: p256 },
   ]),
 );
-console.log('Generated 32x32.png, 128x128.png, 256x256.png, icon.ico');
+fs.writeFileSync(
+  path.join(iconDir, 'icon.icns'),
+  buildIcns([
+    { type: 'icp4', buf: p16 },
+    { type: 'icp5', buf: p32 },
+    { type: 'icp6', buf: p64 },
+    { type: 'ic07', buf: p128 },
+    { type: 'ic08', buf: p256 },
+    { type: 'ic09', buf: p512 },
+  ]),
+);
+console.log('Generated 32x32.png, 128x128.png, 128x128@2x.png, 256x256.png, icon.ico, icon.icns');

@@ -227,7 +227,8 @@ pub fn apply_scale_and_save(app: &AppHandle, scale: f64) {
 pub fn reset_window_position(app: &AppHandle) {
     if let Some(win) = app.get_webview_window("main") {
         let size = win.outer_size().unwrap_or(tauri::PhysicalSize::new(420, 440));
-        let (target_x, target_y) = default_bottom_right_position(size.width as i32, size.height as i32);
+        let sf = win.scale_factor().unwrap_or(1.0);
+        let (target_x, target_y) = default_bottom_right_position(size.width as i32, size.height as i32, sf);
         let _ = win.set_position(PhysicalPosition::new(target_x, target_y));
         let state = app.state::<AppState>();
         let mut s = state.settings.lock().unwrap();
@@ -238,7 +239,7 @@ pub fn reset_window_position(app: &AppHandle) {
 }
 
 #[cfg(windows)]
-fn default_bottom_right_position(win_w: i32, win_h: i32) -> (i32, i32) {
+fn default_bottom_right_position(win_w: i32, win_h: i32, _scale_factor: f64) -> (i32, i32) {
     use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
     unsafe {
         let sw = GetSystemMetrics(SM_CXSCREEN);
@@ -247,13 +248,23 @@ fn default_bottom_right_position(win_w: i32, win_h: i32) -> (i32, i32) {
     }
 }
 
-#[cfg(not(windows))]
-fn default_bottom_right_position(_win_w: i32, _win_h: i32) -> (i32, i32) {
+#[cfg(target_os = "macos")]
+fn default_bottom_right_position(win_w: i32, win_h: i32, scale_factor: f64) -> (i32, i32) {
+    let (sw_pt, sh_pt) = input_hook::macos_hook::main_display_size();
+    let sw = (sw_pt * scale_factor).round() as i32;
+    let sh = (sh_pt * scale_factor).round() as i32;
+    let pad_x = (28.0 * scale_factor).round() as i32;
+    let pad_y = (84.0 * scale_factor).round() as i32;
+    ((sw - win_w - pad_x).max(20), (sh - win_h - pad_y).max(20))
+}
+
+#[cfg(all(not(windows), not(target_os = "macos")))]
+fn default_bottom_right_position(_win_w: i32, _win_h: i32, _scale_factor: f64) -> (i32, i32) {
     (900, 500)
 }
 
 #[cfg(windows)]
-fn get_cursor_pos() -> Option<(i32, i32)> {
+fn get_cursor_pos(_scale_factor: f64) -> Option<(i32, i32)> {
     use windows_sys::Win32::Foundation::POINT;
     use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
     unsafe {
@@ -266,8 +277,18 @@ fn get_cursor_pos() -> Option<(i32, i32)> {
     }
 }
 
-#[cfg(not(windows))]
-fn get_cursor_pos() -> Option<(i32, i32)> {
+#[cfg(target_os = "macos")]
+fn get_cursor_pos(scale_factor: f64) -> Option<(i32, i32)> {
+    input_hook::macos_hook::cursor_pos_points().map(|(x, y)| {
+        (
+            (x * scale_factor).round() as i32,
+            (y * scale_factor).round() as i32,
+        )
+    })
+}
+
+#[cfg(all(not(windows), not(target_os = "macos")))]
+fn get_cursor_pos(_scale_factor: f64) -> Option<(i32, i32)> {
     None
 }
 
@@ -302,7 +323,8 @@ fn start_hit_test_loop(
             if !win.is_visible().unwrap_or(false) {
                 continue;
             }
-            let Some((cx, cy)) = get_cursor_pos() else {
+            let sf = win.scale_factor().unwrap_or(1.0);
+            let Some((cx, cy)) = get_cursor_pos(sf) else {
                 continue;
             };
             let Ok(pos) = win.outer_position() else {
@@ -379,8 +401,17 @@ pub fn run() {
             let handle = app.handle().clone();
             let s = settings_for_setup.lock().unwrap().clone();
 
+            #[cfg(target_os = "macos")]
+            {
+                let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            }
+
             if let Some(win) = app.get_webview_window("main") {
                 let _ = win.set_always_on_top(s.always_on_top);
+                #[cfg(target_os = "macos")]
+                {
+                    let _ = win.set_visible_on_all_workspaces(true);
+                }
                 let _ = win.set_size(Size::Logical(LogicalSize::new(
                     (BASE_WIDTH * s.scale).round(),
                     (BASE_HEIGHT * s.scale).round(),
@@ -389,7 +420,8 @@ pub fn run() {
                     let _ = win.set_position(PhysicalPosition::new(x, y));
                 } else {
                     let sz = win.outer_size().unwrap_or(tauri::PhysicalSize::new(420, 440));
-                    let (dx, dy) = default_bottom_right_position(sz.width as i32, sz.height as i32);
+                    let sf = win.scale_factor().unwrap_or(1.0);
+                    let (dx, dy) = default_bottom_right_position(sz.width as i32, sz.height as i32, sf);
                     let _ = win.set_position(PhysicalPosition::new(dx, dy));
                 }
             }

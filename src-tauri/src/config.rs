@@ -51,11 +51,34 @@ impl Default for AppSettings {
     }
 }
 
+pub fn app_data_dir() -> PathBuf {
+    #[cfg(windows)]
+    {
+        let base = std::env::var("APPDATA")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("."));
+        base.join("kuro-cat-pet")
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let home = std::env::var("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("."));
+        home.join("Library")
+            .join("Application Support")
+            .join("kuro-cat-pet")
+    }
+    #[cfg(all(not(windows), not(target_os = "macos")))]
+    {
+        let home = std::env::var("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("."));
+        home.join(".config").join("kuro-cat-pet")
+    }
+}
+
 pub fn config_path() -> PathBuf {
-    let base = std::env::var("APPDATA")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("."));
-    base.join("kuro-cat-pet").join("settings.json")
+    app_data_dir().join("settings.json")
 }
 
 pub fn load_settings() -> AppSettings {
@@ -142,7 +165,46 @@ pub fn set_windows_autostart(enabled: bool) -> Result<(), String> {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+pub fn set_windows_autostart(enabled: bool) -> Result<(), String> {
+    let home = std::env::var("HOME").map_err(|e| e.to_string())?;
+    let agents_dir = PathBuf::from(home).join("Library").join("LaunchAgents");
+    let plist_path = agents_dir.join("com.kurocat.pet.plist");
+
+    if enabled {
+        fs::create_dir_all(&agents_dir).map_err(|e| e.to_string())?;
+        let exe = std::env::current_exe()
+            .map_err(|e| e.to_string())?
+            .to_string_lossy()
+            .to_string();
+        let plist = format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.kurocat.pet</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>
+"#,
+            exe
+        );
+        fs::write(plist_path, plist).map_err(|e| e.to_string())
+    } else {
+        if plist_path.exists() {
+            let _ = fs::remove_file(plist_path);
+        }
+        Ok(())
+    }
+}
+
+#[cfg(all(not(windows), not(target_os = "macos")))]
 pub fn set_windows_autostart(_enabled: bool) -> Result<(), String> {
     Ok(())
 }
