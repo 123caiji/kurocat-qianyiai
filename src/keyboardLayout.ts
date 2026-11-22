@@ -13,8 +13,8 @@ export const TOTAL_UNITS = 15;
 export const TOTAL_ROWS = 5;
 
 export const KEYBOARD_KEYS: KeySpec[] = [
-  // Row 0: Esc + 1..0 + - + = + Backspace (15U total)
-  { id: 'esc', label: 'ESC', bubble: 'Esc', row: 0, uStart: 0, uWidth: 1, accent: 'normal', vkCodes: [0x1b, 0xc0] },
+  // Row 0: Orange Esc (rotates 180° to bottom-right corner facing cat!) + 1..0 + - + = + Backspace (15U total)
+  { id: 'esc', label: 'ESC', bubble: 'Esc', row: 0, uStart: 0, uWidth: 1, accent: 'orange', vkCodes: [0x1b, 0xc0] },
   { id: '1', label: '1', bubble: '1', row: 0, uStart: 1, uWidth: 1, vkCodes: [0x31, 0x61, 0x70] },
   { id: '2', label: '2', bubble: '2', row: 0, uStart: 2, uWidth: 1, vkCodes: [0x32, 0x62, 0x71] },
   { id: '3', label: '3', bubble: '3', row: 0, uStart: 3, uWidth: 1, vkCodes: [0x33, 0x63, 0x72] },
@@ -29,8 +29,8 @@ export const KEYBOARD_KEYS: KeySpec[] = [
   { id: 'equal', label: '=', bubble: '=', row: 0, uStart: 12, uWidth: 1, vkCodes: [0xbb, 0x6b, 0x7b] },
   { id: 'bs', label: '⌫', bubble: '⌫', row: 0, uStart: 13, uWidth: 2, accent: 'mod', vkCodes: [0x08, 0x2e] },
 
-  // Row 1: Orange Tab (exact match to original video 0.3s!) + Q..P + [ ] \ (15U total)
-  { id: 'tab', label: '↹', bubble: 'Tab', row: 1, uStart: 0, uWidth: 1.5, accent: 'orange', vkCodes: [0x09] },
+  // Row 1: Tab + Q..P + [ ] \ (15U total)
+  { id: 'tab', label: '↹', bubble: 'Tab', row: 1, uStart: 0, uWidth: 1.5, accent: 'mod', vkCodes: [0x09] },
   { id: 'q', label: 'Q', bubble: 'Q', row: 1, uStart: 1.5, uWidth: 1, vkCodes: [0x51] },
   { id: 'w', label: 'W', bubble: 'W', row: 1, uStart: 2.5, uWidth: 1, vkCodes: [0x57] },
   { id: 'e', label: 'E', bubble: 'E', row: 1, uStart: 3.5, uWidth: 1, vkCodes: [0x45] },
@@ -60,7 +60,7 @@ export const KEYBOARD_KEYS: KeySpec[] = [
   { id: 'quote', label: "'", bubble: "'", row: 2, uStart: 11.75, uWidth: 1, vkCodes: [0xde] },
   { id: 'enter', label: '↵', bubble: '↵', row: 2, uStart: 12.75, uWidth: 2.25, accent: 'mod', vkCodes: [0x0d] },
 
-  // Row 3: LShift + Z..M + , . / + RShift + Up (15U total)
+  // Row 3: LShift + Z..M + , . / + Orange RShift (rotates 180° to iconic upper-left orange bar facing cat!) (15U total)
   { id: 'lshift', label: '⇧', bubble: '⇧', row: 3, uStart: 0, uWidth: 2.25, accent: 'mod', vkCodes: [0xa0, 0x10] },
   { id: 'z', label: 'Z', bubble: 'Z', row: 3, uStart: 2.25, uWidth: 1, vkCodes: [0x5a] },
   { id: 'x', label: 'X', bubble: 'X', row: 3, uStart: 3.25, uWidth: 1, vkCodes: [0x58] },
@@ -72,19 +72,18 @@ export const KEYBOARD_KEYS: KeySpec[] = [
   { id: 'comma', label: ',', bubble: ',', row: 3, uStart: 9.25, uWidth: 1, vkCodes: [0xbc] },
   { id: 'dot', label: '.', bubble: '.', row: 3, uStart: 10.25, uWidth: 1, vkCodes: [0xbe, 0x6e] },
   { id: 'slash', label: '/', bubble: '/', row: 3, uStart: 11.25, uWidth: 1, vkCodes: [0xbf, 0x6f] },
-  { id: 'rshift', label: '⇧', bubble: '⇧', row: 3, uStart: 12.25, uWidth: 1.75, accent: 'mod', vkCodes: [0xa1] },
-  { id: 'up', label: '↑', bubble: '↑', row: 3, uStart: 14, uWidth: 1, accent: 'mod', vkCodes: [0x26, 0x21] },
+  { id: 'rshift', label: '⇧', bubble: '⇧', row: 3, uStart: 12.25, uWidth: 2.75, accent: 'orange', vkCodes: [0xa1] },
 
-  // Row 4: Ctrl Win Alt Space Alt Ctrl Left Down Right (15U total, orange right corner accent like video!)
+  // Row 4: Ctrl Win Alt Space Alt Left Down Up Right (rotates 180° to top row closest to cat!) (15U total)
   { id: 'lctrl', label: 'Ctrl', bubble: 'Ctrl', row: 4, uStart: 0, uWidth: 1.25, accent: 'mod', vkCodes: [0xa2, 0x11] },
   { id: 'lwin', label: 'Win', bubble: 'Win', row: 4, uStart: 1.25, uWidth: 1.25, accent: 'mod', vkCodes: [0x5b, 0x5c] },
   { id: 'lalt', label: 'Alt', bubble: 'Alt', row: 4, uStart: 2.5, uWidth: 1.25, accent: 'mod', vkCodes: [0xa4, 0x12] },
   { id: 'space', label: '␣', bubble: '␣', row: 4, uStart: 3.75, uWidth: 6.25, vkCodes: [0x20] },
-  { id: 'ralt', label: 'Alt', bubble: 'Alt', row: 4, uStart: 10, uWidth: 1, accent: 'mod', vkCodes: [0xa5] },
-  { id: 'rctrl', label: 'Ctrl', bubble: 'Ctrl', row: 4, uStart: 11, uWidth: 1, accent: 'mod', vkCodes: [0xa3] },
-  { id: 'left', label: '←', bubble: '←', row: 4, uStart: 12, uWidth: 1, accent: 'mod', vkCodes: [0x25, 0x23] },
-  { id: 'down', label: '↓', bubble: '↓', row: 4, uStart: 13, uWidth: 1, accent: 'mod', vkCodes: [0x28, 0x22] },
-  { id: 'right', label: '→', bubble: '→', row: 4, uStart: 14, uWidth: 1, accent: 'orange', vkCodes: [0x27] },
+  { id: 'ralt', label: 'Alt', bubble: 'Alt', row: 4, uStart: 10, uWidth: 1, accent: 'mod', vkCodes: [0xa5, 0xa3] },
+  { id: 'left', label: '←', bubble: '←', row: 4, uStart: 11, uWidth: 1, accent: 'mod', vkCodes: [0x25, 0x23] },
+  { id: 'down', label: '↓', bubble: '↓', row: 4, uStart: 12, uWidth: 1, accent: 'mod', vkCodes: [0x28, 0x22] },
+  { id: 'up', label: '↑', bubble: '↑', row: 4, uStart: 13, uWidth: 1, accent: 'mod', vkCodes: [0x26, 0x21] },
+  { id: 'right', label: '→', bubble: '→', row: 4, uStart: 14, uWidth: 1, accent: 'mod', vkCodes: [0x27] },
 ];
 
 const vkLookup = new Map<number, KeySpec>();

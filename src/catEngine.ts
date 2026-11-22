@@ -296,15 +296,18 @@ export class KuroCatEngine {
     }
 
     const keyColCenter = spec.uStart + spec.uWidth * 0.5;
-    const keyBias = Math.max(-1, Math.min(1, (keyColCenter - 7.0) / 5.0));
+    // Keyboard faces the cat (180° rotated): logical right keys (7-0, Y-P, H-L, N-M, Enter) sit on viewer's LEFT (cat's right paw),
+    // while logical left keys (Esc, 1-6, Q-T, A-G, Z-B, WASD) sit on viewer's RIGHT (cat's left paw)!
+    const screenKeyCol = TOTAL_UNITS - keyColCenter;
+    const keyBias = Math.max(-1, Math.min(1, (screenKeyCol - 7.5) / 5.0));
     this.lastKeyBias = keyBias;
     this.typingGroovePhase += 1.22;
 
     let targetPoint = this.getKeyWorldCenter(spec);
     let chosen: PawState;
 
-    // Only keep left paw locked to mouse while actively sweeping (<320ms) or holding a mouse button;
-    // otherwise strictly split keyboard: left half (< 7.0: Esc, 1-6, Q-T, A-G, Z-B) -> left paw, right half (>= 7.0: 7-0, Y-P, H-L, N-M) -> right paw!
+    // Only keep leftPaw (viewer-left = cat's right hand!) locked to mouse while actively mousing;
+    // otherwise strictly split by screen half: viewer-left (< 7.5: 7-0, Y-P, H-L, N-M) -> leftPaw, viewer-right (>= 7.5: Esc, 1-6, Q-T, A-G, Z-B) -> rightPaw!
     const activelyMousing = this.mouseLeftDown || this.mouseRightDown || now - this.lastMouseMoveAt < 320;
 
     if (spec.id === 'space') {
@@ -314,11 +317,12 @@ export class KuroCatEngine {
         this.lastSpacePaw = this.lastSpacePaw === 'left' ? 'right' : 'left';
         chosen = this.lastSpacePaw === 'left' ? this.leftPaw : this.rightPaw;
       }
-      const spaceU = chosen.side === 'left' ? spec.uStart + spec.uWidth * 0.34 : spec.uStart + spec.uWidth * 0.66;
-      targetPoint = this.projectKeyboardPoint(spaceU, spec.row + 0.30);
+      // After 180° flip, larger logical u = viewer-left side of spacebar; smaller logical u = viewer-right side!
+      const spaceU = chosen.side === 'left' ? spec.uStart + spec.uWidth * 0.68 : spec.uStart + spec.uWidth * 0.32;
+      targetPoint = this.projectKeyboardPoint(spaceU, spec.row + 0.50);
     } else if (activelyMousing) {
       chosen = this.rightPaw;
-    } else if (keyColCenter < 7.0) {
+    } else if (screenKeyCol < 7.5) {
       chosen = this.leftPaw;
     } else {
       chosen = this.rightPaw;
@@ -435,14 +439,18 @@ export class KuroCatEngine {
   // ---- Keyboard projection ----
 
   private projectKeyboardPoint(uCol: number, rowPos: number): Vec2 {
+    // Keyboard faces the cat (180° rotated: Spacebar row at TOP closest to cat, Esc/1-0 row at BOTTOM closest to viewer!)
+    const screenU = TOTAL_UNITS - uCol;
+    const screenRow = TOTAL_ROWS - rowPos;
+
     const padX = 7;
     const padY = 6;
     const innerW = this.kbWidth - padX * 2;
     const innerH = this.kbHeight - padY * 2;
-    const localX = -innerW / 2 + (uCol / TOTAL_UNITS) * innerW;
-    const localY = -innerH / 2 + (rowPos / TOTAL_ROWS) * innerH;
+    const localX = -innerW / 2 + (screenU / TOTAL_UNITS) * innerW;
+    const localY = -innerH / 2 + (screenRow / TOTAL_ROWS) * innerH;
 
-    const depthFactor = 0.94 + (rowPos / TOTAL_ROWS) * 0.09;
+    const depthFactor = 0.94 + (screenRow / TOTAL_ROWS) * 0.09;
     const px = localX * depthFactor;
     const py = localY;
 
@@ -455,9 +463,9 @@ export class KuroCatEngine {
   }
 
   private getKeyWorldCenter(spec: KeySpec): Vec2 {
-    // Keep paw tip squarely inside the keybed (especially on bottom row & far left/right edge keys!)
+    // Keep paw tip squarely inside the keybed (after 180° rotation, logical row 0 is visual bottom row!)
     const uClamped = Math.max(0.65, Math.min(TOTAL_UNITS - 0.65, spec.uStart + spec.uWidth * 0.5));
-    const rowOffset = spec.row >= TOTAL_ROWS - 1 ? 0.30 : 0.48;
+    const rowOffset = spec.row === 0 ? 0.68 : 0.50;
     return this.projectKeyboardPoint(uClamped, spec.row + rowOffset);
   }
 
@@ -1327,8 +1335,19 @@ export class KuroCatEngine {
     ctx.shadowBlur = 0;
     ctx.stroke();
 
+    // Mouse faces the cat (180° orientation): palm back at TOP closest to cat, L/R click buttons & scroll wheel at BOTTOM pointing away from cat!
+    ctx.strokeStyle = clicked ? 'rgba(30, 34, 42, 0.36)' : 'rgba(90, 94, 104, 0.34)';
+    ctx.lineWidth = 1.05;
+    ctx.beginPath();
+    ctx.moveTo(-rx + 1.8, 1.5);
+    ctx.quadraticCurveTo(0, 3.2, rx - 1.8, 1.5);
+    ctx.moveTo(0, 2.5);
+    ctx.lineTo(0, ry - 1.0);
+    ctx.stroke();
+
+    // Scroll wheel positioned in lower-front half pointing away from the cat
     ctx.fillStyle = this.mouseScrollFlash > 0.2 ? scrollColor : '#5e6066';
-    this.roundRect(ctx, -1.8, -12, 3.6, 7.5, 1.8);
+    this.roundRect(ctx, -1.8, 5.2, 3.6, 7.5, 1.8);
     ctx.fill();
 
     ctx.restore();
@@ -1377,14 +1396,18 @@ export class KuroCatEngine {
       const anim = this.keyAnims.get(key.id);
       const press = anim ? anim.pressAmount : 0;
 
-      const rowCenterFrac = (key.row + 0.5) / TOTAL_ROWS;
+      // Keyboard faces the cat (180° rotated: Spacebar row at TOP closest to cat, Esc/1-0 row at BOTTOM closest to viewer!)
+      const screenRow = TOTAL_ROWS - 1 - key.row;
+      const screenUStart = TOTAL_UNITS - (key.uStart + key.uWidth);
+
+      const rowCenterFrac = (screenRow + 0.5) / TOTAL_ROWS;
       const depthScale = 0.94 + rowCenterFrac * 0.09;
 
-      const rawX = -innerW / 2 + key.uStart * unitW + gap * 0.5;
+      const rawX = -innerW / 2 + screenUStart * unitW + gap * 0.5;
       const rawW = key.uWidth * unitW - gap;
       const x = rawX * depthScale;
       const w = rawW * depthScale;
-      const y = -innerH / 2 + key.row * rowH + gap * 0.5 + press * 2.0;
+      const y = -innerH / 2 + screenRow * rowH + gap * 0.5 + press * 2.0;
       const h = rowH - gap - 0.8;
 
       let topColor = '#f8f8f5';
@@ -1408,11 +1431,14 @@ export class KuroCatEngine {
       this.roundRect(ctx, x, y, w, h - 0.9, 1.8);
       ctx.fill();
 
-      // Crisp, clear keycap legends (letters, numbers & compact icons!)
+      // Keycap legends rotated 180° so letters/numbers face the cat sitting behind the keyboard!
       const legend = key.id === 'space' ? '' : key.id === 'esc' ? 'Esc' : key.label;
       if (legend) {
         const isWideWord = legend.length >= 3;
         const fontSize = isWideWord ? 5.6 : legend.length === 2 ? 6.4 : 7.8;
+        ctx.save();
+        ctx.translate(x + w * 0.5, y + (h - 0.9) * 0.50);
+        ctx.rotate(Math.PI);
         ctx.font = `700 ${fontSize}px "Segoe UI", system-ui, sans-serif`;
         ctx.fillStyle = press > 0.14
           ? '#111214'
@@ -1421,7 +1447,8 @@ export class KuroCatEngine {
             : '#2c2f36';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(legend, x + w * 0.5, y + (h - 0.9) * 0.52);
+        ctx.fillText(legend, 0, 0);
+        ctx.restore();
       }
     }
 
