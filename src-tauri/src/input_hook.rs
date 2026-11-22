@@ -1,5 +1,5 @@
 use serde::Serialize;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
@@ -64,6 +64,49 @@ enum RawHookMsg {
 
 static HOOK_TX: OnceLock<mpsc::Sender<RawHookMsg>> = OnceLock::new();
 static KEY_EVENTS_RECEIVED: AtomicU64 = AtomicU64::new(0);
+static ALT_HELD: AtomicBool = AtomicBool::new(false);
+static HOOKS_PAUSED: AtomicBool = AtomicBool::new(false);
+#[cfg(windows)]
+static WIN_HOOK_TID: AtomicU32 = AtomicU32::new(0);
+#[cfg(windows)]
+const WM_KURO_PAUSE_TOGGLE: u32 = 0x8007; // WM_APP + 7
+
+fn is_alt_vk(vk: u32) -> bool {
+    matches!(vk, 0x12 | 0xA4 | 0xA5)
+}
+
+pub fn is_alt_pressed() -> bool {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_MENU};
+        let async_down = unsafe { (GetAsyncKeyState(VK_MENU as i32) as u16 & 0x8000) != 0 };
+        if async_down {
+            return true;
+        }
+    }
+    ALT_HELD.load(Ordering::Relaxed)
+}
+
+pub fn set_hooks_paused(paused: bool) {
+    HOOKS_PAUSED.store(paused, Ordering::SeqCst);
+    if paused {
+        ALT_HELD.store(false, Ordering::Relaxed);
+    }
+    #[cfg(windows)]
+    {
+        let tid = WIN_HOOK_TID.load(Ordering::SeqCst);
+        if tid != 0 {
+            unsafe {
+                windows_sys::Win32::UI::WindowsAndMessaging::PostThreadMessageW(
+                    tid,
+                    WM_KURO_PAUSE_TOGGLE,
+                    paused as usize,
+                    0,
+                );
+            }
+        }
+    }
+}
 
 /// Deduplicates held key repeats AND cross-source duplicates when macOS CGEventTap
 /// and IOHIDManager both report the same physical or Karabiner-synthesized keystroke.
@@ -199,8 +242,14 @@ pub fn start_global_hooks(app: AppHandle) {
         let mut last_mouse_emit = Instant::now() - Duration::from_secs(1);
 
         while let Ok(msg) = rx.recv() {
+            if HOOKS_PAUSED.load(Ordering::Relaxed) {
+                continue;
+            }
             match msg {
                 RawHookMsg::KeyDown { vk, scan, source } => {
+                    if is_alt_vk(vk) {
+                        ALT_HELD.store(true, Ordering::Relaxed);
+                    }
                     if let Some(repeat) = dedup.on_key_down(vk, source, Instant::now()) {
                         if !repeat {
                             KEY_EVENTS_RECEIVED.fetch_add(1, Ordering::Relaxed);
@@ -209,6 +258,9 @@ pub fn start_global_hooks(app: AppHandle) {
                     }
                 }
                 RawHookMsg::KeyUp { vk, scan, source } => {
+                    if is_alt_vk(vk) {
+                        ALT_HELD.store(false, Ordering::Relaxed);
+                    }
                     if dedup.on_key_up(vk, source) {
                         let _ = app.emit("kuro-input", InputEvent::KeyUp { vk, scan });
                     }
@@ -373,17 +425,54 @@ unsafe extern "system" fn mouse_hook_proc(code: i32, wparam: usize, lparam: isiz
 #[cfg(windows)]
 fn run_windows_hook_loop() {
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows_sys::Win32::System::Threading::GetCurrentThreadId;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetMessageW, SetWindowsHookExW, UnhookWindowsHookEx, MSG, WH_KEYBOARD_LL, WH_MOUSE_LL,
+        GetMessageW, PeekMessageW, SetWindowsHookExW, UnhookWindowsHookEx, MSG, PM_NOREMOVE,
+        WH_KEYBOARD_LL, WH_MOUSE_LL,
     };
 
     unsafe {
+        // Ensure the thread message queue exists before publishing WIN_HOOK_TID
+        let mut init_msg: MSG = std::mem::zeroed();
+        PeekMessageW(&mut init_msg, std::ptr::null_mut(), 0, 0, PM_NOREMOVE);
+        WIN_HOOK_TID.store(GetCurrentThreadId(), Ordering::SeqCst);
+
         let hmod = GetModuleHandleW(std::ptr::null());
-        let kb_hook = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_hook_proc), hmod, 0);
-        let ms_hook = SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook_proc), hmod, 0);
+        let mut kb_hook = if HOOKS_PAUSED.load(Ordering::SeqCst) {
+            std::ptr::null_mut()
+        } else {
+            SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_hook_proc), hmod, 0)
+        };
+        let mut ms_hook = if HOOKS_PAUSED.load(Ordering::SeqCst) {
+            std::ptr::null_mut()
+        } else {
+            SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook_proc), hmod, 0)
+        };
 
         let mut msg: MSG = std::mem::zeroed();
-        while GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {}
+        while GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {
+            if msg.message == WM_KURO_PAUSE_TOGGLE {
+                let pause = msg.wParam != 0;
+                if pause {
+                    if !kb_hook.is_null() {
+                        UnhookWindowsHookEx(kb_hook);
+                        kb_hook = std::ptr::null_mut();
+                    }
+                    if !ms_hook.is_null() {
+                        UnhookWindowsHookEx(ms_hook);
+                        ms_hook = std::ptr::null_mut();
+                    }
+                } else {
+                    if kb_hook.is_null() {
+                        kb_hook =
+                            SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_hook_proc), hmod, 0);
+                    }
+                    if ms_hook.is_null() {
+                        ms_hook = SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook_proc), hmod, 0);
+                    }
+                }
+            }
+        }
 
         if !kb_hook.is_null() {
             UnhookWindowsHookEx(kb_hook);

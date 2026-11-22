@@ -36,6 +36,7 @@ interface WindowCursorInfo {
   relY: number;
   insideWindow: boolean;
   overCat: boolean;
+  altOverride?: boolean;
 }
 
 interface UpdateInfo {
@@ -57,12 +58,14 @@ interface UpdateProgressEvent {
   info: UpdateInfo | null;
 }
 
-let appVersion = '4.6.0';
+let appVersion = '4.6.1';
 let latestUpdateInfo: UpdateInfo | null = null;
 let updateBusy = false;
 let dismissedVersion: string | null = null;
 let toastAutoHideTimer: number | null = null;
 let sliderDragging = false;
+let altOverride = false;
+let lastKnownLockState: boolean | null = null;
 
 let settings: AppSettings = {
   x: null,
@@ -389,6 +392,7 @@ async function bootstrap(): Promise<void> {
       invoke<string>('get_app_version'),
     ]);
     settings = loadedSettings;
+    lastKnownLockState = settings.clickThroughLocked;
     if (Array.isArray(loadedCats) && loadedCats.length > 0) {
       catList = loadedCats;
     }
@@ -455,8 +459,17 @@ async function bootstrap(): Promise<void> {
   }
 
   await listen<AppSettings>('kuro-settings', (ev) => {
+    const prevLock = lastKnownLockState;
     settings = ev.payload;
+    lastKnownLockState = settings.clickThroughLocked;
     syncMenuUI();
+    if (prevLock !== null && prevLock !== settings.clickThroughLocked) {
+      if (settings.clickThroughLocked) {
+        showUpdateToast('🔒 已锁定穿透（按住 Alt 点击或 ^ 托盘解锁）', { autoHideMs: 4200 });
+      } else {
+        showUpdateToast('🔓 已解除穿透，可直接拖动或右键', { autoHideMs: 2200 });
+      }
+    }
   });
 
   await listen<CatSkinConfig[]>('kuro-cats', (ev) => {
@@ -492,15 +505,17 @@ async function bootstrap(): Promise<void> {
 
   await listen<WindowCursorInfo>('kuro-cursor', (ev) => {
     const c = ev.payload;
+    altOverride = Boolean(c.altOverride);
     engine.onWindowCursor(c.relX, c.relY, c.overCat);
-    canvas.classList.toggle('pet-hover', c.overCat && !settings.clickThroughLocked);
+    const interactive = !settings.clickThroughLocked || altOverride;
+    canvas.classList.toggle('pet-hover', c.overCat && interactive);
   });
 
   // Left-click drag to reposition transparent window
   canvas.addEventListener('mousedown', async (e) => {
     if (e.button === 0) {
       closeContextMenu();
-      if (settings.clickThroughLocked) return;
+      if (settings.clickThroughLocked && !altOverride && !e.altKey) return;
       canvas.classList.add('pet-dragging');
       void invoke('set_dragging', { dragging: true });
       try {
@@ -516,7 +531,7 @@ async function bootstrap(): Promise<void> {
   // Right-click opens sleek dark glass settings menu
   canvas.addEventListener('contextmenu', (e) => {
     e.preventDefault();
-    if (settings.clickThroughLocked) return;
+    if (settings.clickThroughLocked && !altOverride && !e.altKey) return;
     openContextMenu(e.clientX, e.clientY);
   });
 

@@ -77,6 +77,7 @@ pub struct AppState {
     pub dragging: Arc<AtomicBool>,
     pub mcp_enabled: Arc<AtomicBool>,
     pub update_banner_open: Arc<AtomicBool>,
+    pub paused_guard: Arc<AtomicBool>,
 }
 
 #[derive(Clone, Serialize)]
@@ -86,6 +87,7 @@ struct WindowCursorInfo {
     rel_y: f64,
     inside_window: bool,
     over_cat: bool,
+    alt_override: bool,
 }
 
 #[tauri::command]
@@ -144,6 +146,8 @@ fn update_settings(app: AppHandle, state: State<'_, AppState>, mut patch: AppSet
     let size_changed = (patch.scale - prev_scale).abs() > 0.005 || patch.keyboard_layout != prev_layout;
     if let Some(win) = app.get_webview_window("main") {
         let _ = win.set_always_on_top(patch.always_on_top);
+        #[cfg(target_os = "macos")]
+        configure_macos_fullscreen_overlay(&win, patch.always_on_top);
         if size_changed {
             if let Some((nx, ny)) =
                 resize_window_anchored_bottom_right(&win, &patch.keyboard_layout, patch.scale)
@@ -424,6 +428,84 @@ fn get_cursor_pos(_scale_factor: f64) -> Option<(i32, i32)> {
     None
 }
 
+#[cfg(windows)]
+fn win_is_click_through(win: &tauri::WebviewWindow) -> Option<bool> {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TRANSPARENT,
+    };
+    let hwnd = win.hwnd().ok()?.0 as windows_sys::Win32::Foundation::HWND;
+    let ex = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) };
+    Some((ex & (WS_EX_TRANSPARENT as isize)) != 0)
+}
+
+#[cfg(windows)]
+fn win_force_click_through(win: &tauri::WebviewWindow, ignore: bool) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, SWP_FRAMECHANGED,
+        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_EX_LAYERED, WS_EX_TRANSPARENT,
+    };
+    let Ok(raw_hwnd) = win.hwnd() else {
+        return;
+    };
+    let hwnd = raw_hwnd.0 as windows_sys::Win32::Foundation::HWND;
+    unsafe {
+        let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        let new_ex = if ignore {
+            ex | (WS_EX_TRANSPARENT as isize) | (WS_EX_LAYERED as isize)
+        } else {
+            ex & !(WS_EX_TRANSPARENT as isize)
+        };
+        if new_ex != ex {
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_ex);
+            let _ = SetWindowPos(
+                hwnd,
+                std::ptr::null_mut(),
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+            );
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+pub fn configure_macos_fullscreen_overlay(win: &tauri::WebviewWindow, always_on_top: bool) {
+    use std::ffi::{c_char, c_void};
+    #[link(name = "objc")]
+    extern "C" {
+        fn sel_registerName(name: *const c_char) -> *mut c_void;
+        fn objc_msgSend();
+    }
+    if let Ok(raw_ns_win) = win.ns_window() {
+        if raw_ns_win.is_null() {
+            return;
+        }
+        unsafe {
+            let sel_get_behavior =
+                sel_registerName(b"collectionBehavior\0".as_ptr() as *const c_char);
+            let sel_set_behavior =
+                sel_registerName(b"setCollectionBehavior:\0".as_ptr() as *const c_char);
+            let sel_set_level = sel_registerName(b"setLevel:\0".as_ptr() as *const c_char);
+
+            let get_fn: extern "C" fn(*mut c_void, *mut c_void) -> usize =
+                std::mem::transmute(objc_msgSend as *const ());
+            let set_usize_fn: extern "C" fn(*mut c_void, *mut c_void, usize) =
+                std::mem::transmute(objc_msgSend as *const ());
+            let set_isize_fn: extern "C" fn(*mut c_void, *mut c_void, isize) =
+                std::mem::transmute(objc_msgSend as *const ());
+
+            let cur = get_fn(raw_ns_win, sel_get_behavior);
+            // CanJoinAllSpaces (1 << 0) | Stationary (1 << 4) | FullScreenAuxiliary (1 << 8)
+            let next = cur | (1 << 0) | (1 << 4) | (1 << 8);
+            set_usize_fn(raw_ns_win, sel_set_behavior, next);
+            // NSStatusWindowLevel = 25 (floats above native fullscreen apps/games), Normal = 0
+            set_isize_fn(raw_ns_win, sel_set_level, if always_on_top { 25 } else { 0 });
+        }
+    }
+}
+
 fn is_over_interactive_silhouette(rx: f64, ry: f64, is_108: bool) -> (bool, bool) {
     // Cat body/head oval centered around (0.48, 0.49) for 65% or (0.51, 0.48) for 108-key
     let (cat_cx, cat_rx) = if is_108 { (0.51, 0.21) } else { (0.48, 0.25) };
@@ -447,14 +529,22 @@ fn start_hit_test_loop(
     menu_open: Arc<AtomicBool>,
     dragging: Arc<AtomicBool>,
     update_banner_open: Arc<AtomicBool>,
+    paused_guard: Arc<AtomicBool>,
 ) {
     std::thread::spawn(move || {
         let mut last_ignore: Option<bool> = None;
         let mut last_cursor: (i32, i32) = (i32::MIN, i32::MIN);
+        let mut last_alt_override = false;
+        let mut last_effective_locked = false;
+        #[cfg(windows)]
+        let mut drift_ticks: u8 = 0;
 
         loop {
             std::thread::sleep(Duration::from_millis(25));
 
+            if paused_guard.load(Ordering::Relaxed) {
+                continue;
+            }
             let Some(win) = app.get_webview_window("main") else {
                 continue;
             };
@@ -485,6 +575,9 @@ fn start_hit_test_loop(
                     s.keyboard_layout.clone(),
                 )
             };
+            let alt_override = input_hook::is_alt_pressed();
+            let effective_locked = locked && !alt_override;
+
             // Map window-relative (rx, ry) into exact pet-local (pet_rx, pet_ry),
             // since at small scales (20%..90%) the pet is anchored bottom-right inside a min-safe menu window!
             let (bw, bh) = base_dimensions(&layout_str);
@@ -498,11 +591,14 @@ fn start_hit_test_loop(
             let pet_ry = (ry - pet_y0) / pet_h_frac;
             let inside_pet = pet_rx >= 0.0 && pet_rx <= 1.0 && pet_ry >= 0.0 && pet_ry <= 1.0;
 
-            let (over_interactive, over_cat) = if inside_pet {
+            let (over_interactive, raw_over_cat) = if inside_pet {
                 is_over_interactive_silhouette(pet_rx, pet_ry, is_108)
             } else {
                 (false, false)
             };
+            // While click-through is locked (and Alt is not held), suppress petting hover so users
+            // aren't misled by squinting eyes when the cat is intentionally click-through.
+            let over_cat = if effective_locked { false } else { raw_over_cat };
 
             let is_menu = menu_open.load(Ordering::Relaxed);
             let is_drag = dragging.load(Ordering::Relaxed);
@@ -511,7 +607,7 @@ fn start_hit_test_loop(
 
             let should_ignore = if is_menu || is_drag || over_banner {
                 false
-            } else if locked {
+            } else if effective_locked {
                 true
             } else {
                 !over_interactive
@@ -520,10 +616,34 @@ fn start_hit_test_loop(
             if last_ignore != Some(should_ignore) {
                 let _ = win.set_ignore_cursor_events(should_ignore);
                 last_ignore = Some(should_ignore);
+                #[cfg(windows)]
+                {
+                    drift_ticks = 0;
+                }
+            } else {
+                // Self-heal Windows WS_EX_TRANSPARENT if DWM / Wallpaper Engine / Show-Desktop drifted it
+                #[cfg(windows)]
+                if let Some(actual_transparent) = win_is_click_through(&win) {
+                    if actual_transparent != should_ignore {
+                        drift_ticks = drift_ticks.saturating_add(1);
+                        if drift_ticks >= 4 {
+                            win_force_click_through(&win, should_ignore);
+                            let _ = win.set_ignore_cursor_events(should_ignore);
+                            drift_ticks = 0;
+                        }
+                    } else {
+                        drift_ticks = 0;
+                    }
+                }
             }
 
-            if (cx, cy) != last_cursor {
+            if (cx, cy) != last_cursor
+                || alt_override != last_alt_override
+                || effective_locked != last_effective_locked
+            {
                 last_cursor = (cx, cy);
+                last_alt_override = alt_override;
+                last_effective_locked = effective_locked;
                 let _ = app.emit(
                     "kuro-cursor",
                     WindowCursorInfo {
@@ -531,6 +651,7 @@ fn start_hit_test_loop(
                         rel_y: pet_ry,
                         inside_window: inside_pet,
                         over_cat,
+                        alt_override,
                     },
                 );
             }
@@ -540,18 +661,25 @@ fn start_hit_test_loop(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let initial_settings = load_settings();
+    let mut initial_settings = load_settings();
+    // Always start unlocked so users who accidentally toggled click-through lock can never be permanently trapped across restarts/upgrades
+    if initial_settings.click_through_locked {
+        initial_settings.click_through_locked = false;
+        save_settings(&initial_settings);
+    }
     let settings_arc = Arc::new(Mutex::new(initial_settings.clone()));
     let menu_open = Arc::new(AtomicBool::new(false));
     let dragging = Arc::new(AtomicBool::new(false));
     let mcp_enabled = Arc::new(AtomicBool::new(initial_settings.mcp_enabled));
     let update_banner_open = Arc::new(AtomicBool::new(false));
+    let paused_guard = Arc::new(AtomicBool::new(false));
 
     let settings_for_setup = settings_arc.clone();
     let menu_for_setup = menu_open.clone();
     let drag_for_setup = dragging.clone();
     let mcp_for_setup = mcp_enabled.clone();
     let banner_for_setup = update_banner_open.clone();
+    let paused_for_setup = paused_guard.clone();
 
     tauri::Builder::default()
         .manage(AppState {
@@ -560,6 +688,7 @@ pub fn run() {
             dragging,
             mcp_enabled,
             update_banner_open,
+            paused_guard,
         })
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -575,6 +704,7 @@ pub fn run() {
                 #[cfg(target_os = "macos")]
                 {
                     let _ = win.set_visible_on_all_workspaces(true);
+                    configure_macos_fullscreen_overlay(&win, s.always_on_top);
                 }
                 let (win_w, win_h) = window_dimensions(&s.keyboard_layout, s.scale);
                 let _ = win.set_size(Size::Logical(LogicalSize::new(win_w, win_h)));
@@ -596,6 +726,7 @@ pub fn run() {
                 menu_for_setup,
                 drag_for_setup,
                 banner_for_setup,
+                paused_for_setup,
             );
             start_storage_watcher(handle.clone());
             updater::start_background_update_checker(handle.clone());

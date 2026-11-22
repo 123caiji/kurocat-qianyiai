@@ -10,10 +10,18 @@ use tauri::{AppHandle, Emitter, Manager};
 
 pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
     let toggle_show = MenuItem::with_id(app, "toggle_show", "显示 / 隐藏小黑猫", true, None::<&str>)?;
+    let pause_guard = CheckMenuItem::with_id(
+        app,
+        "pause_guard",
+        "暂停监听并隐藏（游戏反作弊护航）",
+        true,
+        false,
+        None::<&str>,
+    )?;
     let click_through = CheckMenuItem::with_id(
         app,
         "click_through",
-        "锁定鼠标穿透（防误触）",
+        "锁定鼠标穿透（按住 Alt 可临时操作）",
         true,
         initial.click_through_locked,
         None::<&str>,
@@ -169,6 +177,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
         app,
         &[
             &toggle_show,
+            &pause_guard,
             &sep1,
             &click_through,
             &key_bubbles,
@@ -192,6 +201,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
         app,
         &[
             &toggle_show,
+            &pause_guard,
             &sep1,
             &click_through,
             &key_bubbles,
@@ -215,6 +225,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
         app,
         &[
             &toggle_show,
+            &pause_guard,
             &sep1,
             &click_through,
             &key_bubbles,
@@ -233,13 +244,14 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
     )?;
 
     let icon = Image::from_bytes(include_bytes!("../icons/tray-icon.png"))?;
+    let pause_guard_for_click = pause_guard.clone();
 
     TrayIconBuilder::with_id("kuro-tray")
         .icon(icon)
         .tooltip("KuroCat")
         .menu(&menu)
         .show_menu_on_left_click(cfg!(target_os = "macos"))
-        .on_tray_icon_event(|tray, event| {
+        .on_tray_icon_event(move |tray, event| {
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
@@ -247,7 +259,18 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
             } = event
             {
                 let app = tray.app_handle();
-                if let Some(win) = app.get_webview_window("main") {
+                let state = app.state::<AppState>();
+                if state.paused_guard.load(std::sync::atomic::Ordering::SeqCst) {
+                    state
+                        .paused_guard
+                        .store(false, std::sync::atomic::Ordering::SeqCst);
+                    crate::input_hook::set_hooks_paused(false);
+                    let _ = pause_guard_for_click.set_checked(false);
+                    let _ = tray.set_tooltip(Some("KuroCat"));
+                    if let Some(win) = app.get_webview_window("main") {
+                        let _ = win.show();
+                    }
+                } else if let Some(win) = app.get_webview_window("main") {
                     if win.is_visible().unwrap_or(true) {
                         let _ = win.hide();
                     } else {
@@ -260,8 +283,45 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
             let state = app.state::<AppState>();
             match event.id().as_ref() {
                 "toggle_show" => {
-                    if let Some(win) = app.get_webview_window("main") {
+                    if state.paused_guard.load(std::sync::atomic::Ordering::SeqCst) {
+                        state
+                            .paused_guard
+                            .store(false, std::sync::atomic::Ordering::SeqCst);
+                        crate::input_hook::set_hooks_paused(false);
+                        let _ = pause_guard.set_checked(false);
+                        if let Some(tray) = app.tray_by_id("kuro-tray") {
+                            let _ = tray.set_tooltip(Some("KuroCat"));
+                        }
+                        if let Some(win) = app.get_webview_window("main") {
+                            let _ = win.show();
+                        }
+                    } else if let Some(win) = app.get_webview_window("main") {
                         if win.is_visible().unwrap_or(true) {
+                            let _ = win.hide();
+                        } else {
+                            let _ = win.show();
+                        }
+                    }
+                }
+                "pause_guard" => {
+                    let next = !state
+                        .paused_guard
+                        .load(std::sync::atomic::Ordering::SeqCst);
+                    state
+                        .paused_guard
+                        .store(next, std::sync::atomic::Ordering::SeqCst);
+                    crate::input_hook::set_hooks_paused(next);
+                    let _ = pause_guard.set_checked(next);
+                    if let Some(tray) = app.tray_by_id("kuro-tray") {
+                        let tip = if next {
+                            "KuroCat（已暂停监听 · 反作弊护航中）"
+                        } else {
+                            "KuroCat"
+                        };
+                        let _ = tray.set_tooltip(Some(tip));
+                    }
+                    if let Some(win) = app.get_webview_window("main") {
+                        if next {
                             let _ = win.hide();
                         } else {
                             let _ = win.show();
@@ -300,6 +360,8 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                     let _ = always_on_top.set_checked(on_top);
                     if let Some(win) = app.get_webview_window("main") {
                         let _ = win.set_always_on_top(on_top);
+                        #[cfg(target_os = "macos")]
+                        crate::configure_macos_fullscreen_overlay(&win, on_top);
                     }
                     let _ = app.emit("kuro-settings", s.clone());
                 }
