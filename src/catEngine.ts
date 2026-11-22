@@ -7,6 +7,7 @@ import {
   resolveKeyByVk,
 } from './keyboardLayout';
 import { catAudio } from './audio';
+import { resolveCustomSkin, type CatSkinConfig, type ResolvedSkin } from './catSkins';
 
 export const LOGICAL_W = 420;
 export const LOGICAL_H = 440;
@@ -87,6 +88,20 @@ export class KuroCatEngine {
 
   public showKeyBubbles = true;
   public catBreed: CatBreed = 'black';
+  public customSkin: ResolvedSkin | null = null;
+
+  public setCatAppearance(breedId: string, skin?: CatSkinConfig | null): void {
+    if ((breedId === 'black' || breedId === 'ragdoll') && (!skin || skin.builtin)) {
+      this.catBreed = breedId;
+      this.customSkin = null;
+    } else if (skin) {
+      this.catBreed = 'black';
+      this.customSkin = resolveCustomSkin(skin);
+    } else {
+      this.catBreed = 'black';
+      this.customSkin = null;
+    }
+  }
 
   // Compact true-scale proportions matching ORIG 0.3s directly!
   private readonly catCenterX = 196;
@@ -781,6 +796,83 @@ export class KuroCatEngine {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
+    if (this.customSkin) {
+      const s = this.customSkin;
+      const tailW = s.tailFluffy ? 20.0 : 16.0;
+      if (s.outlineColor) {
+        ctx.shadowColor = 'rgba(30, 32, 40, 0.22)';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetY = 1.5;
+        ctx.strokeStyle = s.outlineColor;
+        ctx.lineWidth = tailW + 3.4;
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, endY);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+      } else {
+        ctx.shadowColor = 'rgba(18, 17, 18, 0.42)';
+        ctx.shadowBlur = 1.6;
+      }
+
+      const tailGrad = ctx.createLinearGradient(startX, startY, endX, endY);
+      tailGrad.addColorStop(0.0, s.tailColor);
+      tailGrad.addColorStop(1.0, s.tailTipColor);
+      ctx.strokeStyle = tailGrad;
+      ctx.lineWidth = tailW;
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, endY);
+      ctx.stroke();
+
+      if (s.tailFluffy) {
+        ctx.fillStyle = s.tailTipColor;
+        ctx.beginPath();
+        ctx.ellipse(endX + 1, endY, 11.8, 10.2, -0.15, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Cute tabby tail rings when tailStripes is enabled!
+      if (s.tailStripes && (s.stripeColor || s.tailTipColor)) {
+        const ringColor = s.stripeColor || s.tailTipColor;
+        ctx.strokeStyle = ringColor;
+        ctx.lineWidth = 3.2;
+        ctx.shadowBlur = 0;
+        for (const t of [0.24, 0.44, 0.64, 0.82]) {
+          const mt = 1 - t;
+          const bx =
+            mt * mt * mt * startX +
+            3 * mt * mt * t * cp1X +
+            3 * mt * t * t * cp2X +
+            t * t * t * endX;
+          const by =
+            mt * mt * mt * startY +
+            3 * mt * mt * t * cp1Y +
+            3 * mt * t * t * cp2Y +
+            t * t * t * endY;
+          const tx =
+            3 * mt * mt * (cp1X - startX) +
+            6 * mt * t * (cp2X - cp1X) +
+            3 * t * t * (endX - cp2X);
+          const ty =
+            3 * mt * mt * (cp1Y - startY) +
+            6 * mt * t * (cp2Y - cp1Y) +
+            3 * t * t * (endY - cp2Y);
+          const tLen = Math.max(1, Math.hypot(tx, ty));
+          const nx = (-ty / tLen) * (tailW * 0.42);
+          const ny = (tx / tLen) * (tailW * 0.42);
+          ctx.beginPath();
+          ctx.moveTo(bx - nx, by - ny);
+          ctx.lineTo(bx + nx, by + ny);
+          ctx.stroke();
+        }
+      }
+
+      ctx.restore();
+      return;
+    }
+
     if (this.catBreed === 'ragdoll') {
       // Plush bushy warm cocoa-taupe Ragdoll plume tail matching the real cat photo!
       ctx.shadowColor = 'rgba(48, 38, 30, 0.22)';
@@ -834,6 +926,10 @@ export class KuroCatEngine {
   }
 
   private drawCatBody(ctx: CanvasRenderingContext2D, breath: number, purrShift: number): void {
+    if (this.customSkin) {
+      this.drawCustomCatBody(ctx, this.customSkin, breath, purrShift);
+      return;
+    }
     const isRagdoll = this.catBreed === 'ragdoll';
     const catBlack = '#141314';
     const inkOutline = '#5d5148';
@@ -1323,8 +1419,16 @@ export class KuroCatEngine {
     ctx.shadowBlur = 6;
     ctx.shadowOffsetY = 3;
 
-    const activeColor = this.catBreed === 'ragdoll' ? '#7ac7ff' : '#d4f044';
-    const scrollColor = this.catBreed === 'ragdoll' ? '#4690d8' : '#92ba12';
+    const activeColor = this.customSkin
+      ? this.customSkin.accentColor
+      : this.catBreed === 'ragdoll'
+        ? '#7ac7ff'
+        : '#d4f044';
+    const scrollColor = this.customSkin
+      ? this.customSkin.accentSideColor
+      : this.catBreed === 'ragdoll'
+        ? '#4690d8'
+        : '#92ba12';
 
     ctx.fillStyle = clicked ? activeColor : '#f0f0ec';
     ctx.strokeStyle = '#303136';
@@ -1413,8 +1517,16 @@ export class KuroCatEngine {
       let topColor = '#f8f8f5';
       let sideColor = '#d0d2cc';
       if (press > 0.14) {
-        topColor = this.catBreed === 'ragdoll' ? '#7ac7ff' : '#d2f244';
-        sideColor = this.catBreed === 'ragdoll' ? '#4690d8' : '#8cb014';
+        topColor = this.customSkin
+          ? this.customSkin.accentColor
+          : this.catBreed === 'ragdoll'
+            ? '#7ac7ff'
+            : '#d2f244';
+        sideColor = this.customSkin
+          ? this.customSkin.accentSideColor
+          : this.catBreed === 'ragdoll'
+            ? '#4690d8'
+            : '#8cb014';
       } else if (key.accent === 'orange') {
         topColor = '#f4a524';
         sideColor = '#c27a10';
@@ -1485,6 +1597,11 @@ export class KuroCatEngine {
     const rWrist = 9.4;
     const pawRx = 14.5 * (1 + squash * 0.14);
     const pawRy = 11.8 * (1 - squash * 0.12);
+
+    if (this.customSkin) {
+      this.drawCustomPlumpArm(ctx, this.customSkin, side, sx, sy, px, py, squash, withCrease);
+      return;
+    }
 
     const isRagdoll = this.catBreed === 'ragdoll';
     ctx.save();
@@ -1667,6 +1784,11 @@ export class KuroCatEngine {
     const elbowX = sh.x + sign * 8;
     const elbowY = cp.y + 8;
 
+    if (this.customSkin) {
+      this.drawCustomBentArm(ctx, this.customSkin, paw, breath, alpha);
+      return;
+    }
+
     const isRagdoll = this.catBreed === 'ragdoll';
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -1742,6 +1864,12 @@ export class KuroCatEngine {
         const outerBotX = botSp.x + sign * 35;
         const innerTopX = topSp.x + sign * 6.5;
         const innerBotX = botSp.x + sign * 9.5;
+
+        if (this.customSkin) {
+          this.drawCustomIdleLegDetails(ctx, this.customSkin, paw, topSp, midSp, botSp, sign, outerTopX, outerBotX, innerTopX, innerBotX);
+          ctx.restore();
+          return;
+        }
 
         // Signature warm taupe-brown oval leg patch on viewer's RIGHT seated front leg (1:1 match to user's real Ragdoll!)
         const isRagdoll = this.catBreed === 'ragdoll';
@@ -1882,6 +2010,774 @@ export class KuroCatEngine {
 
       ctx.restore();
     }
+  }
+
+  // ---- Data-driven custom MCP cat skin renderer (supports solid / bicolor / tuxedo / tabby / calico / siamese + arbitrary spots!) ----
+
+  private drawCustomCatBody(
+    ctx: CanvasRenderingContext2D,
+    s: ResolvedSkin,
+    breath: number,
+    purrShift: number,
+  ): void {
+    const leftPts: Vec2[] = [];
+    const rightPts: Vec2[] = [];
+    const bellySwell = 1 + this.typingHunch * 0.04;
+    const headCenter = this.spinePoint(0.24, breath);
+    const hcx = headCenter.x + purrShift;
+    const hcy = headCenter.y;
+
+    for (const slice of BODY_SLICES) {
+      const sp = this.spinePoint(slice.t, breath);
+      const widen = slice.t > 0.45 ? bellySwell : 1;
+      const hw = slice.hw * widen;
+
+      if (slice.t <= 0.38) {
+        const tiltW = slice.t <= 0.30 ? 1.0 : (0.42 - slice.t) / 0.12;
+        const ang = this.headTilt * tiltW;
+        const cosA = Math.cos(ang);
+        const sinA = Math.sin(ang);
+        const relY = sp.y - hcy;
+        const lx0 = sp.x + purrShift - hw - hcx;
+        const rx0 = sp.x + purrShift + hw - hcx;
+        leftPts.push({ x: hcx + lx0 * cosA - relY * sinA, y: hcy + lx0 * sinA + relY * cosA });
+        rightPts.push({ x: hcx + rx0 * cosA - relY * sinA, y: hcy + rx0 * sinA + relY * cosA });
+      } else {
+        leftPts.push({ x: sp.x + purrShift - hw, y: sp.y });
+        rightPts.push({ x: sp.x + purrShift + hw, y: sp.y });
+      }
+    }
+
+    const crownRelY = this.spinePoint(0.11, breath).y - hcy;
+    const crownPt = {
+      x: hcx - crownRelY * Math.sin(this.headTilt),
+      y: hcy + crownRelY * Math.cos(this.headTilt),
+    };
+    const basePt = this.spinePoint(1.0, breath);
+
+    ctx.save();
+    ctx.shadowColor = s.isDarkBase ? 'rgba(18, 17, 18, 0.42)' : 'rgba(30, 32, 42, 0.22)';
+    ctx.shadowBlur = s.isDarkBase ? 1.6 : 5;
+    if (!s.isDarkBase) ctx.shadowOffsetY = 2;
+
+    // 1) Grounded hind paws when front paws lift
+    const anyFrontLifted = this.leftPaw.idleWeight < 0.7 || this.rightPaw.idleWeight < 0.7;
+    if (anyFrontLifted) {
+      ctx.fillStyle = s.pawColor;
+      ctx.strokeStyle = s.pawOutlineColor || s.outlineColor || 'transparent';
+      ctx.lineWidth = 1.85;
+      for (const [fx, fy, rx, ry] of [
+        [basePt.x - 42, basePt.y - 3, 14.5, 11.5],
+        [basePt.x + 32, basePt.y - 1, 15.0, 11.5],
+      ]) {
+        ctx.beginPath();
+        ctx.ellipse(fx, fy, rx, ry, 0, 0, Math.PI * 2);
+        ctx.fill();
+        if (s.pawOutlineColor || s.outlineColor) {
+          ctx.save();
+          ctx.shadowBlur = 0;
+          ctx.shadowOffsetY = 0;
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    }
+
+    // 2) Unified flexible body path
+    const traceBodyPath = () => {
+      ctx.beginPath();
+      const crownCos = Math.cos(this.headTilt);
+      const crownSin = Math.sin(this.headTilt);
+      ctx.moveTo(leftPts[0].x + 14 * crownCos + 6 * crownSin, leftPts[0].y + 14 * crownSin - 6 * crownCos);
+      ctx.quadraticCurveTo(crownPt.x, crownPt.y - 2, rightPts[0].x - 14 * crownCos + 6 * crownSin, rightPts[0].y - 14 * crownSin - 6 * crownCos);
+      ctx.lineTo(rightPts[0].x, rightPts[0].y);
+      for (let i = 0; i < rightPts.length - 1; i++) {
+        const p0 = rightPts[i];
+        const p1 = rightPts[i + 1];
+        ctx.quadraticCurveTo(p0.x, p0.y, (p0.x + p1.x) * 0.5, (p0.y + p1.y) * 0.5);
+      }
+      ctx.lineTo(rightPts[rightPts.length - 1].x, rightPts[rightPts.length - 1].y);
+      ctx.quadraticCurveTo(basePt.x + purrShift, basePt.y + 6, leftPts[leftPts.length - 1].x, leftPts[leftPts.length - 1].y);
+      for (let i = leftPts.length - 1; i > 0; i--) {
+        const p0 = leftPts[i];
+        const p1 = leftPts[i - 1];
+        ctx.quadraticCurveTo(p0.x, p0.y, (p0.x + p1.x) * 0.5, (p0.y + p1.y) * 0.5);
+      }
+      ctx.lineTo(leftPts[0].x, leftPts[0].y);
+      ctx.closePath();
+    };
+
+    traceBodyPath();
+    const furGrad = ctx.createRadialGradient(hcx, hcy + 65, 18, basePt.x, basePt.y - 60, 150);
+    furGrad.addColorStop(0.0, s.furColor);
+    furGrad.addColorStop(1.0, s.furSecondaryColor);
+    ctx.fillStyle = furGrad;
+    ctx.fill();
+
+    // 3) Clipped coat pattern markings & custom spots
+    ctx.save();
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.clip();
+
+    const midTorso = this.spinePoint(0.70, breath);
+    const chestSp = this.spinePoint(0.56, breath);
+
+    if (s.flankColor) {
+      for (const sgn of [-1, 1]) {
+        ctx.save();
+        ctx.globalAlpha = 0.62;
+        ctx.fillStyle = s.flankColor;
+        ctx.shadowColor = s.flankColor;
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.ellipse(midTorso.x + purrShift + sgn * 62, midTorso.y + 6, 48, 82, sgn * -0.14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    if (s.bellyBibColor) {
+      ctx.fillStyle = s.bellyBibColor;
+      ctx.beginPath();
+      ctx.ellipse(chestSp.x + purrShift, chestSp.y + 38, 36, 62, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (s.pattern === 'tabby' && s.stripeColor) {
+      ctx.strokeStyle = s.stripeColor;
+      ctx.lineCap = 'round';
+      ctx.lineWidth = 4.6;
+      ctx.globalAlpha = 0.65;
+      for (const sgn of [-1, 1]) {
+        for (let i = 0; i < 4; i++) {
+          const ty = midTorso.y - 26 + i * 20;
+          ctx.beginPath();
+          ctx.moveTo(midTorso.x + purrShift + sgn * 74, ty);
+          ctx.quadraticCurveTo(midTorso.x + purrShift + sgn * 56, ty + 3, midTorso.x + purrShift + sgn * 42, ty + 7);
+          ctx.stroke();
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    if (s.pattern === 'calico') {
+      const orangePatch = s.maskColor || '#ea9446';
+      const darkPatch = s.calicoPatchColor || '#3c3634';
+      ctx.save();
+      ctx.shadowBlur = 4;
+      ctx.shadowColor = orangePatch;
+      ctx.fillStyle = orangePatch;
+      ctx.beginPath();
+      ctx.ellipse(midTorso.x + purrShift - 54, midTorso.y + 10, 38, 52, -0.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.shadowColor = darkPatch;
+      ctx.fillStyle = darkPatch;
+      ctx.beginPath();
+      ctx.ellipse(midTorso.x + purrShift + 56, midTorso.y - 4, 36, 56, 0.18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Body custom spots
+    for (const spot of s.spots) {
+      if (spot.part !== 'body') continue;
+      ctx.save();
+      ctx.globalAlpha = spot.opacity ?? 0.85;
+      ctx.fillStyle = spot.color;
+      ctx.beginPath();
+      ctx.ellipse(
+        midTorso.x + purrShift + spot.x * 65,
+        midTorso.y + spot.y * 65,
+        Math.max(2, spot.rx),
+        Math.max(2, spot.ry),
+        spot.rotation || 0,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Head-space patterns (rotate seamlessly with headTilt!)
+    ctx.save();
+    ctx.translate(hcx, hcy);
+    ctx.rotate(this.headTilt);
+    const maskShift = this.faceTurnX * 0.72;
+
+    if (s.pattern === 'bicolor' && s.maskColor) {
+      ctx.save();
+      ctx.fillStyle = s.maskColor;
+      ctx.shadowColor = s.maskColor;
+      ctx.shadowBlur = 4.5;
+      ctx.beginPath();
+      ctx.moveTo(-74, -44);
+      ctx.lineTo(74, -44);
+      ctx.lineTo(70, 20);
+      ctx.quadraticCurveTo(maskShift + 42, 18, maskShift + 26, 9);
+      ctx.quadraticCurveTo(maskShift + 17, 0, maskShift + 13.5, -13);
+      ctx.quadraticCurveTo(maskShift + 7, -21.5, maskShift, -22.5);
+      ctx.quadraticCurveTo(maskShift - 7, -21.5, maskShift - 13.5, -13);
+      ctx.quadraticCurveTo(maskShift - 17, 0, maskShift - 26, 9);
+      ctx.quadraticCurveTo(maskShift - 42, 18, -70, 20);
+      ctx.closePath();
+      ctx.fill();
+      if (s.foreheadBridgeColor) {
+        ctx.fillStyle = s.foreheadBridgeColor;
+        ctx.shadowBlur = 5.5;
+        ctx.beginPath();
+        ctx.ellipse(maskShift, -32, 18, 9, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    } else if (s.pattern === 'tuxedo' && s.bellyBibColor) {
+      ctx.fillStyle = s.bellyBibColor;
+      ctx.beginPath();
+      ctx.ellipse(maskShift, 22, 26, 15, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (s.pattern === 'siamese' && s.maskColor) {
+      ctx.save();
+      ctx.fillStyle = s.maskColor;
+      ctx.shadowColor = s.maskColor;
+      ctx.shadowBlur = 9;
+      ctx.beginPath();
+      ctx.ellipse(maskShift, 3, 42, 27, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    } else if (s.pattern === 'calico') {
+      const orangePatch = s.maskColor || '#ea9446';
+      const darkPatch = s.calicoPatchColor || '#3c3634';
+      ctx.save();
+      ctx.shadowBlur = 4;
+      ctx.fillStyle = orangePatch;
+      ctx.shadowColor = orangePatch;
+      ctx.beginPath();
+      ctx.ellipse(-34 + maskShift * 0.4, -18, 34, 28, -0.25, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = darkPatch;
+      ctx.shadowColor = darkPatch;
+      ctx.beginPath();
+      ctx.ellipse(36 + maskShift * 0.4, -16, 32, 26, 0.25, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    } else if (s.pattern === 'tabby' && s.stripeColor) {
+      // Iconic tabby forehead "M" & cheek stripes!
+      ctx.strokeStyle = s.stripeColor;
+      ctx.lineWidth = 3.2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.globalAlpha = 0.78;
+      // Center M stripes on forehead
+      ctx.beginPath();
+      ctx.moveTo(maskShift - 11, -30);
+      ctx.lineTo(maskShift - 8, -19);
+      ctx.moveTo(maskShift, -32);
+      ctx.lineTo(maskShift, -18);
+      ctx.moveTo(maskShift + 11, -30);
+      ctx.lineTo(maskShift + 8, -19);
+      ctx.stroke();
+      // Cheek tiger stripes
+      ctx.lineWidth = 2.8;
+      for (const sgn of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(sgn * 58, 6);
+        ctx.lineTo(sgn * 42, 9);
+        ctx.moveTo(sgn * 56, 14);
+        ctx.lineTo(sgn * 41, 16);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // Head custom spots
+    for (const spot of s.spots) {
+      if (spot.part !== 'head') continue;
+      ctx.save();
+      ctx.globalAlpha = spot.opacity ?? 0.85;
+      ctx.fillStyle = spot.color;
+      ctx.beginPath();
+      ctx.ellipse(
+        maskShift + spot.x * 52,
+        spot.y * 36,
+        Math.max(2, spot.rx),
+        Math.max(2, spot.ry),
+        spot.rotation || 0,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+      ctx.restore();
+    }
+
+    ctx.restore(); // end head-space patterns
+    ctx.restore(); // end body clip
+
+    if (s.outlineColor) {
+      ctx.save();
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+      traceBodyPath();
+      ctx.strokeStyle = s.outlineColor;
+      ctx.lineWidth = 1.8;
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 4) Ears, face features & eyes in head-space
+    ctx.save();
+    ctx.translate(hcx, hcy);
+    ctx.rotate(this.headTilt);
+
+    const lTwitch = Math.sin(this.earTwitchLeft * Math.PI) * 0.12;
+    const rTwitch = Math.sin(this.earTwitchRight * Math.PI) * 0.12;
+
+    const drawCustomEar = (sideSign: -1 | 1, twitch: number) => {
+      ctx.save();
+      ctx.translate(sideSign * 33 + this.faceTurnX * 0.18, -28);
+      ctx.rotate(sideSign * (0.08 + twitch));
+
+      const earPath = () => {
+        ctx.beginPath();
+        ctx.moveTo(sideSign * 19, 20);
+        ctx.bezierCurveTo(sideSign * 19, -8, sideSign * 12, -23, sideSign * 3, -21);
+        ctx.bezierCurveTo(sideSign * -8, -18, sideSign * -16, -6, sideSign * -21, 8);
+        ctx.closePath();
+      };
+
+      const baseEarCol =
+        s.pattern === 'calico' && sideSign === -1
+          ? s.maskColor || s.earOuterColor
+          : s.earOuterColor;
+      const earGrad = ctx.createLinearGradient(0, -23, 0, 18);
+      earGrad.addColorStop(0.0, s.earTipColor || baseEarCol);
+      earGrad.addColorStop(1.0, baseEarCol);
+      ctx.fillStyle = earGrad;
+      earPath();
+      ctx.fill();
+
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+
+      if (s.outlineColor) {
+        ctx.strokeStyle = s.outlineColor;
+        ctx.lineWidth = 1.85;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(sideSign * 19, 17);
+        ctx.bezierCurveTo(sideSign * 19, -8, sideSign * 12, -23, sideSign * 3, -21);
+        ctx.bezierCurveTo(sideSign * -8, -18, sideSign * -16, -6, sideSign * -19, 5);
+        ctx.stroke();
+      }
+
+      if (s.earInnerColor) {
+        ctx.fillStyle = s.earInnerColor;
+        ctx.beginPath();
+        ctx.moveTo(sideSign * 11, 10);
+        ctx.bezierCurveTo(sideSign * 11, -3, sideSign * 7, -13, sideSign * 2, -11);
+        ctx.bezierCurveTo(sideSign * -4, -9, sideSign * -9, -1, sideSign * -10, 8);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      if (s.earTuftColor) {
+        ctx.strokeStyle = s.earTuftColor;
+        ctx.lineWidth = 1.5;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(sideSign * -6, 6);
+        ctx.quadraticCurveTo(sideSign * -1, 3, sideSign * 5, 6);
+        ctx.moveTo(sideSign * -3, 10);
+        ctx.quadraticCurveTo(sideSign * 2, 7.5, sideSign * 7, 10);
+        ctx.stroke();
+      }
+      ctx.restore();
+    };
+
+    drawCustomEar(-1, lTwitch);
+    drawCustomEar(1, rTwitch);
+
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    const wShift = this.faceTurnX * 0.72;
+
+    // Blush on petting
+    if (s.blushColor && this.squintAmount > 0.12) {
+      ctx.save();
+      ctx.globalAlpha = 0.42 * this.squintAmount;
+      ctx.fillStyle = s.blushColor;
+      ctx.beginPath();
+      ctx.ellipse(wShift - 30, 13, 8.5, 4.6, -0.08, 0, Math.PI * 2);
+      ctx.ellipse(wShift + 30, 13, 8.5, 4.6, 0.08, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Nose & mouth
+    if (s.noseColor) {
+      ctx.fillStyle = s.noseColor;
+      ctx.beginPath();
+      ctx.moveTo(wShift - 4.1, 9.6);
+      ctx.quadraticCurveTo(wShift, 8.5, wShift + 4.1, 9.6);
+      ctx.quadraticCurveTo(wShift + 3.2, 13.8, wShift, 14.3);
+      ctx.quadraticCurveTo(wShift - 3.2, 13.8, wShift - 4.1, 9.6);
+      ctx.closePath();
+      ctx.fill();
+    }
+    if (s.mouthColor) {
+      ctx.strokeStyle = s.mouthColor;
+      ctx.lineWidth = 1.35;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(wShift - 5.8, 16.6);
+      ctx.quadraticCurveTo(wShift - 2.9, 19.6, wShift, 16.4);
+      ctx.quadraticCurveTo(wShift + 2.9, 19.6, wShift + 5.8, 16.6);
+      ctx.stroke();
+    }
+
+    // Whiskers
+    ctx.strokeStyle = s.whiskerColor;
+    ctx.lineWidth = 1.1;
+    ctx.lineCap = 'round';
+    const leftLen = Math.max(8, 12 - this.faceTurnX * 0.55);
+    const rightLen = Math.max(8, 12 + this.faceTurnX * 0.55);
+    for (let i = 0; i < 3; i++) {
+      const wy = 16 + i * 5.0;
+      const slant = 2.0 + i * 1.1;
+      ctx.beginPath();
+      ctx.moveTo(-34 + wShift, wy);
+      ctx.lineTo(-34 + wShift - leftLen, wy + slant);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(34 + wShift, wy);
+      ctx.lineTo(34 + wShift + rightLen, wy + slant);
+      ctx.stroke();
+    }
+
+    this.drawCustomEyes(ctx, s, wShift, -1);
+
+    ctx.restore();
+    ctx.restore();
+  }
+
+  private drawCustomEyes(ctx: CanvasRenderingContext2D, s: ResolvedSkin, cx: number, eyeY: number): void {
+    const blinkVal = this.isBlinking ? 1 - Math.abs(this.blinkProgress - 1) : 0;
+    const closedness = Math.max(blinkVal, this.squintAmount * 0.85);
+    const eyeXs = [cx - 23.0, cx + 23.0];
+    const rx = 14.8 + this.typingHunch * 1.0;
+    const ry = 13.4 - this.typingHunch * 0.5;
+
+    for (let idx = 0; idx < 2; idx++) {
+      ctx.save();
+      ctx.translate(eyeXs[idx], eyeY);
+
+      if (this.squintAmount > 0.38 && blinkVal < 0.3) {
+        if (s.squintGlowColor) {
+          ctx.strokeStyle = s.squintGlowColor;
+          ctx.lineWidth = 4.4;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(-12.5, 0.2);
+          ctx.quadraticCurveTo(0, 2.2, 12.5, 1.8);
+          ctx.stroke();
+        }
+        ctx.strokeStyle = s.squintColor;
+        ctx.lineWidth = 2.8;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-13.5, -0.5);
+        ctx.quadraticCurveTo(0, 1.4, 13.5, 1.2);
+        ctx.stroke();
+        ctx.restore();
+        continue;
+      }
+
+      const openRy = Math.max(1.2, ry * (1 - closedness));
+      const curiousTilt = (idx === 0 ? -0.1 : 0.1) * (0.25 + this.typingHunch * 0.75);
+      ctx.rotate(curiousTilt);
+
+      const irisGrad = ctx.createLinearGradient(0, -openRy, 0, openRy);
+      irisGrad.addColorStop(0.0, s.eyeColorTop);
+      irisGrad.addColorStop(1.0, s.eyeColorBottom);
+      ctx.fillStyle = irisGrad;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rx, openRy, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.save();
+      ctx.clip();
+      if (openRy > 3.2) {
+        const px = this.eyeLookX;
+        const py = this.eyeLookY;
+        ctx.fillStyle = s.pupilColor;
+        ctx.beginPath();
+        ctx.ellipse(px, py, 6.2, 8.8, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (s.eyeCatchlight) {
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
+          ctx.beginPath();
+          ctx.arc(px - 3.6, py - 4.0, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+          ctx.beginPath();
+          ctx.arc(px + 3.2, py + 3.2, 1.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+
+      if (s.eyeRimColor && openRy > 2.2) {
+        ctx.strokeStyle = s.eyeRimColor;
+        ctx.lineWidth = 1.25;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, rx, openRy, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+  }
+
+  private drawCustomPlumpArm(
+    ctx: CanvasRenderingContext2D,
+    s: ResolvedSkin,
+    side: 'left' | 'right',
+    sx: number,
+    sy: number,
+    px: number,
+    py: number,
+    squash: number,
+    withCrease: boolean,
+  ): void {
+    const dx = px - sx;
+    const dy = py - sy;
+    const len = Math.max(1, Math.hypot(dx, dy));
+    const ux = dx / len;
+    const uy = dy / len;
+    const nx = -uy;
+    const ny = ux;
+    const wristDist = Math.max(6, len - 8);
+    const wx = sx + ux * wristDist;
+    const wy = sy + uy * wristDist;
+    const rShoulder = 14.2;
+    const rWrist = 9.4;
+    const pawRx = 14.5 * (1 + squash * 0.14);
+    const pawRy = 11.8 * (1 - squash * 0.12);
+
+    ctx.save();
+    const traceArmPath = () => {
+      ctx.beginPath();
+      ctx.moveTo(sx + nx * rShoulder, sy + ny * rShoulder);
+      ctx.quadraticCurveTo(
+        (sx + wx) * 0.5 + nx * (rShoulder * 0.84),
+        (sy + wy) * 0.5 + ny * (rShoulder * 0.84),
+        wx + nx * rWrist,
+        wy + ny * rWrist,
+      );
+      ctx.lineTo(wx - nx * rWrist, wy - ny * rWrist);
+      ctx.quadraticCurveTo(
+        (sx + wx) * 0.5 - nx * (rShoulder * 0.84),
+        (sy + wy) * 0.5 - ny * (rShoulder * 0.84),
+        sx - nx * rShoulder,
+        sy - ny * rShoulder,
+      );
+      ctx.closePath();
+    };
+
+    ctx.fillStyle = s.armColor;
+    traceArmPath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(sx, sy, rShoulder, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Custom arm spots
+    const armPart = side === 'left' ? 'leftArm' : 'rightArm';
+    const armSpots = s.spots.filter((sp) => sp.part === armPart);
+    if (armSpots.length > 0 && len > 24) {
+      const armAng = Math.atan2(dy, dx);
+      ctx.save();
+      traceArmPath();
+      ctx.clip();
+      for (const sp of armSpots) {
+        const frac = Math.max(0.1, Math.min(0.9, sp.x));
+        ctx.globalAlpha = sp.opacity ?? 0.85;
+        ctx.fillStyle = sp.color;
+        ctx.beginPath();
+        ctx.ellipse(
+          sx + ux * (len * frac) + nx * sp.y,
+          sy + uy * (len * frac) + ny * sp.y,
+          Math.max(2, sp.rx),
+          Math.max(2, sp.ry),
+          armAng + (sp.rotation || 0),
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // Mitten paw ball
+    ctx.save();
+    if (!s.isDarkBase) {
+      ctx.shadowColor = 'rgba(36, 32, 30, 0.22)';
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetY = 1.5;
+    }
+    ctx.fillStyle = s.pawColor;
+    ctx.beginPath();
+    ctx.ellipse(px, py, pawRx, pawRy, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    const edgeColor = s.pawOutlineColor || s.outlineColor;
+    if (edgeColor) {
+      ctx.lineWidth = 1.65;
+      ctx.lineCap = 'round';
+      for (const sgn of [-1, 1]) {
+        const startFrac = withCrease ? 0.16 : 0.08;
+        const esx = sx + ux * (len * startFrac) + nx * sgn * (rShoulder * (1 - startFrac * 0.16));
+        const esy = sy + uy * (len * startFrac) + ny * sgn * (rShoulder * (1 - startFrac * 0.16));
+        ctx.strokeStyle = edgeColor;
+        ctx.globalAlpha = 0.85;
+        ctx.beginPath();
+        ctx.moveTo(esx, esy);
+        ctx.quadraticCurveTo(
+          (sx + wx) * 0.5 + nx * sgn * (rShoulder * 0.84),
+          (sy + wy) * 0.5 + ny * sgn * (rShoulder * 0.84),
+          wx + nx * sgn * rWrist,
+          wy + ny * sgn * rWrist,
+        );
+        ctx.stroke();
+      }
+      const pawAng = Math.atan2(dy, dx);
+      ctx.globalAlpha = 0.92;
+      ctx.strokeStyle = edgeColor;
+      ctx.beginPath();
+      ctx.ellipse(px, py, pawRx, pawRy, 0, pawAng - Math.PI * 0.62, pawAng + Math.PI * 0.62);
+      ctx.stroke();
+    } else if (s.armCreaseColor && withCrease && len > 28) {
+      for (const sgn of [-1, 1]) {
+        const csx = sx + ux * (len * 0.18) + nx * sgn * (rShoulder * 0.86);
+        const csy = sy + uy * (len * 0.18) + ny * sgn * (rShoulder * 0.86);
+        const cex = sx + ux * (len * 0.72) + nx * sgn * (rWrist * 1.02);
+        const cey = sy + uy * (len * 0.72) + ny * sgn * (rWrist * 1.02);
+        ctx.strokeStyle = s.armCreaseColor;
+        ctx.lineWidth = 1.3;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(csx, csy);
+        ctx.lineTo(cex, cey);
+        ctx.stroke();
+      }
+    }
+
+    ctx.restore();
+  }
+
+  private drawCustomBentArm(
+    ctx: CanvasRenderingContext2D,
+    s: ResolvedSkin,
+    paw: PawState,
+    breath: number,
+    alpha: number,
+  ): void {
+    const sh = this.getLiveShoulder(paw, breath);
+    const cp = this.getLiveCurledPawPos(paw, breath);
+    const sign = paw.side === 'left' ? -1 : 1;
+    const elbowX = sh.x + sign * 8;
+    const elbowY = cp.y + 8;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    ctx.strokeStyle = s.armColor;
+    ctx.lineWidth = 20;
+    ctx.beginPath();
+    ctx.moveTo(sh.x, sh.y);
+    ctx.quadraticCurveTo(elbowX, elbowY, cp.x, cp.y);
+    ctx.stroke();
+
+    const armPart = paw.side === 'left' ? 'leftArm' : 'rightArm';
+    for (const sp of s.spots) {
+      if (sp.part !== armPart) continue;
+      ctx.save();
+      ctx.globalAlpha = alpha * (sp.opacity ?? 0.82);
+      ctx.fillStyle = sp.color;
+      ctx.beginPath();
+      ctx.ellipse((elbowX + cp.x) * 0.5, (elbowY + cp.y) * 0.5, Math.min(8, sp.rx), Math.min(6, sp.ry), -0.3 * sign, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    ctx.fillStyle = s.pawColor;
+    ctx.beginPath();
+    ctx.ellipse(cp.x, cp.y, 12.5, 11.0, sign * 0.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = s.pawOutlineColor || s.legLineColor;
+    ctx.lineWidth = 1.55;
+    ctx.beginPath();
+    ctx.moveTo(elbowX + sign * 8, elbowY - 16);
+    ctx.quadraticCurveTo(elbowX + sign * 4, elbowY + 12, cp.x + sign * 2, cp.y + 10);
+    ctx.quadraticCurveTo(cp.x - sign * 11, cp.y + 8, cp.x - sign * 12, cp.y - 4);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  private drawCustomIdleLegDetails(
+    ctx: CanvasRenderingContext2D,
+    s: ResolvedSkin,
+    paw: PawState,
+    topSp: Vec2,
+    midSp: Vec2,
+    botSp: Vec2,
+    sign: -1 | 1,
+    outerTopX: number,
+    outerBotX: number,
+    innerTopX: number,
+    innerBotX: number,
+  ): void {
+    const armPart = paw.side === 'left' ? 'leftArm' : 'rightArm';
+    for (const sp of s.spots) {
+      if (sp.part !== armPart) continue;
+      ctx.save();
+      ctx.globalAlpha = sp.opacity ?? 0.82;
+      ctx.fillStyle = sp.color;
+      ctx.beginPath();
+      ctx.ellipse(midSp.x + sign * 21, midSp.y + (sp.x - 0.5) * 28, Math.max(3, sp.rx * 0.8), Math.max(3, sp.ry * 1.1), 0.2 * sign, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Optional cute white mittens at the bottom of idle seated legs when pawColor differs from furColor!
+    if (s.pawColor !== s.furColor) {
+      ctx.save();
+      ctx.fillStyle = s.pawColor;
+      ctx.beginPath();
+      ctx.ellipse(botSp.x + sign * 22, botSp.y - 4, 13.5, 9.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    ctx.strokeStyle = s.legLineColor;
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(outerTopX, topSp.y);
+    ctx.quadraticCurveTo(midSp.x + sign * 41, midSp.y, outerBotX, botSp.y - 1);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(innerTopX, topSp.y + 10);
+    ctx.lineTo(innerBotX, botSp.y - 1);
+    ctx.stroke();
   }
 
   private roundRect(

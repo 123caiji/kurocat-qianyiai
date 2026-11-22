@@ -1,21 +1,31 @@
+#![recursion_limit = "256"]
+
+mod cats;
 mod config;
 mod input_hook;
+mod mcp;
 mod tray;
 
-use config::{load_settings, save_settings, set_windows_autostart, AppSettings};
+use cats::{all_cats, cat_exists, cats_path, sanitize_cat_id, CatSkinConfig};
+use config::{config_path, load_settings, save_settings, set_windows_autostart, AppSettings};
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Size, State};
 
 pub const BASE_WIDTH: f64 = 420.0;
 pub const BASE_HEIGHT: f64 = 440.0;
 
+pub fn run_mcp_stdio() {
+    mcp::run_stdio_mcp();
+}
+
 pub struct AppState {
     pub settings: Arc<Mutex<AppSettings>>,
     pub menu_open: Arc<AtomicBool>,
     pub dragging: Arc<AtomicBool>,
+    pub mcp_enabled: Arc<AtomicBool>,
 }
 
 #[derive(Clone, Serialize)]
@@ -33,15 +43,47 @@ fn get_settings(state: State<'_, AppState>) -> AppSettings {
 }
 
 #[tauri::command]
+fn get_cats() -> Vec<CatSkinConfig> {
+    all_cats()
+}
+
+#[tauri::command]
+fn get_mcp_config(state: State<'_, AppState>) -> String {
+    let port = state.settings.lock().unwrap().mcp_port;
+    let exe = std::env::current_exe()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| "KuroCatPet.exe".to_string());
+    serde_json::to_string_pretty(&serde_json::json!({
+        "mcpServers": {
+            "kurocat": {
+                "command": exe,
+                "args": ["--mcp"],
+                "url": format!("http://127.0.0.1:{}/mcp", port)
+            }
+        }
+    }))
+    .unwrap_or_default()
+}
+
+#[tauri::command]
 fn update_settings(app: AppHandle, state: State<'_, AppState>, mut patch: AppSettings) -> AppSettings {
     patch.scale = patch.scale.clamp(0.6, 1.8);
-    if patch.cat_breed != "ragdoll" {
-        patch.cat_breed = "black".to_string();
+    let clean_breed = sanitize_cat_id(&patch.cat_breed);
+    patch.cat_breed = if cat_exists(&clean_breed) {
+        clean_breed
+    } else {
+        "black".to_string()
+    };
+    if patch.mcp_port == 0 {
+        patch.mcp_port = 27420;
     }
+
     let prev_autostart = state.settings.lock().unwrap().autostart;
     if patch.autostart != prev_autostart {
         let _ = set_windows_autostart(patch.autostart);
     }
+
+    state.mcp_enabled.store(patch.mcp_enabled, Ordering::Relaxed);
 
     if let Some(win) = app.get_webview_window("main") {
         let _ = win.set_always_on_top(patch.always_on_top);
@@ -92,15 +134,76 @@ fn quit_app(app: AppHandle) {
 }
 
 pub fn apply_breed_and_save(app: &AppHandle, breed: &str) {
-    let normalized = if breed == "ragdoll" { "ragdoll" } else { "black" };
+    let clean = sanitize_cat_id(breed);
+    let normalized = if cat_exists(&clean) {
+        clean
+    } else {
+        "black".to_string()
+    };
     let state = app.state::<AppState>();
     let updated = {
         let mut s = state.settings.lock().unwrap();
-        s.cat_breed = normalized.to_string();
+        s.cat_breed = normalized;
         save_settings(&s);
         s.clone()
     };
     let _ = app.emit("kuro-settings", updated);
+}
+
+pub fn reload_and_emit_all(app: &AppHandle) {
+    let disk_settings = load_settings();
+    let cats = all_cats();
+    let state = app.state::<AppState>();
+
+    let (scale_changed, top_changed) = {
+        let mut s = state.settings.lock().unwrap();
+        let sc = (s.scale - disk_settings.scale).abs() > 0.01;
+        let tc = s.always_on_top != disk_settings.always_on_top;
+        *s = disk_settings.clone();
+        (sc, tc)
+    };
+    state
+        .mcp_enabled
+        .store(disk_settings.mcp_enabled, Ordering::Relaxed);
+
+    if let Some(win) = app.get_webview_window("main") {
+        if top_changed {
+            let _ = win.set_always_on_top(disk_settings.always_on_top);
+        }
+        if scale_changed {
+            let _ = win.set_size(Size::Logical(LogicalSize::new(
+                (BASE_WIDTH * disk_settings.scale).round(),
+                (BASE_HEIGHT * disk_settings.scale).round(),
+            )));
+        }
+    }
+
+    let _ = app.emit("kuro-cats", cats);
+    let _ = app.emit("kuro-settings", disk_settings);
+}
+
+fn file_mtime(path: &std::path::Path) -> Option<SystemTime> {
+    std::fs::metadata(path).ok().and_then(|m| m.modified().ok())
+}
+
+fn start_storage_watcher(app: AppHandle) {
+    std::thread::spawn(move || {
+        let c_path = cats_path();
+        let s_path = config_path();
+        let mut last_cats_m = file_mtime(&c_path);
+        let mut last_settings_m = file_mtime(&s_path);
+
+        loop {
+            std::thread::sleep(Duration::from_millis(400));
+            let cur_c = file_mtime(&c_path);
+            let cur_s = file_mtime(&s_path);
+            if cur_c != last_cats_m || cur_s != last_settings_m {
+                last_cats_m = cur_c;
+                last_settings_m = cur_s;
+                reload_and_emit_all(&app);
+            }
+        }
+    });
 }
 
 pub fn apply_scale_and_save(app: &AppHandle, scale: f64) {
@@ -258,16 +361,19 @@ pub fn run() {
     let settings_arc = Arc::new(Mutex::new(initial_settings.clone()));
     let menu_open = Arc::new(AtomicBool::new(false));
     let dragging = Arc::new(AtomicBool::new(false));
+    let mcp_enabled = Arc::new(AtomicBool::new(initial_settings.mcp_enabled));
 
     let settings_for_setup = settings_arc.clone();
     let menu_for_setup = menu_open.clone();
     let drag_for_setup = dragging.clone();
+    let mcp_for_setup = mcp_enabled.clone();
 
     tauri::Builder::default()
         .manage(AppState {
             settings: settings_arc,
             menu_open,
             dragging,
+            mcp_enabled,
         })
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -291,6 +397,13 @@ pub fn run() {
             tray::setup_tray(&handle, &s)?;
             input_hook::start_global_hooks(handle.clone());
             start_hit_test_loop(handle.clone(), settings_for_setup, menu_for_setup, drag_for_setup);
+            start_storage_watcher(handle.clone());
+
+            let http_handle = handle.clone();
+            let mcp_port = if s.mcp_port == 0 { 27420 } else { s.mcp_port };
+            mcp::start_http_mcp_server(mcp_port, mcp_for_setup, move || {
+                reload_and_emit_all(&http_handle);
+            });
 
             if std::env::args().any(|a| a == "--demo") {
                 let demo_handle = handle.clone();
@@ -327,6 +440,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_settings,
+            get_cats,
+            get_mcp_config,
             update_settings,
             set_menu_open,
             set_dragging,

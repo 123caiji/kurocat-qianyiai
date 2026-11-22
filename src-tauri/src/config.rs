@@ -6,6 +6,14 @@ fn default_cat_breed() -> String {
     "black".to_string()
 }
 
+fn default_mcp_enabled() -> bool {
+    true
+}
+
+fn default_mcp_port() -> u16 {
+    27420
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
@@ -19,6 +27,10 @@ pub struct AppSettings {
     pub autostart: bool,
     #[serde(default = "default_cat_breed")]
     pub cat_breed: String,
+    #[serde(default = "default_mcp_enabled")]
+    pub mcp_enabled: bool,
+    #[serde(default = "default_mcp_port")]
+    pub mcp_port: u16,
 }
 
 impl Default for AppSettings {
@@ -33,6 +45,8 @@ impl Default for AppSettings {
             sound_enabled: true,
             autostart: false,
             cat_breed: default_cat_breed(),
+            mcp_enabled: default_mcp_enabled(),
+            mcp_port: default_mcp_port(),
         }
     }
 }

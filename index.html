@@ -11,8 +11,8 @@
     <div id="context-menu" class="context-menu hidden">
       <div class="menu-header" id="menu-header">🐈‍⬛ KuroCat 小黑猫</div>
       <div class="menu-scale-row">
-        <span class="menu-scale-label">猫咪外观</span>
-        <div class="breed-pills">
+        <span class="menu-scale-label">猫咪外观（支持 MCP 定制）</span>
+        <div class="breed-pills" id="breed-pills">
           <button class="breed-pill active" data-breed="black">🐈‍⬛ 小黑猫</button>
           <button class="breed-pill" data-breed="ragdoll">🐱 布偶猫</button>
         </div>
@@ -39,6 +39,15 @@
         <span class="menu-check" id="chk-autostart"></span>
       </button>
       <div class="menu-sep"></div>
+      <button class="menu-item" data-action="toggle-mcp">
+        <span>开启 MCP 扩展</span>
+        <span class="menu-check" id="chk-mcp">✓</span>
+      </button>
+      <button class="menu-item" data-action="copy-mcp" id="btn-copy-mcp">
+        <span>复制 MCP 配置</span>
+        <span class="menu-hint" id="mcp-copy-hint">AI 捏猫</span>
+      </button>
+      <div class="menu-sep"></div>
       <div class="menu-scale-row">
         <span class="menu-scale-label">缩放</span>
         <div class="scale-pills">
@@ -53,7 +62,7 @@
         <span>重置位置到右下角</span>
       </button>
       <button class="menu-item danger" data-action="quit">
-        <span>退出小黑猫</span>
+        <span>退出桌宠</span>
       </button>
     </div>
 

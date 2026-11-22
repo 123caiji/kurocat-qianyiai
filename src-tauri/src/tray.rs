@@ -47,6 +47,14 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
         initial.autostart,
         None::<&str>,
     )?;
+    let mcp_toggle = CheckMenuItem::with_id(
+        app,
+        "mcp_toggle",
+        "开启 MCP 扩展服务",
+        true,
+        initial.mcp_enabled,
+        None::<&str>,
+    )?;
 
     let breed_black = MenuItem::with_id(app, "breed_black", "经典小黑猫", true, None::<&str>)?;
     let breed_ragdoll = MenuItem::with_id(app, "breed_ragdoll", "布偶猫（定制花色）", true, None::<&str>)?;
@@ -87,6 +95,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
             &scale_menu,
             &reset_pos,
             &autostart,
+            &mcp_toggle,
             &sep2,
             &quit,
         ],
@@ -172,6 +181,17 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                         let _ = autostart.set_checked(next);
                         let _ = app.emit("kuro-settings", s.clone());
                     }
+                }
+                "mcp_toggle" => {
+                    let mut s = state.settings.lock().unwrap();
+                    s.mcp_enabled = !s.mcp_enabled;
+                    let enabled = s.mcp_enabled;
+                    state
+                        .mcp_enabled
+                        .store(enabled, std::sync::atomic::Ordering::Relaxed);
+                    crate::config::save_settings(&s);
+                    let _ = mcp_toggle.set_checked(enabled);
+                    let _ = app.emit("kuro-settings", s.clone());
                 }
                 "breed_black" => apply_breed_and_save(app, "black"),
                 "breed_ragdoll" => apply_breed_and_save(app, "ragdoll"),
