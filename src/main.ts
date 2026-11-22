@@ -35,6 +35,31 @@ interface WindowCursorInfo {
   overCat: boolean;
 }
 
+interface UpdateInfo {
+  currentVersion: string;
+  latestVersion: string;
+  hasUpdate: boolean;
+  releaseUrl: string;
+  assetName: string | null;
+  downloadUrl: string | null;
+  assetSha256: string | null;
+  assetSize: number | null;
+  installKind: string;
+  notesSummary: string;
+}
+
+interface UpdateProgressEvent {
+  stage: string;
+  message: string;
+  info: UpdateInfo | null;
+}
+
+let appVersion = '4.4.0';
+let latestUpdateInfo: UpdateInfo | null = null;
+let updateBusy = false;
+let dismissedVersion: string | null = null;
+let toastAutoHideTimer: number | null = null;
+
 let settings: AppSettings = {
   x: null,
   y: null,
@@ -54,6 +79,11 @@ let catList: CatSkinConfig[] = [...DEFAULT_BUILTIN_CATS];
 const canvas = document.getElementById('pet-canvas') as HTMLCanvasElement;
 const menuEl = document.getElementById('context-menu') as HTMLDivElement;
 const breedPillsEl = document.getElementById('breed-pills') as HTMLDivElement;
+const updateToastEl = document.getElementById('update-toast') as HTMLDivElement;
+const updateToastTextEl = document.getElementById('update-toast-text') as HTMLSpanElement;
+const btnToastInstallEl = document.getElementById('btn-toast-install') as HTMLButtonElement;
+const btnToastOpenEl = document.getElementById('btn-toast-open') as HTMLButtonElement;
+const btnToastCloseEl = document.getElementById('btn-toast-close') as HTMLButtonElement;
 const engine = new KuroCatEngine(canvas);
 
 function renderBreedPills(): void {
@@ -176,6 +206,141 @@ async function createDesktopShortcut(): Promise<void> {
   }
 }
 
+function setUpdateHint(text: string, mode: 'default' | 'ready' | 'error' = 'default'): void {
+  const hint = document.getElementById('update-hint');
+  if (!hint) return;
+  hint.textContent = text;
+  hint.classList.remove('update-ready', 'update-error');
+  if (mode === 'ready') hint.classList.add('update-ready');
+  else if (mode === 'error') hint.classList.add('update-error');
+}
+
+function hideUpdateToast(): void {
+  if (toastAutoHideTimer !== null) {
+    window.clearTimeout(toastAutoHideTimer);
+    toastAutoHideTimer = null;
+  }
+  if (!updateToastEl.classList.contains('hidden')) {
+    updateToastEl.classList.add('hidden');
+    void invoke('set_update_banner_open', { open: false });
+  }
+}
+
+function showUpdateToast(
+  text: string,
+  options: { showInstall?: boolean; showOpen?: boolean; autoHideMs?: number; busy?: boolean } = {},
+): void {
+  if (toastAutoHideTimer !== null) {
+    window.clearTimeout(toastAutoHideTimer);
+    toastAutoHideTimer = null;
+  }
+  updateToastTextEl.textContent = text;
+  btnToastInstallEl.classList.toggle('hidden', !options.showInstall);
+  btnToastInstallEl.disabled = Boolean(options.busy);
+  btnToastOpenEl.classList.toggle('hidden', !options.showOpen);
+  updateToastEl.classList.remove('hidden');
+  void invoke('set_update_banner_open', { open: true });
+
+  if (options.autoHideMs && options.autoHideMs > 0) {
+    toastAutoHideTimer = window.setTimeout(() => {
+      hideUpdateToast();
+    }, options.autoHideMs);
+  }
+}
+
+function handleUpdateProgressEvent(ev: UpdateProgressEvent, fromManual = false): void {
+  if (ev.info) {
+    latestUpdateInfo = ev.info;
+    appVersion = ev.info.currentVersion || appVersion;
+  }
+
+  switch (ev.stage) {
+    case 'checking':
+      updateBusy = true;
+      setUpdateHint('检测中...');
+      showUpdateToast('🔍 正在检查新版本...', { busy: true });
+      break;
+    case 'available':
+      updateBusy = false;
+      if (latestUpdateInfo?.hasUpdate) {
+        const ver = latestUpdateInfo.latestVersion;
+        setUpdateHint(`⬆ v${ver}`, 'ready');
+        if (fromManual || dismissedVersion !== ver) {
+          showUpdateToast(`✨ 发现新版本 v${ver}`, {
+            showInstall: Boolean(latestUpdateInfo.downloadUrl),
+            showOpen: !latestUpdateInfo.downloadUrl,
+          });
+        }
+      }
+      break;
+    case 'up_to_date':
+      updateBusy = false;
+      setUpdateHint(`✓ v${appVersion}`);
+      showUpdateToast(`✓ 已是最新版本 v${appVersion}`, { autoHideMs: 2600 });
+      break;
+    case 'downloading':
+    case 'verifying':
+    case 'installing':
+      updateBusy = true;
+      setUpdateHint('更新中...', 'ready');
+      showUpdateToast(`⏳ ${ev.message}`, { busy: true });
+      break;
+    case 'error':
+      updateBusy = false;
+      setUpdateHint('检查失败', 'error');
+      showUpdateToast(`⚠ ${ev.message}`, {
+        showOpen: true,
+        autoHideMs: 5200,
+      });
+      break;
+  }
+}
+
+async function triggerInstallUpdate(): Promise<void> {
+  if (updateBusy || !latestUpdateInfo || !latestUpdateInfo.hasUpdate) return;
+  updateBusy = true;
+  closeContextMenu();
+  showUpdateToast(`⏳ 正在下载 v${latestUpdateInfo.latestVersion}...`, { busy: true });
+  setUpdateHint('下载中...', 'ready');
+  try {
+    await invoke('install_update', { info: latestUpdateInfo });
+  } catch (err) {
+    updateBusy = false;
+    const msg = typeof err === 'string' ? err : String(err);
+    setUpdateHint('更新失败', 'error');
+    showUpdateToast(`⚠ ${msg}`, { showOpen: true, autoHideMs: 6500 });
+  }
+}
+
+async function triggerManualUpdateCheck(): Promise<void> {
+  if (updateBusy) return;
+  // If we already know an update is ready, clicking the menu item immediately starts installing it!
+  if (latestUpdateInfo?.hasUpdate && latestUpdateInfo.downloadUrl) {
+    await triggerInstallUpdate();
+    return;
+  }
+  updateBusy = true;
+  setUpdateHint('检测中...');
+  closeContextMenu();
+  showUpdateToast('🔍 正在检查新版本...', { busy: true });
+  try {
+    const info = await invoke<UpdateInfo>('check_for_update');
+    handleUpdateProgressEvent(
+      {
+        stage: info.hasUpdate ? 'available' : 'up_to_date',
+        message: info.hasUpdate
+          ? `发现新版本 v${info.latestVersion}`
+          : `已是最新版本 v${info.currentVersion}`,
+        info,
+      },
+      true,
+    );
+  } catch (err) {
+    const msg = typeof err === 'string' ? err : String(err);
+    handleUpdateProgressEvent({ stage: 'error', message: msg, info: null }, true);
+  }
+}
+
 async function bootstrap(): Promise<void> {
   engine.start();
 
@@ -186,18 +351,46 @@ async function bootstrap(): Promise<void> {
   }
 
   try {
-    const [loadedSettings, loadedCats] = await Promise.all([
+    const [loadedSettings, loadedCats, loadedVer] = await Promise.all([
       invoke<AppSettings>('get_settings'),
       invoke<CatSkinConfig[]>('get_cats'),
+      invoke<string>('get_app_version'),
     ]);
     settings = loadedSettings;
     if (Array.isArray(loadedCats) && loadedCats.length > 0) {
       catList = loadedCats;
     }
+    if (loadedVer) {
+      appVersion = loadedVer;
+      setUpdateHint(`v${appVersion}`);
+    }
     syncMenuUI();
   } catch (err) {
     console.error('Failed to load settings or cats:', err);
   }
+
+  await listen<UpdateProgressEvent>('kuro-update-status', (ev) => {
+    handleUpdateProgressEvent(ev.payload, false);
+  });
+
+  btnToastInstallEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    void triggerInstallUpdate();
+  });
+
+  btnToastOpenEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const url = latestUpdateInfo?.releaseUrl || 'https://github.com/qianyiai/kurocat/releases/latest';
+    void invoke('open_release_page', { url });
+  });
+
+  btnToastCloseEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (latestUpdateInfo?.hasUpdate) {
+      dismissedVersion = latestUpdateInfo.latestVersion;
+    }
+    hideUpdateToast();
+  });
 
   await listen<AppSettings>('kuro-settings', (ev) => {
     settings = ev.payload;
@@ -313,6 +506,9 @@ async function bootstrap(): Promise<void> {
         break;
       case 'desktop-shortcut':
         void createDesktopShortcut();
+        break;
+      case 'check-update':
+        void triggerManualUpdateCheck();
         break;
       case 'reset-pos':
         void invoke('reset_position');

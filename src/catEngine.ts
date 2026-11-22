@@ -117,8 +117,8 @@ export class KuroCatEngine {
   private readonly kbTiltRad = (3.4 * Math.PI) / 180;
 
   // True-scale white oval mouse to the left of keyboard
-  private readonly mouseBaseX = 48;
-  private readonly mouseBaseY = 336;
+  private readonly mouseBaseX = 46;
+  private readonly mouseBaseY = 338;
   private mouseOffsetX = 0;
   private mouseOffsetY = 0;
   private mouseTargetOffsetX = 0;
@@ -126,8 +126,20 @@ export class KuroCatEngine {
   private mouseLeftDown = false;
   private mouseRightDown = false;
   private mouseMiddleDown = false;
+  private mouseLeftPress = 0;
+  private mouseRightPress = 0;
+  private mouseMiddlePress = 0;
   private mouseScrollFlash = 0;
   private lastMouseMoveAt = -10000;
+  private mouseBadges: Array<{
+    id: number;
+    label: string;
+    color: string;
+    x: number;
+    y: number;
+    createdAt: number;
+    lifetime: number;
+  }> = [];
 
   // Cursor & 100% live eye tracking + 2.5D head turn
   private cursorRelX = 0.5;
@@ -396,7 +408,7 @@ export class KuroCatEngine {
 
   public onGlobalMouseMove(nx: number, ny: number): void {
     const now = performance.now();
-    this.mouseTargetOffsetX = (nx - 0.5) * 32;
+    this.mouseTargetOffsetX = (nx - 0.5) * 28;
     this.mouseTargetOffsetY = (ny - 0.5) * 20;
     this.lastMouseMoveAt = now;
 
@@ -404,14 +416,66 @@ export class KuroCatEngine {
     this.leftPaw.lastActiveAt = now;
   }
 
+  private getMouseButtonColors(): { left: string; right: string; middle: string } {
+    const primary = this.customSkin
+      ? this.customSkin.accentColor
+      : this.catBreed === 'ragdoll'
+        ? '#7ac7ff'
+        : '#d4f044';
+    const scroll = this.customSkin
+      ? this.customSkin.accentSideColor
+      : this.catBreed === 'ragdoll'
+        ? '#4690d8'
+        : '#92ba12';
+
+    // Pick a high-contrast complementary color for RMB so Left vs Right click are unmistakable on every skin
+    const isWarmAccent = /^#(f[a-f0-9][89a-c]|ff[789a-c]|e[89a-f][789a])/i.test(primary);
+    const rightColor = isWarmAccent ? '#58c7ff' : '#ff7b3b';
+    return { left: primary, right: rightColor, middle: scroll };
+  }
+
+  private spawnMouseBadge(button: 'left' | 'right' | 'middle', now: number): void {
+    if (!this.showKeyBubbles) return;
+    const colors = this.getMouseButtonColors();
+    const label = button === 'left' ? 'LMB' : button === 'right' ? 'RMB' : 'MMB';
+    const color = button === 'left' ? colors.left : button === 'right' ? colors.right : colors.middle;
+    const mx = this.mouseBaseX + this.mouseOffsetX;
+    const my = this.mouseBaseY + this.mouseOffsetY;
+    const sideShift = button === 'left' ? 10 : button === 'right' ? -10 : 0;
+
+    if (this.mouseBadges.length >= 2) {
+      this.mouseBadges.shift();
+    }
+    this.mouseBadges.push({
+      id: this.nextBubbleId++,
+      label,
+      color,
+      x: Math.max(24, mx + sideShift),
+      y: my - 30,
+      createdAt: now,
+      lifetime: 560,
+    });
+  }
+
   public onMouseDown(button: string): void {
     const now = performance.now();
-    if (button === 'left') this.mouseLeftDown = true;
-    else if (button === 'right') this.mouseRightDown = true;
-    else if (button === 'middle') this.mouseMiddleDown = true;
+    if (button === 'left') {
+      this.mouseLeftDown = true;
+      this.mouseLeftPress = 1;
+      this.spawnMouseBadge('left', now);
+    } else if (button === 'right') {
+      this.mouseRightDown = true;
+      this.mouseRightPress = 1;
+      this.spawnMouseBadge('right', now);
+    } else if (button === 'middle') {
+      this.mouseMiddleDown = true;
+      this.mouseMiddlePress = 1;
+      this.spawnMouseBadge('middle', now);
+    }
 
     this.lastMouseMoveAt = now;
     this.leftPaw.mode = 'mouse';
+    this.leftPaw.impactSquash = 0.72;
     this.leftPaw.lastActiveAt = now;
   }
 
@@ -553,7 +617,17 @@ export class KuroCatEngine {
     const mLerp = 1 - Math.exp(-28 * dt);
     this.mouseOffsetX += (this.mouseTargetOffsetX - this.mouseOffsetX) * mLerp;
     this.mouseOffsetY += (this.mouseTargetOffsetY - this.mouseOffsetY) * mLerp;
+    if (!this.mouseLeftDown && this.mouseLeftPress > 0) {
+      this.mouseLeftPress = Math.max(0, this.mouseLeftPress - dt * 5.8);
+    }
+    if (!this.mouseRightDown && this.mouseRightPress > 0) {
+      this.mouseRightPress = Math.max(0, this.mouseRightPress - dt * 5.8);
+    }
+    if (!this.mouseMiddleDown && this.mouseMiddlePress > 0) {
+      this.mouseMiddlePress = Math.max(0, this.mouseMiddlePress - dt * 5.8);
+    }
     this.mouseScrollFlash = Math.max(0, this.mouseScrollFlash - dt * 4.5);
+    this.mouseBadges = this.mouseBadges.filter((b) => now - b.createdAt < b.lifetime);
 
     while (this.recentKeyTimes.length > 0 && now - this.recentKeyTimes[0] > 950) {
       this.recentKeyTimes.shift();
@@ -676,8 +750,19 @@ export class KuroCatEngine {
     const liveMouseY = this.mouseBaseY + this.mouseOffsetY;
 
     if (paw.mode === 'mouse') {
-      paw.target = { x: liveMouseX + 2, y: liveMouseY - 2 };
-      const stillHolding = this.mouseLeftDown || this.mouseRightDown || now - this.lastMouseMoveAt < 2200;
+      // Rest paw cleanly over the mouse palm heel so both front L/R buttons stay visible,
+      // and shift toward the exact clicked button (180° cat-facing: LMB = inner/+X side, RMB = outer/-X side)!
+      const lrBias = this.mouseLeftPress - this.mouseRightPress;
+      const anyClickPress = Math.max(this.mouseLeftPress, this.mouseRightPress, this.mouseMiddlePress);
+      paw.target = {
+        x: liveMouseX + 1.2 + lrBias * 6.4,
+        y: liveMouseY - 11.5 + anyClickPress * 3.6,
+      };
+      const stillHolding =
+        this.mouseLeftDown ||
+        this.mouseRightDown ||
+        this.mouseMiddleDown ||
+        now - this.lastMouseMoveAt < 2200;
       if (!stillHolding) {
         paw.mode = 'idle';
       }
@@ -770,9 +855,10 @@ export class KuroCatEngine {
     this.drawPaw(ctx, this.leftPaw, breath);
     this.drawPaw(ctx, this.rightPaw, breath);
 
-    // Layer 5: Organic bouncing 3D keycap bubbles
+    // Layer 5: Organic bouncing 3D keycap bubbles & crisp mouse click badges
     if (this.showKeyBubbles) {
       this.drawKeyBubbles(ctx);
+      this.drawMouseBadges(ctx);
     }
 
     ctx.restore();
@@ -1407,52 +1493,133 @@ export class KuroCatEngine {
   private drawMiniMouse(ctx: CanvasRenderingContext2D): void {
     const mx = this.mouseBaseX + this.mouseOffsetX;
     const my = this.mouseBaseY + this.mouseOffsetY;
-    const rx = 16.5;
-    const ry = 20.5;
-    const clicked = this.mouseLeftDown || this.mouseRightDown || this.mouseMiddleDown;
+    const rx = 18.5;
+    const ry = 23.0;
+    const lPress = this.mouseLeftPress;
+    const rPress = this.mouseRightPress;
+    const mPress = Math.max(this.mouseMiddlePress, this.mouseScrollFlash);
+    const colors = this.getMouseButtonColors();
 
     ctx.save();
     ctx.translate(mx, my);
     ctx.rotate(-0.06);
 
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.24)';
-    ctx.shadowBlur = 6;
-    ctx.shadowOffsetY = 3;
+    // Soft 3D base rim / drop shadow
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.28)';
+    ctx.shadowBlur = 7;
+    ctx.shadowOffsetY = 3.5;
+    ctx.fillStyle = '#c8cac4';
+    ctx.beginPath();
+    ctx.ellipse(0, 1.8, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
 
-    const activeColor = this.customSkin
-      ? this.customSkin.accentColor
-      : this.catBreed === 'ragdoll'
-        ? '#7ac7ff'
-        : '#d4f044';
-    const scrollColor = this.customSkin
-      ? this.customSkin.accentSideColor
-      : this.catBreed === 'ragdoll'
-        ? '#4690d8'
-        : '#92ba12';
-
-    ctx.fillStyle = clicked ? activeColor : '#f0f0ec';
-    ctx.strokeStyle = '#303136';
-    ctx.lineWidth = 1.4;
+    // Main mouse palm shell (rear/palm at TOP closest to cat; split L/R buttons at BOTTOM pointing away from cat)
+    const palmGrad = ctx.createLinearGradient(0, -ry, 0, 2);
+    palmGrad.addColorStop(0.0, '#ecece7');
+    palmGrad.addColorStop(1.0, '#f4f4f0');
+    ctx.fillStyle = palmGrad;
     ctx.beginPath();
     ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.stroke();
 
-    // Mouse faces the cat (180° orientation): palm back at TOP closest to cat, L/R click buttons & scroll wheel at BOTTOM pointing away from cat!
-    ctx.strokeStyle = clicked ? 'rgba(30, 34, 42, 0.36)' : 'rgba(90, 94, 104, 0.34)';
-    ctx.lineWidth = 1.05;
+    // Clip inside mouse silhouette to render strictly separated Left / Right front button plates!
+    ctx.save();
     ctx.beginPath();
-    ctx.moveTo(-rx + 1.8, 1.5);
-    ctx.quadraticCurveTo(0, 3.2, rx - 1.8, 1.5);
-    ctx.moveTo(0, 2.5);
-    ctx.lineTo(0, ry - 1.0);
+    ctx.ellipse(0, 0, rx - 0.5, ry - 0.5, 0, 0, Math.PI * 2);
+    ctx.clip();
+
+    // Mouse faces the cat (180° orientation):
+    // Cat's right hand sits on this mouse -> index finger (Left Click / LMB) is INNER side (+X, toward keyboard),
+    // middle finger (Right Click / RMB) is OUTER side (-X, away from keyboard).
+    const traceSeam = () => {
+      ctx.moveTo(-rx - 2, -0.8);
+      ctx.quadraticCurveTo(0, 1.8, rx + 2, -0.8);
+    };
+
+    // 1) Left Mouse Button plate (+X half, below seam)
+    ctx.beginPath();
+    ctx.moveTo(0, 0.5);
+    ctx.quadraticCurveTo(rx * 0.52, 0.4, rx + 2, -0.8);
+    ctx.lineTo(rx + 2, ry + 2);
+    ctx.lineTo(0, ry + 2);
+    ctx.closePath();
+    ctx.fillStyle = lPress > 0.08 ? colors.left : '#fafaf7';
+    ctx.fill();
+    if (lPress > 0.08) {
+      // Depressed 3D inner shadow along upper/center seam when LMB is pressed
+      ctx.fillStyle = `rgba(18, 22, 28, ${(0.18 * lPress).toFixed(3)})`;
+      ctx.fillRect(0, -1, rx + 2, 3.8);
+      ctx.fillRect(0, -1, 2.2, ry + 2);
+    }
+
+    // 2) Right Mouse Button plate (-X half, below seam)
+    ctx.beginPath();
+    ctx.moveTo(-rx - 2, -0.8);
+    ctx.quadraticCurveTo(-rx * 0.52, 0.4, 0, 0.5);
+    ctx.lineTo(0, ry + 2);
+    ctx.lineTo(-rx - 2, ry + 2);
+    ctx.closePath();
+    ctx.fillStyle = rPress > 0.08 ? colors.right : '#fafaf7';
+    ctx.fill();
+    if (rPress > 0.08) {
+      // Depressed 3D inner shadow along upper/center seam when RMB is pressed
+      ctx.fillStyle = `rgba(18, 22, 28, ${(0.18 * rPress).toFixed(3)})`;
+      ctx.fillRect(-rx - 2, -1, rx + 2, 3.8);
+      ctx.fillRect(-2.2, -1, 2.2, ry + 2);
+    }
+
+    // Subtle crisp L / R button legends placed cleanly in the lower unobstructed front tips of each button plate!
+    ctx.font = '800 7.6px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // L on inner (+X) button
+    ctx.fillStyle = lPress > 0.12 ? '#14161a' : 'rgba(72, 76, 86, 0.56)';
+    ctx.fillText('L', 7.4, 14.0 + lPress * 0.9);
+    // R on outer (-X) button
+    ctx.fillStyle = rPress > 0.12 ? '#ffffff' : 'rgba(72, 76, 86, 0.56)';
+    ctx.fillText('R', -7.4, 14.0 + rPress * 0.9);
+
+    // Crisp horizontal palm-to-button seam & vertical center L/R split line
+    ctx.strokeStyle = 'rgba(42, 45, 52, 0.56)';
+    ctx.lineWidth = 1.25;
+    ctx.beginPath();
+    traceSeam();
     ctx.stroke();
 
-    // Scroll wheel positioned in lower-front half pointing away from the cat
-    ctx.fillStyle = this.mouseScrollFlash > 0.2 ? scrollColor : '#5e6066';
-    this.roundRect(ctx, -1.8, 5.2, 3.6, 7.5, 1.8);
+    ctx.strokeStyle = 'rgba(42, 45, 52, 0.66)';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.moveTo(0, 0.6);
+    ctx.lineTo(0, ry + 1);
+    ctx.stroke();
+
+    // Recessed scroll wheel housing + interactive wheel (middle click & scroll glow)
+    ctx.fillStyle = '#2d2f36';
+    this.roundRect(ctx, -2.5, 4.2, 5.0, 9.4, 2.5);
     ctx.fill();
+
+    ctx.fillStyle = mPress > 0.12 ? colors.middle : '#6b6f78';
+    this.roundRect(ctx, -1.7, 5.0 + this.mouseMiddlePress * 0.8, 3.4, 7.6, 1.7);
+    ctx.fill();
+
+    // Crisp wheel tread notch
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(-1.0, 8.8 + this.mouseMiddlePress * 0.8);
+    ctx.lineTo(1.0, 8.8 + this.mouseMiddlePress * 0.8);
+    ctx.stroke();
+
+    ctx.restore(); // end mouse clip
+
+    // Crisp outer silhouette stroke
+    ctx.strokeStyle = '#2b2d34';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.stroke();
 
     ctx.restore();
   }
@@ -1927,7 +2094,11 @@ export class KuroCatEngine {
     if (activeArmWeight > 0.05) {
       const sh = this.getLiveShoulder(paw, breath);
       const px = paw.pos.x;
-      const py = paw.pos.y + (paw.mode === 'mouse' && (this.mouseLeftDown || this.mouseRightDown) ? 2.5 : 0);
+      const mouseClickDrop =
+        paw.mode === 'mouse'
+          ? Math.max(this.mouseLeftPress, this.mouseRightPress, this.mouseMiddlePress) * 1.8
+          : 0;
+      const py = paw.pos.y + mouseClickDrop;
 
       ctx.save();
       ctx.globalAlpha = Math.min(1, activeArmWeight * 1.2);
@@ -2012,7 +2183,55 @@ export class KuroCatEngine {
     }
   }
 
-  // ---- Data-driven custom MCP cat skin renderer (supports solid / bicolor / tuxedo / tabby / calico / siamese + arbitrary spots!) ----
+  private drawMouseBadges(ctx: CanvasRenderingContext2D): void {
+    const now = performance.now();
+    for (let i = 0; i < this.mouseBadges.length; i++) {
+      const b = this.mouseBadges[i];
+      const t = Math.min(1, (now - b.createdAt) / b.lifetime);
+      let scale = 1;
+      if (t < 0.14) {
+        scale = 0.65 + Math.sin((t / 0.14) * Math.PI * 0.65) * 0.42;
+      } else if (t > 0.72) {
+        scale = 1 - ((t - 0.72) / 0.28) * 0.12;
+      }
+      const alpha = t < 0.68 ? 1 : Math.max(0, 1 - (t - 0.68) / 0.32);
+      const liftY = t * 14 + (this.mouseBadges.length - 1 - i) * 18;
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(b.x, b.y - liftY);
+      ctx.scale(scale, scale);
+
+      const boxW = 34;
+      const boxH = 19;
+      const bx = -boxW / 2;
+      const by = -boxH / 2;
+
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.24)';
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetY = 1.5;
+
+      ctx.fillStyle = '#22242a';
+      this.roundRect(ctx, bx, by + 1.6, boxW, boxH, 5);
+      ctx.fill();
+
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = b.color;
+      ctx.strokeStyle = 'rgba(20, 22, 28, 0.45)';
+      ctx.lineWidth = 1.0;
+      this.roundRect(ctx, bx, by, boxW, boxH - 1.0, 5);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.font = '800 9.5px "Segoe UI", system-ui, sans-serif';
+      ctx.fillStyle = b.label === 'RMB' && b.color === '#ff7b3b' ? '#ffffff' : '#14161a';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(b.label, 0, -0.3);
+
+      ctx.restore();
+    }
+  }
 
   private drawCustomCatBody(
     ctx: CanvasRenderingContext2D,

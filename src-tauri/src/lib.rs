@@ -5,6 +5,7 @@ mod config;
 mod input_hook;
 mod mcp;
 mod tray;
+mod updater;
 
 use cats::{all_cats, cat_exists, cats_path, sanitize_cat_id, CatSkinConfig};
 use config::{config_path, load_settings, save_settings, set_windows_autostart, AppSettings};
@@ -26,6 +27,7 @@ pub struct AppState {
     pub menu_open: Arc<AtomicBool>,
     pub dragging: Arc<AtomicBool>,
     pub mcp_enabled: Arc<AtomicBool>,
+    pub update_banner_open: Arc<AtomicBool>,
 }
 
 #[derive(Clone, Serialize)]
@@ -109,6 +111,35 @@ fn set_menu_open(state: State<'_, AppState>, open: bool) {
 #[tauri::command]
 fn set_dragging(state: State<'_, AppState>, dragging: bool) {
     state.dragging.store(dragging, Ordering::Relaxed);
+}
+
+#[tauri::command]
+fn set_update_banner_open(state: State<'_, AppState>, open: bool) {
+    state.update_banner_open.store(open, Ordering::Relaxed);
+}
+
+#[tauri::command]
+fn get_app_version() -> String {
+    updater::CURRENT_VERSION.to_string()
+}
+
+#[tauri::command]
+async fn check_for_update() -> Result<updater::UpdateInfo, String> {
+    tauri::async_runtime::spawn_blocking(updater::check_latest_update)
+        .await
+        .map_err(|e| format!("检查更新任务异常: {}", e))?
+}
+
+#[tauri::command]
+async fn install_update(app: AppHandle, info: updater::UpdateInfo) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || updater::perform_update_install(&app, info))
+        .await
+        .map_err(|e| format!("安装更新任务异常: {}", e))?
+}
+
+#[tauri::command]
+fn open_release_page(url: String) {
+    updater::open_url_in_browser(&url);
 }
 
 #[tauri::command]
@@ -314,6 +345,7 @@ fn start_hit_test_loop(
     settings: Arc<Mutex<AppSettings>>,
     menu_open: Arc<AtomicBool>,
     dragging: Arc<AtomicBool>,
+    update_banner_open: Arc<AtomicBool>,
 ) {
     std::thread::spawn(move || {
         let mut last_ignore: Option<bool> = None;
@@ -352,8 +384,10 @@ fn start_hit_test_loop(
             let locked = settings.lock().unwrap().click_through_locked;
             let is_menu = menu_open.load(Ordering::Relaxed);
             let is_drag = dragging.load(Ordering::Relaxed);
+            let is_banner = update_banner_open.load(Ordering::Relaxed);
+            let over_banner = is_banner && inside && ry <= 0.19;
 
-            let should_ignore = if is_menu || is_drag {
+            let should_ignore = if is_menu || is_drag || over_banner {
                 false
             } else if locked {
                 true
@@ -389,11 +423,13 @@ pub fn run() {
     let menu_open = Arc::new(AtomicBool::new(false));
     let dragging = Arc::new(AtomicBool::new(false));
     let mcp_enabled = Arc::new(AtomicBool::new(initial_settings.mcp_enabled));
+    let update_banner_open = Arc::new(AtomicBool::new(false));
 
     let settings_for_setup = settings_arc.clone();
     let menu_for_setup = menu_open.clone();
     let drag_for_setup = dragging.clone();
     let mcp_for_setup = mcp_enabled.clone();
+    let banner_for_setup = update_banner_open.clone();
 
     tauri::Builder::default()
         .manage(AppState {
@@ -401,6 +437,7 @@ pub fn run() {
             menu_open,
             dragging,
             mcp_enabled,
+            update_banner_open,
         })
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -433,8 +470,15 @@ pub fn run() {
 
             tray::setup_tray(&handle, &s)?;
             input_hook::start_global_hooks(handle.clone());
-            start_hit_test_loop(handle.clone(), settings_for_setup, menu_for_setup, drag_for_setup);
+            start_hit_test_loop(
+                handle.clone(),
+                settings_for_setup,
+                menu_for_setup,
+                drag_for_setup,
+                banner_for_setup,
+            );
             start_storage_watcher(handle.clone());
+            updater::start_background_update_checker(handle.clone());
 
             let http_handle = handle.clone();
             let mcp_port = if s.mcp_port == 0 { 27420 } else { s.mcp_port };
@@ -479,12 +523,17 @@ pub fn run() {
             get_settings,
             get_cats,
             get_mcp_config,
+            get_app_version,
             update_settings,
             set_menu_open,
             set_dragging,
+            set_update_banner_open,
             save_window_pos,
             reset_position,
             create_desktop_shortcut,
+            check_for_update,
+            install_update,
+            open_release_page,
             quit_app,
         ])
         .run(tauri::generate_context!())

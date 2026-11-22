@@ -91,6 +91,13 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
     #[cfg(windows)]
     let desktop_shortcut =
         MenuItem::with_id(app, "desktop_shortcut", "创建桌面快捷方式 (KuroCat)", true, None::<&str>)?;
+    let check_update = MenuItem::with_id(
+        app,
+        "check_update",
+        format!("检查更新 (v{})", crate::updater::CURRENT_VERSION),
+        true,
+        None::<&str>,
+    )?;
     let quit = MenuItem::with_id(app, "quit", "退出 KuroCat", true, None::<&str>)?;
 
     let sep1 = PredefinedMenuItem::separator(app)?;
@@ -112,6 +119,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
             &reset_pos,
             &autostart,
             &mcp_toggle,
+            &check_update,
             &sep2,
             &quit,
         ],
@@ -132,6 +140,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
             &reset_pos,
             &autostart,
             &mcp_toggle,
+            &check_update,
             &sep2,
             &quit,
         ],
@@ -241,6 +250,47 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                 "scale_150" => apply_scale_and_save(app, 1.5),
                 "desktop_shortcut" => {
                     let _ = crate::config::create_desktop_shortcut();
+                }
+                "check_update" => {
+                    let app_clone = app.clone();
+                    if let Some(win) = app.get_webview_window("main") {
+                        let _ = win.show();
+                    }
+                    let _ = app_clone.emit(
+                        "kuro-update-status",
+                        crate::updater::UpdateProgressEvent {
+                            stage: "checking".to_string(),
+                            message: "正在检查新版本...".to_string(),
+                            info: None,
+                        },
+                    );
+                    std::thread::spawn(move || match crate::updater::check_latest_update() {
+                        Ok(info) => {
+                            let (stage, msg) = if info.has_update {
+                                ("available", format!("发现新版本 v{}", info.latest_version))
+                            } else {
+                                ("up_to_date", format!("已是最新版本 v{}", info.current_version))
+                            };
+                            let _ = app_clone.emit(
+                                "kuro-update-status",
+                                crate::updater::UpdateProgressEvent {
+                                    stage: stage.to_string(),
+                                    message: msg,
+                                    info: Some(info),
+                                },
+                            );
+                        }
+                        Err(err) => {
+                            let _ = app_clone.emit(
+                                "kuro-update-status",
+                                crate::updater::UpdateProgressEvent {
+                                    stage: "error".to_string(),
+                                    message: err,
+                                    info: None,
+                                },
+                            );
+                        }
+                    });
                 }
                 "reset_pos" => reset_window_position(app),
                 "quit" => {
