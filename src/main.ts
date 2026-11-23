@@ -68,6 +68,7 @@ let toastAutoHideTimer: number | null = null;
 let sliderDragging = false;
 let altOverride = false;
 let lastKnownLockState: boolean | null = null;
+let syncWin7OverlayFn: ((focusMenu?: boolean) => void) | null = null;
 
 let settings: AppSettings = {
   x: null,
@@ -177,6 +178,7 @@ function closeContextMenu(): void {
   if (!menuEl.classList.contains('hidden')) {
     menuEl.classList.add('hidden');
     void invoke('set_menu_open', { open: false });
+    syncWin7OverlayFn?.(false);
   }
 }
 
@@ -190,6 +192,7 @@ function openContextMenu(clientX: number, clientY: number): void {
   const maxY = Math.max(8, window.innerHeight - rect.height - 8);
   menuEl.style.left = `${Math.max(8, Math.min(clientX, maxX))}px`;
   menuEl.style.top = `${Math.max(8, Math.min(clientY, maxY))}px`;
+  syncWin7OverlayFn?.(true);
 }
 
 async function applySettingsPatch(patch: Partial<AppSettings>): Promise<void> {
@@ -262,6 +265,7 @@ function hideUpdateToast(): void {
   if (!updateToastEl.classList.contains('hidden')) {
     updateToastEl.classList.add('hidden');
     void invoke('set_update_banner_open', { open: false });
+    syncWin7OverlayFn?.(false);
   }
 }
 
@@ -279,6 +283,7 @@ function showUpdateToast(
   btnToastOpenEl.classList.toggle('hidden', !options.showOpen);
   updateToastEl.classList.remove('hidden');
   void invoke('set_update_banner_open', { open: true });
+  requestAnimationFrame(() => syncWin7OverlayFn?.(false));
 
   if (options.autoHideMs && options.autoHideMs > 0) {
     toastAutoHideTimer = window.setTimeout(() => {
@@ -628,159 +633,115 @@ async function bootstrap(): Promise<void> {
   });
 
   // On Windows 7/8 (where Microsoft WebView2 does not support DirectComposition alpha),
-  // dynamically clip the Win32 window region (SetWindowRgn) to the exact live opaque pixel
-  // silhouette of the pet + keyboard + mouse + active DOM overlays so there is zero white box.
+  // stream the live 2D Canvas RGBA pixels via zero-copy binary IPC to a native Win32
+  // UpdateLayeredWindow(ULW_ALPHA) presenter window for true 256-level per-pixel anti-aliased
+  // transparency (zero white box, zero jagged edges) on both Aero and Win7 Basic desktops.
   try {
-    const useWin7Mask = await invoke<boolean>('is_win7_region_mask_mode');
-    if (useWin7Mask) {
-      document.documentElement.classList.add('win7-mask-mode');
-      const maskCanvas = document.createElement('canvas');
-      const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
-      let lastHash = '';
-      let maskBusy = false;
+    const useWin7Ulw = await invoke<boolean>('is_win7_ulw_mode');
+    if (useWin7Ulw) {
+      document.documentElement.classList.add('win7-ulw-mode');
+      const petCtx = canvas.getContext('2d');
+      let win7Visible = true;
+      let frameBusy = false;
+      let lastPresentMs = 0;
+      let lastFrameKey = '';
+      let lastOverlayKey = '';
 
-      const syncWin7Region = () => {
-        if (maskBusy || !maskCtx) return;
-        const winW = window.innerWidth;
-        const winH = window.innerHeight;
-        if (winW < 10 || winH < 10 || canvas.width < 10 || canvas.height < 10) return;
+      const syncWin7Overlay = (focusMenu = false) => {
+        const dpr = Math.max(window.devicePixelRatio || 1, 1);
+        const physW = Math.max(1, Math.round(window.innerWidth * dpr));
+        const physH = Math.max(1, Math.round(window.innerHeight * dpr));
+        const rects: number[] = [];
 
-        const dpr = window.devicePixelRatio || 1;
-        const physW = Math.max(1, Math.round(winW * dpr));
-        const physH = Math.max(1, Math.round(winH * dpr));
-        // Full 1:1 physical-pixel silhouette sampling (capped only at extreme 4K HiDPI)
-        // so ears, tail, keyboard, and mouse edges are 1-pixel razor-sharp with zero mosaic staircasing.
-        const down = Math.max(1, Math.ceil(Math.max(physW, physH) / 960));
-        const mw = Math.max(1, Math.round(physW / down));
-        const mh = Math.max(1, Math.round(physH / down));
-        if (maskCanvas.width !== mw || maskCanvas.height !== mh) {
-          maskCanvas.width = mw;
-          maskCanvas.height = mh;
-        }
-
-        maskCtx.clearRect(0, 0, mw, mh);
-        maskCtx.drawImage(canvas, 0, 0, mw, mh);
-        const imgData = maskCtx.getImageData(0, 0, mw, mh).data;
-
-        const sx = physW / mw;
-        const sy = physH / mh;
-
-        // Build Y-X sorted non-overlapping horizontal spans for Win32 ExtCreateRegion
-        const canvasRects: number[] = [];
-        let prevRowSpans: number[] = [];
-        let prevY0 = 0;
-        let prevY1 = 0;
-
-        for (let y = 0; y < mh; y++) {
-          const rowOff = y * mw * 4;
-          const rowSpans: number[] = [];
-          let runStart = -1;
-          for (let x = 0; x < mw; x++) {
-            const a = imgData[rowOff + x * 4 + 3];
-            if (a >= 85) {
-              if (runStart === -1) runStart = x;
-            } else if (runStart !== -1) {
-              const px0 = down === 1 ? runStart : Math.max(0, Math.round(runStart * sx));
-              const px1 = down === 1 ? x : Math.min(physW, Math.round(x * sx));
-              if (px1 > px0) {
-                if (rowSpans.length > 0 && px0 <= rowSpans[rowSpans.length - 1]) {
-                  rowSpans[rowSpans.length - 1] = Math.max(rowSpans[rowSpans.length - 1], px1);
-                } else {
-                  rowSpans.push(px0, px1);
-                }
-              }
-              runStart = -1;
-            }
-          }
-          if (runStart !== -1) {
-            const px0 = down === 1 ? runStart : Math.max(0, Math.round(runStart * sx));
-            const px1 = down === 1 ? mw : Math.min(physW, Math.round(mw * sx));
-            if (px1 > px0) {
-              if (rowSpans.length > 0 && px0 <= rowSpans[rowSpans.length - 1]) {
-                rowSpans[rowSpans.length - 1] = Math.max(rowSpans[rowSpans.length - 1], px1);
-              } else {
-                rowSpans.push(px0, px1);
-              }
-            }
-          }
-
-          const py0 = down === 1 ? y : Math.round(y * sy);
-          const py1 = down === 1 ? y + 1 : Math.min(physH, Math.round((y + 1) * sy));
-          if (py1 <= py0) continue;
-
-          // Merge adjacent rows with identical horizontal spans to minimize RECT count
-          let sameAsPrev =
-            prevRowSpans.length > 0 &&
-            prevRowSpans.length === rowSpans.length &&
-            py0 === prevY1;
-          if (sameAsPrev) {
-            for (let i = 0; i < rowSpans.length; i++) {
-              if (prevRowSpans[i] !== rowSpans[i]) {
-                sameAsPrev = false;
-                break;
-              }
-            }
-          }
-
-          if (sameAsPrev) {
-            prevY1 = py1;
-          } else {
-            if (prevRowSpans.length > 0) {
-              for (let i = 0; i < prevRowSpans.length; i += 2) {
-                canvasRects.push(prevRowSpans[i], prevY0, prevRowSpans[i + 1], prevY1);
-              }
-            }
-            prevRowSpans = rowSpans;
-            prevY0 = py0;
-            prevY1 = py1;
+        if (menuEl && !menuEl.classList.contains('hidden')) {
+          const r = menuEl.getBoundingClientRect();
+          if (r.width > 2 && r.height > 2) {
+            rects.push(
+              Math.max(0, Math.floor(r.left * dpr)),
+              Math.max(0, Math.floor(r.top * dpr)),
+              Math.min(physW, Math.ceil(r.right * dpr)),
+              Math.min(physH, Math.ceil(r.bottom * dpr)),
+              Math.round(12 * dpr),
+            );
           }
         }
-        if (prevRowSpans.length > 0) {
-          for (let i = 0; i < prevRowSpans.length; i += 2) {
-            canvasRects.push(prevRowSpans[i], prevY0, prevRowSpans[i + 1], prevY1);
+        if (updateToastEl && !updateToastEl.classList.contains('hidden')) {
+          const r = updateToastEl.getBoundingClientRect();
+          if (r.width > 2 && r.height > 2) {
+            const top = Math.max(0, Math.floor(r.top * dpr));
+            const bot = Math.min(physH, Math.ceil(r.bottom * dpr));
+            rects.push(
+              Math.max(0, Math.floor(r.left * dpr)),
+              top,
+              Math.min(physW, Math.ceil(r.right * dpr)),
+              bot,
+              Math.max(8, Math.round((bot - top) / 2)),
+            );
           }
         }
 
-        const overlayRects: number[] = [];
-        for (const el of [menuEl, updateToastEl]) {
-          if (el && !el.classList.contains('hidden')) {
-            const r = el.getBoundingClientRect();
-            if (r.width > 2 && r.height > 2) {
-              overlayRects.push(
-                Math.max(0, Math.floor(r.left * dpr)),
-                Math.max(0, Math.floor(r.top * dpr)),
-                Math.min(physW, Math.ceil(r.right * dpr)),
-                Math.min(physH, Math.ceil(r.bottom * dpr)),
-              );
-            }
-          }
-        }
+        const key = rects.join(',');
+        if (!focusMenu && key === lastOverlayKey) return;
+        lastOverlayKey = key;
+        void invoke('win7_sync_overlay', { rects, focusMenu });
+      };
+      syncWin7OverlayFn = syncWin7Overlay;
 
-        if (canvasRects.length === 0 && overlayRects.length === 0) return;
-
-        // Fast FNV-1a hash so idle frames trigger ZERO IPC / SetWindowRgn calls
-        let h = 2166136261 >>> 0;
-        h = Math.imul(h ^ canvasRects.length, 16777619) >>> 0;
-        for (let i = 0; i < canvasRects.length; i++) {
-          h = Math.imul(h ^ (canvasRects[i] & 0xffff), 16777619) >>> 0;
+      await listen<{ x: number; y: number }>('kuro-win7-contextmenu', (ev) => {
+        openContextMenu(ev.payload.x, ev.payload.y);
+      });
+      await listen('kuro-win7-close-menu', () => {
+        closeContextMenu();
+      });
+      await listen<boolean>('kuro-win7-visibility', (ev) => {
+        win7Visible = Boolean(ev.payload);
+        if (win7Visible) {
+          lastFrameKey = '';
         }
-        h = Math.imul(h ^ (overlayRects.length << 16), 16777619) >>> 0;
-        for (let i = 0; i < overlayRects.length; i++) {
-          h = Math.imul(h ^ (overlayRects[i] & 0xffff), 16777619) >>> 0;
-        }
-        const key = `${h}:${canvasRects.length}:${overlayRects.length}`;
-        if (key === lastHash) return;
-        lastHash = key;
+      });
 
-        maskBusy = true;
-        void invoke('set_win7_window_region', { canvasRects, overlayRects }).finally(() => {
-          maskBusy = false;
+      const presentWin7Frame = () => {
+        if (!win7Visible || frameBusy || !petCtx) return;
+        const now = performance.now();
+        if (now - lastPresentMs < 28) return;
+        const w = canvas.width;
+        const h = canvas.height;
+        if (w < 8 || h < 8) return;
+
+        const imgData = petCtx.getImageData(0, 0, w, h);
+        const u32 = new Uint32Array(
+          imgData.data.buffer,
+          imgData.data.byteOffset,
+          imgData.data.byteLength >>> 2,
+        );
+        let hash = 2166136261 >>> 0;
+        hash = Math.imul(hash ^ w, 16777619) >>> 0;
+        hash = Math.imul(hash ^ h, 16777619) >>> 0;
+        for (let i = 0; i < u32.length; i++) {
+          hash = Math.imul(hash ^ u32[i], 16777619) >>> 0;
+        }
+        const key = `${w}x${h}:${hash}`;
+        if (key === lastFrameKey) return;
+
+        lastFrameKey = key;
+        lastPresentMs = now;
+        frameBusy = true;
+        const payload = new Uint8Array(
+          imgData.data.buffer,
+          imgData.data.byteOffset,
+          imgData.data.byteLength,
+        );
+        void invoke('win7_present_frame', payload, {
+          headers: { 'x-w': String(w), 'x-h': String(h) },
+        }).finally(() => {
+          frameBusy = false;
         });
       };
 
-      // Initial clip right after first draw + smooth 30Hz 1:1 silhouette sync (0 IPC when idle)
-      setTimeout(syncWin7Region, 80);
-      setInterval(syncWin7Region, 33);
+      engine.onAfterRender = presentWin7Frame;
+      // Kick initial presentation immediately & keep overlay bounds in sync if toast/menu resizes
+      setTimeout(presentWin7Frame, 30);
+      setInterval(() => syncWin7Overlay(false), 200);
     }
   } catch {
     // Non-Win7 or unsupported: keep native transparency untouched

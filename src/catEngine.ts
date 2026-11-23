@@ -91,6 +91,7 @@ export class KuroCatEngine {
 
   public showKeyBubbles = true;
   public privacyMode = false;
+  public onAfterRender: (() => void) | null = null;
   public catBreed: CatBreed = 'black';
   public customSkin: ResolvedSkin | null = null;
   public keyboardLayout: KeyboardLayoutId = '65';
@@ -377,6 +378,9 @@ export class KuroCatEngine {
       this.lastTime = now;
       this.update(dt, now);
       this.render();
+      if (this.onAfterRender) {
+        this.onAfterRender();
+      }
       this.rafId = requestAnimationFrame(tick);
     };
     this.rafId = requestAnimationFrame(tick);

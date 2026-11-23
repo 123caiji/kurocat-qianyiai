@@ -1,7 +1,8 @@
 use crate::config::AppSettings;
 use crate::{
     apply_breed_and_save, apply_keyboard_layout_and_save, apply_keyboard_orientation_and_save,
-    apply_scale_and_save, reset_window_position, AppState,
+    apply_scale_and_save, is_pet_visible, reset_window_position, set_pet_always_on_top,
+    set_pet_visible, shutdown_pet_windows, AppState,
 };
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
@@ -294,7 +295,6 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
             {
                 let app = tray.app_handle();
                 let state = app.state::<AppState>();
-                let on_top = state.settings.lock().unwrap().always_on_top;
                 if state.paused_guard.load(std::sync::atomic::Ordering::SeqCst) {
                     state
                         .paused_guard
@@ -302,23 +302,10 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                     crate::input_hook::set_hooks_paused(false);
                     let _ = pause_guard_for_click.set_checked(false);
                     let _ = tray.set_tooltip(Some(default_tray_tooltip()));
-                    if let Some(win) = app.get_webview_window("main") {
-                        let _ = win.show();
-                        #[cfg(windows)]
-                        if on_top {
-                            crate::win_gentle_reassert_topmost(&win);
-                        }
-                    }
-                } else if let Some(win) = app.get_webview_window("main") {
-                    if win.is_visible().unwrap_or(true) {
-                        let _ = win.hide();
-                    } else {
-                        let _ = win.show();
-                        #[cfg(windows)]
-                        if on_top {
-                            crate::win_gentle_reassert_topmost(&win);
-                        }
-                    }
+                    set_pet_visible(app, true);
+                } else {
+                    let vis = is_pet_visible(app);
+                    set_pet_visible(app, !vis);
                 }
             }
         })
@@ -326,7 +313,6 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
             let state = app.state::<AppState>();
             match event.id().as_ref() {
                 "toggle_show" => {
-                    let on_top = state.settings.lock().unwrap().always_on_top;
                     if state.paused_guard.load(std::sync::atomic::Ordering::SeqCst) {
                         state
                             .paused_guard
@@ -336,23 +322,10 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                         if let Some(tray) = app.tray_by_id("kuro-tray") {
                             let _ = tray.set_tooltip(Some(default_tray_tooltip()));
                         }
-                        if let Some(win) = app.get_webview_window("main") {
-                            let _ = win.show();
-                            #[cfg(windows)]
-                            if on_top {
-                                crate::win_gentle_reassert_topmost(&win);
-                            }
-                        }
-                    } else if let Some(win) = app.get_webview_window("main") {
-                        if win.is_visible().unwrap_or(true) {
-                            let _ = win.hide();
-                        } else {
-                            let _ = win.show();
-                            #[cfg(windows)]
-                            if on_top {
-                                crate::win_gentle_reassert_topmost(&win);
-                            }
-                        }
+                        set_pet_visible(app, true);
+                    } else {
+                        let vis = is_pet_visible(app);
+                        set_pet_visible(app, !vis);
                     }
                 }
                 "pause_guard" => {
@@ -372,17 +345,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                         };
                         let _ = tray.set_tooltip(Some(tip));
                     }
-                    if let Some(win) = app.get_webview_window("main") {
-                        if next {
-                            let _ = win.hide();
-                        } else {
-                            let _ = win.show();
-                            #[cfg(windows)]
-                            if state.settings.lock().unwrap().always_on_top {
-                                crate::win_gentle_reassert_topmost(&win);
-                            }
-                        }
-                    }
+                    set_pet_visible(app, !next);
                 }
                 #[cfg(windows)]
                 "restart_as_admin" => {
@@ -423,17 +386,16 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                     let _ = app.emit("kuro-settings", s.clone());
                 }
                 "always_on_top" => {
-                    let mut s = state.settings.lock().unwrap();
-                    s.always_on_top = !s.always_on_top;
-                    let on_top = s.always_on_top;
-                    crate::config::save_settings(&s);
+                    let (on_top, updated) = {
+                        let mut s = state.settings.lock().unwrap();
+                        s.always_on_top = !s.always_on_top;
+                        let on_top = s.always_on_top;
+                        crate::config::save_settings(&s);
+                        (on_top, s.clone())
+                    };
                     let _ = always_on_top.set_checked(on_top);
-                    if let Some(win) = app.get_webview_window("main") {
-                        let _ = win.set_always_on_top(on_top);
-                        #[cfg(target_os = "macos")]
-                        crate::configure_macos_fullscreen_overlay(&win, on_top);
-                    }
-                    let _ = app.emit("kuro-settings", s.clone());
+                    set_pet_always_on_top(app, on_top);
+                    let _ = app.emit("kuro-settings", updated);
                 }
                 "autostart" => {
                     let mut s = state.settings.lock().unwrap();
@@ -494,9 +456,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                 }
                 "check_update" => {
                     let app_clone = app.clone();
-                    if let Some(win) = app.get_webview_window("main") {
-                        let _ = win.show();
-                    }
+                    set_pet_visible(app, true);
                     let _ = app_clone.emit(
                         "kuro-update-status",
                         crate::updater::UpdateProgressEvent {
@@ -535,6 +495,7 @@ pub fn setup_tray(app: &AppHandle, initial: &AppSettings) -> tauri::Result<()> {
                 }
                 "reset_pos" => reset_window_position(app),
                 "quit" => {
+                    shutdown_pet_windows();
                     app.exit(0);
                 }
                 _ => {}

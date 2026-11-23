@@ -7,6 +7,11 @@ mod mcp;
 mod privacy;
 mod tray;
 mod updater;
+#[cfg(windows)]
+mod win7_layered;
+
+#[cfg(windows)]
+const WIN7_OFFSCREEN_PARK_POS: i32 = -16000;
 
 use cats::{all_cats, cat_exists, cats_path, sanitize_cat_id, CatSkinConfig};
 use config::{
@@ -49,10 +54,35 @@ fn resize_window_anchored_bottom_right(
     scale: f64,
 ) -> Option<(i32, i32)> {
     let (new_w, new_h) = window_dimensions(layout, scale);
-    let old_pos = win.outer_position().ok();
-    let old_size = win.outer_size().ok();
     let sf = win.scale_factor().unwrap_or(1.0);
 
+    #[cfg(windows)]
+    if win_needs_win7_ulw() {
+        let old_rect = win7_layered::get_rect();
+        let _ = win.set_size(Size::Logical(LogicalSize::new(new_w, new_h)));
+        let new_pw = (new_w * sf).round() as i32;
+        let new_ph = (new_h * sf).round() as i32;
+        if let Some((ox, oy, ow, oh)) = old_rect {
+            let new_x = (ox + ow - new_pw).max(0);
+            let new_y = (oy + oh - new_ph).max(0);
+            if new_x != ox || new_y != oy {
+                win7_layered::set_position(new_x, new_y);
+            }
+            if win7_layered::is_overlay_active() {
+                let _ = win.set_position(PhysicalPosition::new(new_x, new_y));
+            } else {
+                let _ = win.set_position(PhysicalPosition::new(
+                    WIN7_OFFSCREEN_PARK_POS,
+                    WIN7_OFFSCREEN_PARK_POS,
+                ));
+            }
+            return Some((new_x, new_y));
+        }
+        return None;
+    }
+
+    let old_pos = win.outer_position().ok();
+    let old_size = win.outer_size().ok();
     let _ = win.set_size(Size::Logical(LogicalSize::new(new_w, new_h)));
 
     if let (Some(pos), Some(sz)) = (old_pos, old_size) {
@@ -66,6 +96,75 @@ fn resize_window_anchored_bottom_right(
         return Some((new_x, new_y));
     }
     None
+}
+
+pub fn is_pet_visible(app: &AppHandle) -> bool {
+    #[cfg(windows)]
+    if win_needs_win7_ulw() {
+        return win7_layered::is_visible();
+    }
+    app.get_webview_window("main")
+        .and_then(|w| w.is_visible().ok())
+        .unwrap_or(true)
+}
+
+pub fn set_pet_visible(app: &AppHandle, visible: bool) {
+    let on_top = app
+        .state::<AppState>()
+        .settings
+        .lock()
+        .unwrap()
+        .always_on_top;
+
+    #[cfg(windows)]
+    if win_needs_win7_ulw() {
+        win7_layered::set_visible(visible);
+        if !visible {
+            let _ = app.emit("kuro-win7-close-menu", ());
+            win7_layered::set_overlay_active(false);
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.set_position(PhysicalPosition::new(
+                    WIN7_OFFSCREEN_PARK_POS,
+                    WIN7_OFFSCREEN_PARK_POS,
+                ));
+            }
+        } else if on_top {
+            win7_layered::reassert_topmost();
+        }
+        let _ = app.emit("kuro-win7-visibility", visible);
+        return;
+    }
+
+    if let Some(win) = app.get_webview_window("main") {
+        if visible {
+            let _ = win.show();
+            #[cfg(windows)]
+            if on_top {
+                win_gentle_reassert_topmost(&win);
+            }
+        } else {
+            let _ = win.hide();
+        }
+    }
+}
+
+pub fn set_pet_always_on_top(app: &AppHandle, on_top: bool) {
+    #[cfg(windows)]
+    if win_needs_win7_ulw() {
+        win7_layered::set_always_on_top(on_top);
+    }
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.set_always_on_top(on_top);
+        #[cfg(target_os = "macos")]
+        configure_macos_fullscreen_overlay(&win, on_top);
+    }
+}
+
+pub fn shutdown_pet_windows() {
+    #[cfg(windows)]
+    if win_needs_win7_ulw() {
+        win7_layered::shutdown();
+    }
 }
 
 pub fn run_mcp_stdio() {
@@ -145,10 +244,8 @@ fn update_settings(app: AppHandle, state: State<'_, AppState>, mut patch: AppSet
     state.mcp_enabled.store(patch.mcp_enabled, Ordering::Relaxed);
 
     let size_changed = (patch.scale - prev_scale).abs() > 0.005 || patch.keyboard_layout != prev_layout;
+    set_pet_always_on_top(&app, patch.always_on_top);
     if let Some(win) = app.get_webview_window("main") {
-        let _ = win.set_always_on_top(patch.always_on_top);
-        #[cfg(target_os = "macos")]
-        configure_macos_fullscreen_overlay(&win, patch.always_on_top);
         if size_changed {
             if let Some((nx, ny)) =
                 resize_window_anchored_bottom_right(&win, &patch.keyboard_layout, patch.scale)
@@ -209,6 +306,16 @@ fn open_release_page(url: String) {
 
 #[tauri::command]
 fn save_window_pos(app: AppHandle, state: State<'_, AppState>) {
+    #[cfg(windows)]
+    if win_needs_win7_ulw() {
+        if let Some((x, y, _, _)) = win7_layered::get_rect() {
+            let mut s = state.settings.lock().unwrap();
+            s.x = Some(x);
+            s.y = Some(y);
+            save_settings(&s);
+        }
+        return;
+    }
     if let Some(win) = app.get_webview_window("main") {
         if let Ok(pos) = win.outer_position() {
             let mut s = state.settings.lock().unwrap();
@@ -231,6 +338,7 @@ fn create_desktop_shortcut() -> Result<String, String> {
 
 #[tauri::command]
 fn quit_app(app: AppHandle) {
+    shutdown_pet_windows();
     app.exit(0);
 }
 
@@ -268,10 +376,10 @@ pub fn reload_and_emit_all(app: &AppHandle) {
         .mcp_enabled
         .store(disk_settings.mcp_enabled, Ordering::Relaxed);
 
+    if top_changed {
+        set_pet_always_on_top(app, disk_settings.always_on_top);
+    }
     if let Some(win) = app.get_webview_window("main") {
-        if top_changed {
-            let _ = win.set_always_on_top(disk_settings.always_on_top);
-        }
         if size_changed {
             let _ = resize_window_anchored_bottom_right(
                 &win,
@@ -365,8 +473,32 @@ pub fn reset_window_position(app: &AppHandle) {
     if let Some(win) = app.get_webview_window("main") {
         let size = win.outer_size().unwrap_or(tauri::PhysicalSize::new(420, 440));
         let sf = win.scale_factor().unwrap_or(1.0);
-        let (target_x, target_y) = default_bottom_right_position(size.width as i32, size.height as i32, sf);
-        let _ = win.set_position(PhysicalPosition::new(target_x, target_y));
+        #[cfg(windows)]
+        let (w_px, h_px) = if win_needs_win7_ulw() {
+            win7_layered::get_rect()
+                .map(|(_, _, w, h)| (w, h))
+                .unwrap_or((size.width as i32, size.height as i32))
+        } else {
+            (size.width as i32, size.height as i32)
+        };
+        #[cfg(not(windows))]
+        let (w_px, h_px) = (size.width as i32, size.height as i32);
+
+        let (target_x, target_y) = default_bottom_right_position(w_px, h_px, sf);
+        #[cfg(windows)]
+        if win_needs_win7_ulw() {
+            win7_layered::set_position(target_x, target_y);
+            if win7_layered::is_overlay_active() {
+                let _ = win.set_position(PhysicalPosition::new(target_x, target_y));
+            }
+        } else {
+            let _ = win.set_position(PhysicalPosition::new(target_x, target_y));
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = win.set_position(PhysicalPosition::new(target_x, target_y));
+        }
+
         let state = app.state::<AppState>();
         let mut s = state.settings.lock().unwrap();
         s.x = Some(target_x);
@@ -453,33 +585,27 @@ fn win_is_click_through(win: &tauri::WebviewWindow) -> Option<bool> {
 #[cfg(windows)]
 fn win_force_click_through(win: &tauri::WebviewWindow, ignore: bool) {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetWindowLongPtrW, SetLayeredWindowAttributes, SetWindowLongPtrW, SetWindowPos,
-        GWL_EXSTYLE, LWA_ALPHA, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-        SWP_NOZORDER, WS_EX_LAYERED, WS_EX_TRANSPARENT,
+        GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, SWP_FRAMECHANGED,
+        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_EX_LAYERED, WS_EX_TRANSPARENT,
     };
     let Ok(raw_hwnd) = win.hwnd() else {
         return;
     };
     let hwnd = raw_hwnd.0 as windows_sys::Win32::Foundation::HWND;
-    let is_win7 = win_needs_region_mask();
+    let is_win7 = win_needs_win7_ulw();
     unsafe {
         let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
         let new_ex = if ignore {
             ex | (WS_EX_TRANSPARENT as isize) | (WS_EX_LAYERED as isize)
         } else if is_win7 {
-            // On Windows 7, removing WS_EX_LAYERED cleanly when interactive avoids layered-window
-            // alpha=0 invisibility bugs while SetWindowRgn handles silhouette click-through.
+            // Keep the offscreen/overlay WebView2 HWND free of WS_EX_LAYERED so popup overlays
+            // (context menu / toast) never hit Win7's layered-alpha=0 invisibility quirk.
             ex & !(WS_EX_TRANSPARENT as isize) & !(WS_EX_LAYERED as isize)
         } else {
             ex & !(WS_EX_TRANSPARENT as isize)
         };
         if new_ex != ex {
             SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_ex);
-            if ignore && is_win7 {
-                // CRITICAL for Windows 7: a WS_EX_LAYERED window defaults to alpha=0 (completely
-                // invisible!) unless SetLayeredWindowAttributes(LWA_ALPHA, 255) is explicitly called!
-                let _ = SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
-            }
             let _ = SetWindowPos(
                 hwnd,
                 std::ptr::null_mut(),
@@ -856,23 +982,45 @@ fn start_hit_test_loop(
             let Some(win) = app.get_webview_window("main") else {
                 continue;
             };
-            if !win.is_visible().unwrap_or(false) {
+            #[cfg(windows)]
+            let is_win7_ulw = win_needs_win7_ulw();
+            #[cfg(not(windows))]
+            let is_win7_ulw = false;
+
+            if is_win7_ulw {
+                #[cfg(windows)]
+                if !win7_layered::is_visible() {
+                    continue;
+                }
+            } else if !win.is_visible().unwrap_or(false) {
                 continue;
             }
             let sf = win.scale_factor().unwrap_or(1.0);
             let Some((cx, cy)) = get_cursor_pos(sf) else {
                 continue;
             };
-            let Ok(pos) = win.outer_position() else {
-                continue;
+
+            let (win_x, win_y, w, h) = if is_win7_ulw {
+                #[cfg(windows)]
+                {
+                    let Some((ux, uy, uw, uh)) = win7_layered::get_rect() else {
+                        continue;
+                    };
+                    (ux, uy, uw.max(1) as f64, uh.max(1) as f64)
+                }
+                #[cfg(not(windows))]
+                unreachable!()
+            } else {
+                let Ok(pos) = win.outer_position() else {
+                    continue;
+                };
+                let Ok(size) = win.outer_size() else {
+                    continue;
+                };
+                (pos.x, pos.y, size.width.max(1) as f64, size.height.max(1) as f64)
             };
-            let Ok(size) = win.outer_size() else {
-                continue;
-            };
-            let w = size.width.max(1) as f64;
-            let h = size.height.max(1) as f64;
-            let rx = (cx - pos.x) as f64 / w;
-            let ry = (cy - pos.y) as f64 / h;
+            let rx = (cx - win_x) as f64 / w;
+            let ry = (cy - win_y) as f64 / h;
             let inside = rx >= 0.0 && rx <= 1.0 && ry >= 0.0 && ry <= 1.0;
             let (locked, always_on_top, is_108, cur_scale, layout_str) = {
                 let s = settings.lock().unwrap();
@@ -905,8 +1053,14 @@ fn start_hit_test_loop(
                 topmost_check_ticks = topmost_check_ticks.saturating_add(1);
                 if topmost_check_ticks >= 6 {
                     topmost_check_ticks = 0;
-                    if let Ok(raw_hwnd) = win.hwnd() {
-                        let our_hwnd = raw_hwnd.0 as windows_sys::Win32::Foundation::HWND;
+                    let our_hwnd_opt = if is_win7_ulw {
+                        win7_layered::hwnd()
+                    } else {
+                        win.hwnd()
+                            .ok()
+                            .map(|h| h.0 as windows_sys::Win32::Foundation::HWND)
+                    };
+                    if let Some(our_hwnd) = our_hwnd_opt {
                         if !win_is_iconic(our_hwnd) {
                             let lost_topmost = !win_is_topmost(our_hwnd);
                             let fg_above = !lost_topmost
@@ -918,14 +1072,18 @@ fn start_hit_test_loop(
                                 fg_above_attempts = 0;
                             } else if lost_topmost {
                                 if last_topmost_reassert.elapsed() >= Duration::from_millis(250) {
-                                    let app_for_top = app.clone();
-                                    let _ = app.run_on_main_thread(move || {
-                                        if let Some(w) = app_for_top.get_webview_window("main") {
-                                            if w.is_visible().unwrap_or(false) {
-                                                win_gentle_reassert_topmost(&w);
+                                    if is_win7_ulw {
+                                        win7_layered::reassert_topmost();
+                                    } else {
+                                        let app_for_top = app.clone();
+                                        let _ = app.run_on_main_thread(move || {
+                                            if let Some(w) = app_for_top.get_webview_window("main") {
+                                                if w.is_visible().unwrap_or(false) {
+                                                    win_gentle_reassert_topmost(&w);
+                                                }
                                             }
-                                        }
-                                    });
+                                        });
+                                    }
                                     last_topmost_reassert = Instant::now();
                                 }
                             } else if fg_above_attempts < 3 {
@@ -935,14 +1093,18 @@ fn start_hit_test_loop(
                                     _ => Duration::from_millis(900),
                                 };
                                 if last_topmost_reassert.elapsed() >= cooldown {
-                                    let app_for_top = app.clone();
-                                    let _ = app.run_on_main_thread(move || {
-                                        if let Some(w) = app_for_top.get_webview_window("main") {
-                                            if w.is_visible().unwrap_or(false) {
-                                                win_gentle_reassert_topmost(&w);
+                                    if is_win7_ulw {
+                                        win7_layered::reassert_topmost();
+                                    } else {
+                                        let app_for_top = app.clone();
+                                        let _ = app.run_on_main_thread(move || {
+                                            if let Some(w) = app_for_top.get_webview_window("main") {
+                                                if w.is_visible().unwrap_or(false) {
+                                                    win_gentle_reassert_topmost(&w);
+                                                }
                                             }
-                                        }
-                                    });
+                                        });
+                                    }
                                     last_topmost_reassert = Instant::now();
                                     fg_above_attempts = fg_above_attempts.saturating_add(1);
                                 }
@@ -979,22 +1141,21 @@ fn start_hit_test_loop(
             // aren't misled by squinting eyes when the cat is intentionally click-through.
             let over_cat = if effective_locked { false } else { raw_over_cat };
 
+            #[cfg(windows)]
+            if is_win7_ulw {
+                win7_layered::set_over_cat(over_cat);
+            }
+
             let over_banner = is_banner && inside && ry <= 0.19;
 
-            // On Windows 7/8, SetWindowRgn ALREADY makes every pixel outside the cat/keyboard/mouse
-            // natively transparent and click-through at the kernel level, so we ONLY engage
-            // WS_EX_TRANSPARENT when the user explicitly locks click-through (`effective_locked`).
-            // This prevents Win7's WS_EX_LAYERED alpha=0 invisibility bug when moving the cursor off the cat!
-            #[cfg(windows)]
-            let is_win7_rgn = win_needs_region_mask();
-            #[cfg(not(windows))]
-            let is_win7_rgn = false;
-
+            // On Windows 7/8 ULW mode, UpdateLayeredWindow(ULW_ALPHA) natively passes through all
+            // alpha==0 pixels at the OS level, so we ONLY toggle WS_EX_TRANSPARENT on ulw_hwnd when
+            // click-through is explicitly locked (`effective_locked`).
             let should_ignore = if is_menu || is_drag || over_banner {
                 false
             } else if effective_locked {
                 true
-            } else if is_win7_rgn {
+            } else if is_win7_ulw {
                 false
             } else {
                 !over_interactive
@@ -1002,8 +1163,8 @@ fn start_hit_test_loop(
 
             if last_ignore != Some(should_ignore) {
                 #[cfg(windows)]
-                if is_win7_rgn {
-                    win_force_click_through(&win, should_ignore);
+                if is_win7_ulw {
+                    win7_layered::set_click_through(should_ignore);
                 } else {
                     let _ = win.set_ignore_cursor_events(should_ignore);
                 }
@@ -1019,18 +1180,27 @@ fn start_hit_test_loop(
             } else {
                 // Self-heal Windows WS_EX_TRANSPARENT if DWM / Wallpaper Engine / Show-Desktop drifted it
                 #[cfg(windows)]
-                if let Some(actual_transparent) = win_is_click_through(&win) {
-                    if actual_transparent != should_ignore {
-                        drift_ticks = drift_ticks.saturating_add(1);
-                        if drift_ticks >= 4 {
-                            win_force_click_through(&win, should_ignore);
-                            if !is_win7_rgn {
-                                let _ = win.set_ignore_cursor_events(should_ignore);
+                {
+                    let actual_opt = if is_win7_ulw {
+                        win7_layered::is_click_through()
+                    } else {
+                        win_is_click_through(&win)
+                    };
+                    if let Some(actual_transparent) = actual_opt {
+                        if actual_transparent != should_ignore {
+                            drift_ticks = drift_ticks.saturating_add(1);
+                            if drift_ticks >= 4 {
+                                if is_win7_ulw {
+                                    win7_layered::set_click_through(should_ignore);
+                                } else {
+                                    win_force_click_through(&win, should_ignore);
+                                    let _ = win.set_ignore_cursor_events(should_ignore);
+                                }
+                                drift_ticks = 0;
                             }
+                        } else {
                             drift_ticks = 0;
                         }
-                    } else {
-                        drift_ticks = 0;
                     }
                 }
             }
@@ -1058,17 +1228,19 @@ fn start_hit_test_loop(
 }
 
 #[cfg(windows)]
-fn win_needs_region_mask() -> bool {
+fn win_needs_win7_ulw() -> bool {
     use std::sync::OnceLock;
-    static NEEDS_MASK: OnceLock<bool> = OnceLock::new();
-    *NEEDS_MASK.get_or_init(|| {
-        if let Ok(v) = std::env::var("KUROCAT_WIN7_MASK") {
-            let t = v.trim();
-            if t == "1" || t.eq_ignore_ascii_case("true") {
-                return true;
-            }
-            if t == "0" || t.eq_ignore_ascii_case("false") {
-                return false;
+    static NEEDS_ULW: OnceLock<bool> = OnceLock::new();
+    *NEEDS_ULW.get_or_init(|| {
+        for var in ["KUROCAT_WIN7_ULW", "KUROCAT_WIN7_MASK"] {
+            if let Ok(v) = std::env::var(var) {
+                let t = v.trim();
+                if t == "1" || t.eq_ignore_ascii_case("true") {
+                    return true;
+                }
+                if t == "0" || t.eq_ignore_ascii_case("false") {
+                    return false;
+                }
             }
         }
         // Query real OS version via ntdll!RtlGetVersion (immune to compatibility manifest lies).
@@ -1097,94 +1269,25 @@ fn win_needs_region_mask() -> bool {
     })
 }
 
+/// Build a rounded GDI HRGN from `[left, top, right, bottom, corner_radius_px]` tuples
+/// for on-demand DOM overlays (`#context-menu` and `#update-toast`) on Windows 7/8.
 #[cfg(windows)]
-fn build_hrgn_from_rects(
-    canvas_rects: &[i32],
-    overlay_rects: &[i32],
-) -> windows_sys::Win32::Graphics::Gdi::HRGN {
-    use windows_sys::Win32::Foundation::RECT;
+fn build_rounded_overlay_hrgn(rects: &[i32]) -> windows_sys::Win32::Graphics::Gdi::HRGN {
     use windows_sys::Win32::Graphics::Gdi::{
-        CombineRgn, CreateRectRgn, DeleteObject, ExtCreateRegion, HRGN, RDH_RECTANGLES,
-        RGNDATAHEADER, RGN_OR,
+        CombineRgn, CreateRoundRectRgn, DeleteObject, HRGN, RGN_OR,
     };
 
     let mut final_rgn: HRGN = std::ptr::null_mut();
-
-    let n_canvas = canvas_rects.len() / 4;
-    if n_canvas > 0 {
-        let mut min_x = i32::MAX;
-        let mut min_y = i32::MAX;
-        let mut max_x = i32::MIN;
-        let mut max_y = i32::MIN;
-        let mut valid_rects: Vec<RECT> = Vec::with_capacity(n_canvas);
-        for chunk in canvas_rects.chunks_exact(4) {
-            let (l, t, r, b) = (chunk[0], chunk[1], chunk[2], chunk[3]);
-            if r > l && b > t {
-                if l < min_x {
-                    min_x = l;
-                }
-                if t < min_y {
-                    min_y = t;
-                }
-                if r > max_x {
-                    max_x = r;
-                }
-                if b > max_y {
-                    max_y = b;
-                }
-                valid_rects.push(RECT {
-                    left: l,
-                    top: t,
-                    right: r,
-                    bottom: b,
-                });
-            }
-        }
-
-        if !valid_rects.is_empty() {
-            let hdr_sz = std::mem::size_of::<RGNDATAHEADER>();
-            let rects_sz = valid_rects.len() * std::mem::size_of::<RECT>();
-            let total_sz = hdr_sz + rects_sz;
-            let mut buf = vec![0u8; total_sz];
-            let hdr = RGNDATAHEADER {
-                dwSize: hdr_sz as u32,
-                iType: RDH_RECTANGLES,
-                nCount: valid_rects.len() as u32,
-                nRgnSize: rects_sz as u32,
-                rcBound: RECT {
-                    left: min_x,
-                    top: min_y,
-                    right: max_x,
-                    bottom: max_y,
-                },
-            };
-            unsafe {
-                std::ptr::copy_nonoverlapping(
-                    &hdr as *const RGNDATAHEADER as *const u8,
-                    buf.as_mut_ptr(),
-                    hdr_sz,
-                );
-                std::ptr::copy_nonoverlapping(
-                    valid_rects.as_ptr() as *const u8,
-                    buf.as_mut_ptr().add(hdr_sz),
-                    rects_sz,
-                );
-                final_rgn = ExtCreateRegion(
-                    std::ptr::null(),
-                    total_sz as u32,
-                    buf.as_ptr() as *const windows_sys::Win32::Graphics::Gdi::RGNDATA,
-                );
-            }
-        }
-    }
-
-    for chunk in overlay_rects.chunks_exact(4) {
-        let (l, t, r, b) = (chunk[0], chunk[1], chunk[2], chunk[3]);
+    for chunk in rects.chunks_exact(5) {
+        let (l, t, r, b, radius) = (chunk[0], chunk[1], chunk[2], chunk[3], chunk[4]);
         if r <= l || b <= t {
             continue;
         }
+        let w = r - l;
+        let h = b - t;
+        let diam = (radius.max(0) * 2).min(w).min(h);
         unsafe {
-            let ov = CreateRectRgn(l, t, r, b);
+            let ov = CreateRoundRectRgn(l, t, r + 1, b + 1, diam, diam);
             if ov.is_null() {
                 continue;
             }
@@ -1196,15 +1299,14 @@ fn build_hrgn_from_rects(
             }
         }
     }
-
     final_rgn
 }
 
 #[tauri::command]
-fn is_win7_region_mask_mode() -> bool {
+fn is_win7_ulw_mode() -> bool {
     #[cfg(windows)]
     {
-        return win_needs_region_mask();
+        return win_needs_win7_ulw();
     }
     #[cfg(not(windows))]
     {
@@ -1213,37 +1315,99 @@ fn is_win7_region_mask_mode() -> bool {
 }
 
 #[tauri::command]
-fn set_win7_window_region(
-    window: tauri::WebviewWindow,
-    canvas_rects: Vec<i32>,
-    overlay_rects: Vec<i32>,
-) {
+fn win7_present_frame(request: tauri::ipc::Request<'_>) {
+    #[cfg(windows)]
+    {
+        if !win_needs_win7_ulw() {
+            return;
+        }
+        let w = request
+            .headers()
+            .get("x-w")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(0);
+        let h = request
+            .headers()
+            .get("x-h")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(0);
+        if w == 0 || h == 0 || w > 4096 || h > 4096 {
+            return;
+        }
+        if let tauri::ipc::InvokeBody::Raw(bytes) = request.body() {
+            win7_layered::submit_rgba_frame(w, h, bytes);
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = request;
+    }
+}
+
+#[tauri::command]
+fn win7_sync_overlay(window: tauri::WebviewWindow, rects: Vec<i32>, focus_menu: bool) {
     #[cfg(windows)]
     {
         use windows_sys::Win32::Graphics::Gdi::{DeleteObject, SetWindowRgn};
-        if !win_needs_region_mask() {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            SetForegroundWindow, SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOSIZE,
+            SWP_NOZORDER,
+        };
+        if !win_needs_win7_ulw() {
             return;
         }
         let Ok(raw_hwnd) = window.hwnd() else {
             return;
         };
-        let hwnd = raw_hwnd.0 as windows_sys::Win32::Foundation::HWND;
-        let rgn = build_hrgn_from_rects(&canvas_rects, &overlay_rects);
+        let main_hwnd = raw_hwnd.0 as windows_sys::Win32::Foundation::HWND;
+
+        let rgn = build_rounded_overlay_hrgn(&rects);
         if rgn.is_null() {
+            win7_layered::set_overlay_active(false);
+            unsafe {
+                let _ = SetWindowRgn(main_hwnd, std::ptr::null_mut(), 0);
+                let _ = SetWindowPos(
+                    main_hwnd,
+                    std::ptr::null_mut(),
+                    WIN7_OFFSCREEN_PARK_POS,
+                    WIN7_OFFSCREEN_PARK_POS,
+                    0,
+                    0,
+                    SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+                );
+            }
             return;
         }
-        unsafe {
-            // bRedraw = 1 ensures clean repaint on both Win7 Aero (DWM double-buffered)
-            // and Win7 Basic (no ghost trails when menus close or ears move).
-            // On success Windows owns the HRGN; only delete on failure.
-            if SetWindowRgn(hwnd, rgn, 1) == 0 {
+
+        // Ensure WebView2 overlay HWND is opaque & clickable on Win7 (no WS_EX_LAYERED/TRANSPARENT)
+        win_force_click_through(&window, false);
+        let Some((ux, uy, _, _)) = win7_layered::get_rect() else {
+            unsafe {
                 DeleteObject(rgn as _);
+            }
+            return;
+        };
+        win7_layered::set_overlay_active(true);
+        unsafe {
+            if SetWindowRgn(main_hwnd, rgn, 1) == 0 {
+                DeleteObject(rgn as _);
+            }
+            let flags = if focus_menu {
+                SWP_NOSIZE
+            } else {
+                SWP_NOSIZE | SWP_NOACTIVATE
+            };
+            let _ = SetWindowPos(main_hwnd, HWND_TOPMOST, ux, uy, 0, 0, flags);
+            if focus_menu {
+                let _ = SetForegroundWindow(main_hwnd);
             }
         }
     }
     #[cfg(not(windows))]
     {
-        let _ = (window, canvas_rects, overlay_rects);
+        let _ = (window, rects, focus_menu);
     }
 }
 
@@ -1278,10 +1442,27 @@ fn win_configure_local_webview2_runtime() {
         let _ = std::fs::create_dir_all(&udf);
         std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &udf);
     }
-    // On Windows 7/8 where WebView2 falls back to opaque background, default to deep charcoal
-    // matching dark pet outlines so there is zero blinding white flash before SetWindowRgn clips.
-    if win_needs_region_mask() && std::env::var_os("WEBVIEW2_DEFAULT_BACKGROUND_COLOR").is_none() {
-        std::env::set_var("WEBVIEW2_DEFAULT_BACKGROUND_COLOR", "FF14161A");
+    if win_needs_win7_ulw() {
+        // Dark surface matching `#context-menu` / `#update-toast` so rounded overlays blend cleanly.
+        if std::env::var_os("WEBVIEW2_DEFAULT_BACKGROUND_COLOR").is_none() {
+            std::env::set_var("WEBVIEW2_DEFAULT_BACKGROUND_COLOR", "FF18191E");
+        }
+        // Keep offscreen-parked WebView2 rendering smoothly at 30-60 FPS without Chromium occlusion throttling!
+        let existing = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").unwrap_or_default();
+        let mut merged = existing.trim().to_string();
+        for flag in [
+            "--autoplay-policy=no-user-gesture-required",
+            "--disable-backgrounding-occluded-windows",
+            "--disable-renderer-backgrounding",
+        ] {
+            if !merged.contains(flag) {
+                if !merged.is_empty() {
+                    merged.push(' ');
+                }
+                merged.push_str(flag);
+            }
+        }
+        std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", merged);
     }
 }
 
@@ -1354,32 +1535,54 @@ pub fn run() {
             }
 
             if let Some(win) = app.get_webview_window("main") {
-                #[cfg(windows)]
-                if win_needs_region_mask() {
-                    // Ensure Win7 window starts without WS_EX_LAYERED (which defaults to alpha=0
-                    // invisible on Win7) while SetWindowRgn provides native silhouette click-through.
-                    win_force_click_through(&win, false);
-                }
-                let _ = win.set_always_on_top(s.always_on_top);
-                #[cfg(target_os = "macos")]
-                {
-                    let _ = win.set_visible_on_all_workspaces(true);
-                    configure_macos_fullscreen_overlay(&win, s.always_on_top);
-                }
-                #[cfg(target_os = "linux")]
-                {
-                    let _ = win.set_visible_on_all_workspaces(true);
-                    let _ = win.set_skip_taskbar(true);
-                }
                 let (win_w, win_h) = window_dimensions(&s.keyboard_layout, s.scale);
                 let _ = win.set_size(Size::Logical(LogicalSize::new(win_w, win_h)));
-                if let (Some(x), Some(y)) = (s.x, s.y) {
-                    let _ = win.set_position(PhysicalPosition::new(x, y));
+                let sz = win.outer_size().unwrap_or(tauri::PhysicalSize::new(420, 440));
+                let sf = win.scale_factor().unwrap_or(1.0);
+                let (target_x, target_y) = if let (Some(x), Some(y)) = (s.x, s.y) {
+                    (x, y)
                 } else {
-                    let sz = win.outer_size().unwrap_or(tauri::PhysicalSize::new(420, 440));
-                    let sf = win.scale_factor().unwrap_or(1.0);
-                    let (dx, dy) = default_bottom_right_position(sz.width as i32, sz.height as i32, sf);
-                    let _ = win.set_position(PhysicalPosition::new(dx, dy));
+                    default_bottom_right_position(sz.width as i32, sz.height as i32, sf)
+                };
+
+                #[cfg(windows)]
+                if win_needs_win7_ulw() {
+                    // On Windows 7/8: spawn our dedicated Win32 UpdateLayeredWindow (ULW_ALPHA)
+                    // 256-level anti-aliased presenter window at (target_x, target_y), and park the
+                    // WebView2 offscreen renderer at (-16000, -16000) so there is ZERO white box!
+                    win_force_click_through(&win, false);
+                    let _ = win.set_always_on_top(s.always_on_top);
+                    let _ = win.set_position(PhysicalPosition::new(
+                        WIN7_OFFSCREEN_PARK_POS,
+                        WIN7_OFFSCREEN_PARK_POS,
+                    ));
+                    win7_layered::init(
+                        handle.clone(),
+                        target_x,
+                        target_y,
+                        sz.width,
+                        sz.height,
+                        s.always_on_top,
+                    );
+                } else {
+                    let _ = win.set_always_on_top(s.always_on_top);
+                    let _ = win.set_position(PhysicalPosition::new(target_x, target_y));
+                }
+
+                #[cfg(not(windows))]
+                {
+                    let _ = win.set_always_on_top(s.always_on_top);
+                    #[cfg(target_os = "macos")]
+                    {
+                        let _ = win.set_visible_on_all_workspaces(true);
+                        configure_macos_fullscreen_overlay(&win, s.always_on_top);
+                    }
+                    #[cfg(target_os = "linux")]
+                    {
+                        let _ = win.set_visible_on_all_workspaces(true);
+                        let _ = win.set_skip_taskbar(true);
+                    }
+                    let _ = win.set_position(PhysicalPosition::new(target_x, target_y));
                 }
             }
 
@@ -1449,8 +1652,9 @@ pub fn run() {
             set_menu_open,
             set_dragging,
             set_update_banner_open,
-            is_win7_region_mask_mode,
-            set_win7_window_region,
+            is_win7_ulw_mode,
+            win7_present_frame,
+            win7_sync_overlay,
             save_window_pos,
             reset_position,
             create_desktop_shortcut,
@@ -1557,24 +1761,20 @@ mod windows_zorder_tests {
     }
 
     #[test]
-    fn win7_region_builder_clips_exact_spans_and_unions_overlays() {
+    fn win7_rounded_overlay_region_clips_menu_and_toast_cleanly() {
         use windows_sys::Win32::Graphics::Gdi::{DeleteObject, PtInRegion};
-        // Two non-overlapping Y bands simulating cat head + keyboard, plus an overlay menu rect
-        let canvas_rects = vec![
-            100, 120, 180, 200, // cat head
-            40, 200, 240, 260, // keyboard
-        ];
-        let overlay_rects = vec![
-            10, 10, 90, 90, // context menu overlay
+        // Context menu card (radius 12) + update toast pill (radius 20)
+        let rects = vec![
+            10, 10, 224, 310, 12,
+            60, 8, 340, 42, 20,
         ];
         unsafe {
-            let rgn = build_hrgn_from_rects(&canvas_rects, &overlay_rects);
-            assert!(!rgn.is_null(), "ExtCreateRegion + CombineRgn should produce valid HRGN");
-            assert_ne!(PtInRegion(rgn, 140, 150), 0, "inside cat head");
-            assert_ne!(PtInRegion(rgn, 120, 230), 0, "inside keyboard");
-            assert_ne!(PtInRegion(rgn, 50, 50), 0, "inside context menu overlay");
-            assert_eq!(PtInRegion(rgn, 200, 50), 0, "empty top-right sky must be clipped away");
-            assert_eq!(PtInRegion(rgn, 20, 150), 0, "empty mid-left area must be clipped away");
+            let rgn = build_rounded_overlay_hrgn(&rects);
+            assert!(!rgn.is_null(), "CreateRoundRectRgn + CombineRgn should produce valid HRGN");
+            assert_ne!(PtInRegion(rgn, 100, 150), 0, "inside context menu");
+            assert_ne!(PtInRegion(rgn, 200, 24), 0, "inside update toast");
+            assert_eq!(PtInRegion(rgn, 10, 10), 0, "sharp 12px corner tip should be rounded off");
+            assert_eq!(PtInRegion(rgn, 350, 200), 0, "empty area outside overlays must be clipped away");
             DeleteObject(rgn as _);
         }
     }
