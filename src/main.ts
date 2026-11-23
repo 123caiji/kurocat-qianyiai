@@ -626,6 +626,162 @@ async function bootstrap(): Promise<void> {
         break;
     }
   });
+
+  // On Windows 7/8 (where Microsoft WebView2 does not support DirectComposition alpha),
+  // dynamically clip the Win32 window region (SetWindowRgn) to the exact live opaque pixel
+  // silhouette of the pet + keyboard + mouse + active DOM overlays so there is zero white box.
+  try {
+    const useWin7Mask = await invoke<boolean>('is_win7_region_mask_mode');
+    if (useWin7Mask) {
+      document.documentElement.classList.add('win7-mask-mode');
+      const maskCanvas = document.createElement('canvas');
+      const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
+      let lastHash = '';
+      let maskBusy = false;
+
+      const syncWin7Region = () => {
+        if (maskBusy || !maskCtx) return;
+        const winW = window.innerWidth;
+        const winH = window.innerHeight;
+        if (winW < 10 || winH < 10 || canvas.width < 10 || canvas.height < 10) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        const mw = Math.max(80, Math.min(240, Math.round(winW / 2)));
+        const mh = Math.max(80, Math.min(240, Math.round(winH / 2)));
+        if (maskCanvas.width !== mw || maskCanvas.height !== mh) {
+          maskCanvas.width = mw;
+          maskCanvas.height = mh;
+        }
+
+        maskCtx.clearRect(0, 0, mw, mh);
+        maskCtx.drawImage(canvas, 0, 0, mw, mh);
+        const imgData = maskCtx.getImageData(0, 0, mw, mh).data;
+
+        const sx = (winW * dpr) / mw;
+        const sy = (winH * dpr) / mh;
+        const physW = Math.max(1, Math.round(winW * dpr));
+        const physH = Math.max(1, Math.round(winH * dpr));
+
+        // Build Y-X sorted non-overlapping horizontal spans for Win32 ExtCreateRegion
+        const canvasRects: number[] = [];
+        let prevRowSpans: number[] = [];
+        let prevY0 = 0;
+        let prevY1 = 0;
+
+        for (let y = 0; y < mh; y++) {
+          const rowOff = y * mw * 4;
+          const rowSpans: number[] = [];
+          let runStart = -1;
+          for (let x = 0; x < mw; x++) {
+            const a = imgData[rowOff + x * 4 + 3];
+            if (a >= 150) {
+              if (runStart === -1) runStart = x;
+            } else if (runStart !== -1) {
+              const px0 = Math.max(0, Math.round(runStart * sx));
+              const px1 = Math.min(physW, Math.round(x * sx));
+              if (px1 > px0) {
+                if (rowSpans.length > 0 && px0 <= rowSpans[rowSpans.length - 1]) {
+                  rowSpans[rowSpans.length - 1] = Math.max(rowSpans[rowSpans.length - 1], px1);
+                } else {
+                  rowSpans.push(px0, px1);
+                }
+              }
+              runStart = -1;
+            }
+          }
+          if (runStart !== -1) {
+            const px0 = Math.max(0, Math.round(runStart * sx));
+            const px1 = Math.min(physW, Math.round(mw * sx));
+            if (px1 > px0) {
+              if (rowSpans.length > 0 && px0 <= rowSpans[rowSpans.length - 1]) {
+                rowSpans[rowSpans.length - 1] = Math.max(rowSpans[rowSpans.length - 1], px1);
+              } else {
+                rowSpans.push(px0, px1);
+              }
+            }
+          }
+
+          const py0 = Math.round(y * sy);
+          const py1 = Math.min(physH, Math.round((y + 1) * sy));
+          if (py1 <= py0) continue;
+
+          // Merge adjacent rows with identical horizontal spans to minimize RECT count
+          let sameAsPrev =
+            prevRowSpans.length > 0 &&
+            prevRowSpans.length === rowSpans.length &&
+            py0 === prevY1;
+          if (sameAsPrev) {
+            for (let i = 0; i < rowSpans.length; i++) {
+              if (prevRowSpans[i] !== rowSpans[i]) {
+                sameAsPrev = false;
+                break;
+              }
+            }
+          }
+
+          if (sameAsPrev) {
+            prevY1 = py1;
+          } else {
+            if (prevRowSpans.length > 0) {
+              for (let i = 0; i < prevRowSpans.length; i += 2) {
+                canvasRects.push(prevRowSpans[i], prevY0, prevRowSpans[i + 1], prevY1);
+              }
+            }
+            prevRowSpans = rowSpans;
+            prevY0 = py0;
+            prevY1 = py1;
+          }
+        }
+        if (prevRowSpans.length > 0) {
+          for (let i = 0; i < prevRowSpans.length; i += 2) {
+            canvasRects.push(prevRowSpans[i], prevY0, prevRowSpans[i + 1], prevY1);
+          }
+        }
+
+        const overlayRects: number[] = [];
+        for (const el of [menuEl, updateToastEl]) {
+          if (el && !el.classList.contains('hidden')) {
+            const r = el.getBoundingClientRect();
+            if (r.width > 2 && r.height > 2) {
+              overlayRects.push(
+                Math.max(0, Math.floor(r.left * dpr)),
+                Math.max(0, Math.floor(r.top * dpr)),
+                Math.min(physW, Math.ceil(r.right * dpr)),
+                Math.min(physH, Math.ceil(r.bottom * dpr)),
+              );
+            }
+          }
+        }
+
+        if (canvasRects.length === 0 && overlayRects.length === 0) return;
+
+        // Fast FNV-1a hash so idle frames trigger ZERO IPC / SetWindowRgn calls
+        let h = 2166136261 >>> 0;
+        h = Math.imul(h ^ canvasRects.length, 16777619) >>> 0;
+        for (let i = 0; i < canvasRects.length; i++) {
+          h = Math.imul(h ^ (canvasRects[i] & 0xffff), 16777619) >>> 0;
+        }
+        h = Math.imul(h ^ (overlayRects.length << 16), 16777619) >>> 0;
+        for (let i = 0; i < overlayRects.length; i++) {
+          h = Math.imul(h ^ (overlayRects[i] & 0xffff), 16777619) >>> 0;
+        }
+        const key = `${h}:${canvasRects.length}:${overlayRects.length}`;
+        if (key === lastHash) return;
+        lastHash = key;
+
+        maskBusy = true;
+        void invoke('set_win7_window_region', { canvasRects, overlayRects }).finally(() => {
+          maskBusy = false;
+        });
+      };
+
+      // Initial clip right after first draw + steady 20Hz live silhouette sync
+      setTimeout(syncWin7Region, 80);
+      setInterval(syncWin7Region, 50);
+    }
+  } catch {
+    // Non-Win7 or unsupported: keep native transparency untouched
+  }
 }
 
 void bootstrap();

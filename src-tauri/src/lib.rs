@@ -1025,6 +1025,194 @@ fn start_hit_test_loop(
 }
 
 #[cfg(windows)]
+fn win_needs_region_mask() -> bool {
+    use std::sync::OnceLock;
+    static NEEDS_MASK: OnceLock<bool> = OnceLock::new();
+    *NEEDS_MASK.get_or_init(|| {
+        if let Ok(v) = std::env::var("KUROCAT_WIN7_MASK") {
+            let t = v.trim();
+            if t == "1" || t.eq_ignore_ascii_case("true") {
+                return true;
+            }
+            if t == "0" || t.eq_ignore_ascii_case("false") {
+                return false;
+            }
+        }
+        // Query real OS version via ntdll!RtlGetVersion (immune to compatibility manifest lies).
+        // Windows 7 = 6.1, Windows 8 = 6.2, Windows 8.1 = 6.3, Windows 10/11 = 10.0+.
+        #[repr(C)]
+        struct RtlOsVersionInfoW {
+            dw_os_version_info_size: u32,
+            dw_major_version: u32,
+            dw_minor_version: u32,
+            dw_build_number: u32,
+            dw_platform_id: u32,
+            sz_csd_version: [u16; 128],
+        }
+        #[link(name = "ntdll")]
+        extern "system" {
+            fn RtlGetVersion(lpVersionInformation: *mut RtlOsVersionInfoW) -> i32;
+        }
+        unsafe {
+            let mut info: RtlOsVersionInfoW = std::mem::zeroed();
+            info.dw_os_version_info_size = std::mem::size_of::<RtlOsVersionInfoW>() as u32;
+            if RtlGetVersion(&mut info) == 0 {
+                return info.dw_major_version < 10;
+            }
+        }
+        false
+    })
+}
+
+#[cfg(windows)]
+fn build_hrgn_from_rects(
+    canvas_rects: &[i32],
+    overlay_rects: &[i32],
+) -> windows_sys::Win32::Graphics::Gdi::HRGN {
+    use windows_sys::Win32::Foundation::RECT;
+    use windows_sys::Win32::Graphics::Gdi::{
+        CombineRgn, CreateRectRgn, DeleteObject, ExtCreateRegion, HRGN, RDH_RECTANGLES,
+        RGNDATAHEADER, RGN_OR,
+    };
+
+    let mut final_rgn: HRGN = std::ptr::null_mut();
+
+    let n_canvas = canvas_rects.len() / 4;
+    if n_canvas > 0 {
+        let mut min_x = i32::MAX;
+        let mut min_y = i32::MAX;
+        let mut max_x = i32::MIN;
+        let mut max_y = i32::MIN;
+        let mut valid_rects: Vec<RECT> = Vec::with_capacity(n_canvas);
+        for chunk in canvas_rects.chunks_exact(4) {
+            let (l, t, r, b) = (chunk[0], chunk[1], chunk[2], chunk[3]);
+            if r > l && b > t {
+                if l < min_x {
+                    min_x = l;
+                }
+                if t < min_y {
+                    min_y = t;
+                }
+                if r > max_x {
+                    max_x = r;
+                }
+                if b > max_y {
+                    max_y = b;
+                }
+                valid_rects.push(RECT {
+                    left: l,
+                    top: t,
+                    right: r,
+                    bottom: b,
+                });
+            }
+        }
+
+        if !valid_rects.is_empty() {
+            let hdr_sz = std::mem::size_of::<RGNDATAHEADER>();
+            let rects_sz = valid_rects.len() * std::mem::size_of::<RECT>();
+            let total_sz = hdr_sz + rects_sz;
+            let mut buf = vec![0u8; total_sz];
+            let hdr = RGNDATAHEADER {
+                dwSize: hdr_sz as u32,
+                iType: RDH_RECTANGLES,
+                nCount: valid_rects.len() as u32,
+                nRgnSize: rects_sz as u32,
+                rcBound: RECT {
+                    left: min_x,
+                    top: min_y,
+                    right: max_x,
+                    bottom: max_y,
+                },
+            };
+            unsafe {
+                std::ptr::copy_nonoverlapping(
+                    &hdr as *const RGNDATAHEADER as *const u8,
+                    buf.as_mut_ptr(),
+                    hdr_sz,
+                );
+                std::ptr::copy_nonoverlapping(
+                    valid_rects.as_ptr() as *const u8,
+                    buf.as_mut_ptr().add(hdr_sz),
+                    rects_sz,
+                );
+                final_rgn = ExtCreateRegion(
+                    std::ptr::null(),
+                    total_sz as u32,
+                    buf.as_ptr() as *const windows_sys::Win32::Graphics::Gdi::RGNDATA,
+                );
+            }
+        }
+    }
+
+    for chunk in overlay_rects.chunks_exact(4) {
+        let (l, t, r, b) = (chunk[0], chunk[1], chunk[2], chunk[3]);
+        if r <= l || b <= t {
+            continue;
+        }
+        unsafe {
+            let ov = CreateRectRgn(l, t, r, b);
+            if ov.is_null() {
+                continue;
+            }
+            if final_rgn.is_null() {
+                final_rgn = ov;
+            } else {
+                CombineRgn(final_rgn, final_rgn, ov, RGN_OR);
+                DeleteObject(ov as _);
+            }
+        }
+    }
+
+    final_rgn
+}
+
+#[tauri::command]
+fn is_win7_region_mask_mode() -> bool {
+    #[cfg(windows)]
+    {
+        return win_needs_region_mask();
+    }
+    #[cfg(not(windows))]
+    {
+        false
+    }
+}
+
+#[tauri::command]
+fn set_win7_window_region(
+    window: tauri::WebviewWindow,
+    canvas_rects: Vec<i32>,
+    overlay_rects: Vec<i32>,
+) {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Graphics::Gdi::{DeleteObject, SetWindowRgn};
+        if !win_needs_region_mask() {
+            return;
+        }
+        let Ok(raw_hwnd) = window.hwnd() else {
+            return;
+        };
+        let hwnd = raw_hwnd.0 as windows_sys::Win32::Foundation::HWND;
+        let rgn = build_hrgn_from_rects(&canvas_rects, &overlay_rects);
+        if rgn.is_null() {
+            return;
+        }
+        unsafe {
+            // On success Windows owns the HRGN; only delete on failure.
+            if SetWindowRgn(hwnd, rgn, 1) == 0 {
+                DeleteObject(rgn as _);
+            }
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (window, canvas_rects, overlay_rects);
+    }
+}
+
+#[cfg(windows)]
 fn win_configure_local_webview2_runtime() {
     let Ok(exe) = std::env::current_exe() else {
         return;
@@ -1054,6 +1242,11 @@ fn win_configure_local_webview2_runtime() {
             .unwrap_or_else(|| dir.join("WebView2Data"));
         let _ = std::fs::create_dir_all(&udf);
         std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &udf);
+    }
+    // On Windows 7/8 where WebView2 falls back to opaque background, default to deep charcoal
+    // matching dark pet outlines so there is zero blinding white flash before SetWindowRgn clips.
+    if win_needs_region_mask() && std::env::var_os("WEBVIEW2_DEFAULT_BACKGROUND_COLOR").is_none() {
+        std::env::set_var("WEBVIEW2_DEFAULT_BACKGROUND_COLOR", "FF14161A");
     }
 }
 
@@ -1215,6 +1408,8 @@ pub fn run() {
             set_menu_open,
             set_dragging,
             set_update_banner_open,
+            is_win7_region_mask_mode,
+            set_win7_window_region,
             save_window_pos,
             reset_position,
             create_desktop_shortcut,
@@ -1318,5 +1513,28 @@ mod windows_zorder_tests {
 
         // Verify elevation query runs safely without panicking
         let _ = win_is_elevated();
+    }
+
+    #[test]
+    fn win7_region_builder_clips_exact_spans_and_unions_overlays() {
+        use windows_sys::Win32::Graphics::Gdi::{DeleteObject, PtInRegion};
+        // Two non-overlapping Y bands simulating cat head + keyboard, plus an overlay menu rect
+        let canvas_rects = vec![
+            100, 120, 180, 200, // cat head
+            40, 200, 240, 260, // keyboard
+        ];
+        let overlay_rects = vec![
+            10, 10, 90, 90, // context menu overlay
+        ];
+        unsafe {
+            let rgn = build_hrgn_from_rects(&canvas_rects, &overlay_rects);
+            assert!(!rgn.is_null(), "ExtCreateRegion + CombineRgn should produce valid HRGN");
+            assert_ne!(PtInRegion(rgn, 140, 150), 0, "inside cat head");
+            assert_ne!(PtInRegion(rgn, 120, 230), 0, "inside keyboard");
+            assert_ne!(PtInRegion(rgn, 50, 50), 0, "inside context menu overlay");
+            assert_eq!(PtInRegion(rgn, 200, 50), 0, "empty top-right sky must be clipped away");
+            assert_eq!(PtInRegion(rgn, 20, 150), 0, "empty mid-left area must be clipped away");
+            DeleteObject(rgn as _);
+        }
     }
 }

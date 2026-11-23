@@ -76,11 +76,21 @@ mod win_impl {
     };
     use windows::Win32::UI::Accessibility::{CUIAutomation, IUIAutomation};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetForegroundWindow, GetGUIThreadInfo, GetWindowLongPtrW, GetWindowThreadProcessId,
-        GUITHREADINFO, GWL_STYLE,
+        GetClassNameW, GetForegroundWindow, GetGUIThreadInfo, GetWindowLongPtrW,
+        GetWindowThreadProcessId, GUITHREADINFO, GWL_STYLE,
     };
 
     const ES_PASSWORD: isize = 0x0020;
+
+    pub(super) fn is_classic_edit_class(class_name: &str) -> bool {
+        let lower = class_name.to_ascii_lowercase();
+        lower == "edit"
+            || lower.starts_with("richedit")
+            || lower == "tedit"
+            || lower == "tmaskedit"
+            || lower == "wedit"
+            || (lower.starts_with("thunder") && lower.contains("textbox"))
+    }
 
     pub struct UiaDetector {
         uia: IUIAutomation,
@@ -134,6 +144,19 @@ mod win_impl {
             let mut info: GUITHREADINFO = std::mem::zeroed();
             info.cbSize = std::mem::size_of::<GUITHREADINFO>() as u32;
             if GetGUIThreadInfo(tid, &mut info) == 0 || info.hwndFocus.is_null() {
+                return false;
+            }
+            // ES_PASSWORD (0x0020) is ONLY valid on Edit / RichEdit window classes!
+            // On other Win32 controls (e.g. SysTreeView32 TVS_SHOWSELALWAYS, SysTabControl32
+            // TCS_FORCELABELLEFT, Explorer/WPS widgets), bit 0x0020 has an unrelated meaning
+            // and would falsely lock KuroCat in closed-eyes password mode.
+            let mut cls_buf = [0u16; 128];
+            let cls_len = GetClassNameW(info.hwndFocus, cls_buf.as_mut_ptr(), cls_buf.len() as i32);
+            if cls_len <= 0 {
+                return false;
+            }
+            let cls_name = String::from_utf16_lossy(&cls_buf[..cls_len as usize]);
+            if !is_classic_edit_class(&cls_name) {
                 return false;
             }
             let style = GetWindowLongPtrW(info.hwndFocus, GWL_STYLE);
@@ -261,5 +284,18 @@ mod tests {
         let det = super::win_impl::UiaDetector::new();
         assert!(det.is_some(), "CUIAutomation COM object should initialize cleanly on Windows");
         let _ = super::win_impl::is_focused_password_field(det.as_ref());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn classic_edit_class_filter_rejects_non_edit_win32_controls() {
+        assert!(super::win_impl::is_classic_edit_class("Edit"));
+        assert!(super::win_impl::is_classic_edit_class("RICHEDIT50W"));
+        assert!(super::win_impl::is_classic_edit_class("RichEdit20W"));
+        assert!(!super::win_impl::is_classic_edit_class("SysTreeView32"));
+        assert!(!super::win_impl::is_classic_edit_class("SysListView32"));
+        assert!(!super::win_impl::is_classic_edit_class("SysTabControl32"));
+        assert!(!super::win_impl::is_classic_edit_class("DirectUIHWND"));
+        assert!(!super::win_impl::is_classic_edit_class("Chrome_RenderWidgetHostHWND"));
     }
 }
