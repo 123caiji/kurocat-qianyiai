@@ -1,4 +1,4 @@
-# 🐈‍⬛ KuroCat
+# 🐈‍⬛ KuroCat — Open-Source Desktop Typing Cat Pet · 桌面打字小黑猫伴侣
 
 <p align="center">
   <strong>🇨🇳 简体中文</strong> &nbsp;|&nbsp;
@@ -6,7 +6,15 @@
   <a href="./README.ja.md">🇯🇵 日本語</a>
 </p>
 
-> 🌐 **官方网站与网页端在线试玩 / 国内高速下载**：[**https://qianyi.one/kurocat**](https://qianyi.one/kurocat)
+<p align="center">
+  <a href="https://qianyi.one/kurocat/"><img src="https://img.shields.io/badge/Website-qianyi.one%2Fkurocat-d4f044?style=flat-square&logo=googlechrome&logoColor=111" alt="KuroCat Official Website" /></a>
+  <a href="https://github.com/qianyiai/kurocat/releases/latest"><img src="https://img.shields.io/github/v/release/qianyiai/kurocat?style=flat-square&color=38bdf8" alt="Latest Release" /></a>
+  <a href="https://github.com/qianyiai/kurocat/blob/main/LICENSE"><img src="https://img.shields.io/github/license/qianyiai/kurocat?style=flat-square&color=22c55e" alt="MIT License" /></a>
+  <img src="https://img.shields.io/badge/Platform-Win11%2F10%2F7%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-818cf8?style=flat-square" alt="Cross Platform" />
+</p>
+
+> 🌐 **官方网站与网页端在线试玩 / 国内高速下载**：[**https://qianyi.one/kurocat/**](https://qianyi.one/kurocat/)
+> 🇺🇸 **KuroCat** is a lightweight, transparent, always-on-top **open-source desktop typing cat companion (Bongo Cat alternative)** for Windows, macOS, Linux & Android — built with **Tauri v2 + Rust**, featuring 6 hand-crafted cats + BigFish whale-girl, native **OBS transparent Browser Source**, password privacy guard, and a built-in **MCP server** for AI cat creation. ([Read in English →](./README.en.md))
 
 轻量级 **Windows（Win11/10 & Win7 SP1）/ macOS（10.15+ Apple Silicon & Intel）/ Linux（银河麒麟 KylinOS / Ubuntu / UOS）** 透明置顶桌面打字猫咪伴侣（开箱自带 **6 款手绘猫咪皮肤 + 🐳 大肥鱼（鲸鱼娘）**：经典小黑猫、暖奶茶布偶猫、大橘猫、三花猫、奶牛猫、暹罗猫、大肥鱼，支持**输密码自动闭眼/捂眼防偷窥**，并原生内置 **MCP 协议服务端**，支持用 AI 一句话定制或新增更多你自己的猫咪！），基于 **Tauri v2（Rust 全局原生钩子 + 内置 MCP 引擎 + HTML5 Canvas 2D）** 打造。单文件轻量低耗，零外部运行时依赖。
 

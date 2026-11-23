@@ -82,9 +82,9 @@ export interface KuroCatI18nBundle {
 export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
   zh: {
     htmlLang: 'zh-CN',
-    docTitle: 'KuroCat · 桌面打字小黑猫伴侣 — 谦一 (Qianyi)',
+    docTitle: 'KuroCat · 免费开源桌面打字小黑猫桌宠（Win/Mac/Linux/Android · OBS · AI 捏猫）— 谦一',
     metaDesc:
-      'KuroCat 是一款轻量级 Windows & macOS & Linux 透明置顶桌面打字猫咪伴侣：6 款手绘猫咪 + 🐳 大肥鱼（鲸鱼娘）皮肤、输密码自动闭眼/捂眼防偷窥、自定义尾巴拍键、OBS 透明直播源、65% / 108 键全尺寸可选与原生内置 MCP 协议。',
+      'KuroCat 是一款免费开源、轻量透明置顶的桌面打字猫咪伴侣（Desktop Typing Cat / Bongo Cat 开源替代），支持 Windows 11/10/7、macOS、Linux 与 Android。内置 6 款手绘猫咪 + 大肥鱼鲸鱼娘、自定义尾巴拍键、OBS 原生透明直播源、输密码自动闭眼防偷窥与内置 MCP 协议 AI 捏猫。',
     text: {
       'nav.back': '← 谦一',
       'nav.playground': '在线试玩',
@@ -191,7 +191,7 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'footer.releases': '所有版本 (Releases)',
     },
     html: {
-      'hero.title': '一只敲键盘的小黑猫<br /><span>住进你的桌面</span>',
+      'hero.title': 'KuroCat · 敲键盘的小黑猫<br /><span>住进你的桌面</span>',
       'hero.sub':
         '基于 <strong>Tauri v2 + Rust 原生钩子 + Canvas 2D</strong> 打造的透明置顶桌面键鼠伴侣。零外部依赖、约 24 MB 轻量常驻；内置 <strong>6 款手绘猫咪 + 🐳 大肥鱼（鲸鱼娘）</strong>、<strong>自定义尾巴拍键</strong>、<strong>OBS 原生透明直播源</strong>、<strong>输密码自动闭眼/捂眼防偷窥</strong> 与 <strong>原生 MCP 协议</strong>，发张照片就能让 AI 一句话捏出你家的猫。',
       'dl.sub':
@@ -309,9 +309,9 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
 
   en: {
     htmlLang: 'en',
-    docTitle: 'KuroCat · Desktop Typing Cat Companion — Qianyi',
+    docTitle: 'KuroCat — Free Open-Source Desktop Typing Cat Pet (Bongo Cat Alternative for Win/Mac/Linux/OBS)',
     metaDesc:
-      'KuroCat is a lightweight, transparent always-on-top desktop typing & mouse companion for Windows, macOS & Linux: 6 hand-crafted cats + BigFish whale-girl, password privacy guard, customizable tail keys, native OBS transparent source, 65%/108-key layouts & built-in MCP AI skin studio.',
+      'KuroCat is a free open-source, lightweight transparent always-on-top desktop typing & mouse cat companion (Bongo Cat alternative) for Windows, macOS, Linux & Android: 6 hand-crafted cats + BigFish whale-girl, password privacy guard, customizable tail keys, native OBS transparent source, 65%/108-key layouts & built-in MCP AI skin studio.',
     text: {
       'nav.back': '← Qianyi',
       'nav.playground': 'Playground',
@@ -418,7 +418,7 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'footer.releases': 'All Releases',
     },
     html: {
-      'hero.title': 'A Tiny Typing Black Cat<br /><span>Living on Your Desktop</span>',
+      'hero.title': 'KuroCat — A Typing Black Cat<br /><span>Living on Your Desktop</span>',
       'hero.sub':
         'Built with <strong>Tauri v2 + native Rust hooks + Canvas 2D</strong> as a transparent, always-on-top desk companion. Zero runtime bloat (~24 MB RAM); includes <strong>6 hand-crafted cats + 🐳 BigFish (whale-girl)</strong>, <strong>customizable tail-key patting</strong>, <strong>native OBS transparent source</strong>, <strong>automatic password privacy guard</strong>, and a <strong>built-in MCP server</strong> so AI can turn a photo of your cat into a live pet.',
       'dl.sub':
@@ -536,9 +536,9 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
 
   ja: {
     htmlLang: 'ja',
-    docTitle: 'KuroCat · デスクトップタイピング黒猫コンパニオン — 謙一 (Qianyi)',
+    docTitle: 'KuroCat · 無料オープンソースのデスクトップタイピング黒猫ペット（Win/Mac/Linux/OBS対応）',
     metaDesc:
-      'KuroCat は Windows / macOS / Linux 対応の軽量透過デスクトップタイピング猫コンパニオン。手描き猫 6 種＋クジラ娘（大肥鱼）、パスワード入力時の自動目隠し保護、しっぽキー自由指定、OBS 透過ソース、65%/108 キー切替、内蔵 MCP による AI スキン生成に対応。',
+      'KuroCat は Windows / macOS / Linux / Android 対応の無料オープンソース透過デスクトップタイピング黒猫ペット（Bongo Cat 代替）。手描き猫 6 種＋クジラ娘、パスワード自動目隠し保護、しっぽキー指定、OBS 透過ソース、65%/108 キー切替、内蔵 MCP AI スキン生成に対応。',
     text: {
       'nav.back': '← 謙一',
       'nav.playground': '体験版',
@@ -645,7 +645,7 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'footer.releases': '全リリース (Releases)',
     },
     html: {
-      'hero.title': 'キーボードを叩く黒猫が<br /><span>あなたのデスクトップに住み着く</span>',
+      'hero.title': 'KuroCat · キーボードを叩く黒猫が<br /><span>あなたのデスクトップに</span>',
       'hero.sub':
         '<strong>Tauri v2 + Rust ネイティブフック + Canvas 2D</strong> で開発した透過・最前面デスクトップ伴侶。外部依存ゼロ・約 24 MB 常駐で、<strong>手描き猫 6 種 + 🐳 クジラ娘</strong>、<strong>しっぽタイピング自由指定</strong>、<strong>OBS 透過配信ソース</strong>、<strong>パスワード自動目隠し保護</strong>、さらに <strong>MCP サーバー</strong> を標準搭載。写真 1 枚から AI が愛猫をデスクトップに再現します。',
       'dl.sub':

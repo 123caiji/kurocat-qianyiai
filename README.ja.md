@@ -1,4 +1,4 @@
-# 🐈‍⬛ KuroCat
+# 🐈‍⬛ KuroCat — 無料オープンソース・デスクトップタイピング黒猫ペット
 
 <p align="center">
   <a href="./README.md">🇨🇳 简体中文</a> &nbsp;|&nbsp;
@@ -6,7 +6,14 @@
   <strong>🇯🇵 日本語</strong>
 </p>
 
-> 🌐 **公式サイト・ブラウザ体験版・高速ダウンロード**：[**https://qianyi.one/kurocat/?lang=ja**](https://qianyi.one/kurocat/?lang=ja)
+<p align="center">
+  <a href="https://qianyi.one/kurocat/?lang=ja"><img src="https://img.shields.io/badge/Website-qianyi.one%2Fkurocat-d4f044?style=flat-square&logo=googlechrome&logoColor=111" alt="KuroCat Official Website" /></a>
+  <a href="https://github.com/qianyiai/kurocat/releases/latest"><img src="https://img.shields.io/github/v/release/qianyiai/kurocat?style=flat-square&color=38bdf8" alt="Latest Release" /></a>
+  <a href="https://github.com/qianyiai/kurocat/blob/main/LICENSE"><img src="https://img.shields.io/github/license/qianyiai/kurocat?style=flat-square&color=22c55e" alt="MIT License" /></a>
+  <img src="https://img.shields.io/badge/Platform-Win11%2F10%2F7%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-818cf8?style=flat-square" alt="Cross Platform" />
+</p>
+
+> 🌐 **公式サイト・ブラウザ体験版・高速ダウンロード**：[**https://qianyi.one/kurocat/**](https://qianyi.one/kurocat/)（[日本語 UI](https://qianyi.one/kurocat/?lang=ja)）
 
 **Windows（Win11/10 & Win7 SP1）/ macOS（10.15+ Apple Silicon & Intel）/ Linux（Ubuntu / Debian / KylinOS / UOS）** 対応の軽量・透過・最前面デスクトップタイピング猫コンパニオンです。**Tauri v2（Rust ネイティブグローバルフック + 内蔵 MCP サーバー + HTML5 Canvas 2D）** で構築され、外部ランタイム不要・約 24 MB の軽快動作を実現。**手描き猫スキン 6 種 + 🐳 クジラ娘（大肥鱼）** を標準搭載し、**パスワード入力時の自動目閉じ・目隠しガード**、**しっぽタイピングの 4 モード＆キー直接指定**、**OBS 透過ブラウザソース内蔵**、さらに **MCP プロトコル対応** で愛猫の写真から AI が一言で専用ペットを作成できます。
 

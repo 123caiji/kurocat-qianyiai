@@ -1,4 +1,4 @@
-# 🐈‍⬛ KuroCat
+# 🐈‍⬛ KuroCat — Free Open-Source Desktop Typing Cat Pet (Bongo Cat Alternative)
 
 <p align="center">
   <a href="./README.md">🇨🇳 简体中文</a> &nbsp;|&nbsp;
@@ -6,7 +6,14 @@
   <a href="./README.ja.md">🇯🇵 日本語</a>
 </p>
 
-> 🌐 **Official Website, Live Web Playground & Fast Downloads**: [**https://qianyi.one/kurocat/?lang=en**](https://qianyi.one/kurocat/?lang=en)
+<p align="center">
+  <a href="https://qianyi.one/kurocat/?lang=en"><img src="https://img.shields.io/badge/Website-qianyi.one%2Fkurocat-d4f044?style=flat-square&logo=googlechrome&logoColor=111" alt="KuroCat Official Website" /></a>
+  <a href="https://github.com/qianyiai/kurocat/releases/latest"><img src="https://img.shields.io/github/v/release/qianyiai/kurocat?style=flat-square&color=38bdf8" alt="Latest Release" /></a>
+  <a href="https://github.com/qianyiai/kurocat/blob/main/LICENSE"><img src="https://img.shields.io/github/license/qianyiai/kurocat?style=flat-square&color=22c55e" alt="MIT License" /></a>
+  <img src="https://img.shields.io/badge/Platform-Win11%2F10%2F7%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-818cf8?style=flat-square" alt="Cross Platform" />
+</p>
+
+> 🌐 **Official Website, Live Web Playground & Fast Downloads**: [**https://qianyi.one/kurocat/**](https://qianyi.one/kurocat/) ([English UI](https://qianyi.one/kurocat/?lang=en))
 
 A lightweight, transparent, always-on-top desktop typing & mouse companion for **Windows (Win11/10 & Win7 SP1) / macOS (10.15+ Apple Silicon & Intel) / Linux (Ubuntu / Debian / KylinOS / UOS)** — built with **Tauri v2 (native Rust global hooks + built-in MCP server + HTML5 Canvas 2D)**. Zero external runtime dependencies, ~24 MB RAM footprint. Ships out of the box with **6 hand-crafted cat skins + 🐳 BigFish (whale-girl)** (Classic Black Cat, Ragdoll, Orange Tabby, Calico, Tuxedo, Siamese, and BigFish), **system-level password privacy guard**, **4 customizable tail-key patting modes**, **native OBS transparent Browser Source**, and a **built-in MCP server** so AI can create your own cat from a photo in one sentence!
 
