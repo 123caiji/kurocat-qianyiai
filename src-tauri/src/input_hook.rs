@@ -347,76 +347,209 @@ pub fn start_global_hooks(app: AppHandle) {
     let _ = HOOK_TX.set(tx);
 
     // Dispatcher thread: deduplicates held key repeats & dual-channel macOS events,
-    // and throttles mouse moves to ~60Hz
+    // throttles mouse moves to ~60Hz, and reconciles lost KeyUp/MouseUp events (Fixes #3 & #4).
     std::thread::spawn(move || {
         let mut dedup = KeyDeduplicator::new();
         let mut last_mouse_emit = Instant::now() - Duration::from_secs(1);
+        let mut mouse_down = [false; 3]; // 0: left, 1: right, 2: middle
+        let mut last_reconcile = Instant::now();
 
-        while let Ok(msg) = rx.recv() {
+        let btn_index = |btn: &str| -> Option<usize> {
+            match btn {
+                "left" => Some(0),
+                "right" => Some(1),
+                "middle" => Some(2),
+                _ => None,
+            }
+        };
+
+        let release_all_held =
+            |app: &AppHandle, dedup: &mut KeyDeduplicator, mouse_down: &mut [bool; 3]| {
+                for (i, name) in [(0usize, "left"), (1, "right"), (2, "middle")] {
+                    if mouse_down[i] {
+                        mouse_down[i] = false;
+                        let _ = app.emit(
+                            "kuro-input",
+                            InputEvent::MouseUp {
+                                button: name.to_string(),
+                            },
+                        );
+                    }
+                }
+                for vk in 0..dedup.logical_pressed.len() {
+                    if dedup.logical_pressed[vk] {
+                        dedup.logical_pressed[vk] = false;
+                        let _ = app.emit(
+                            "kuro-input",
+                            InputEvent::KeyUp {
+                                vk: vk as u32,
+                                scan: 0,
+                            },
+                        );
+                    }
+                }
+            };
+
+        #[cfg(windows)]
+        let reconcile_windows_held_state =
+            |app: &AppHandle, dedup: &mut KeyDeduplicator, mouse_down: &mut [bool; 3]| {
+                use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+                    GetAsyncKeyState, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON,
+                };
+                use windows_sys::Win32::UI::WindowsAndMessaging::{
+                    GetSystemMetrics, SM_SWAPBUTTON,
+                };
+
+                let swapped = unsafe { GetSystemMetrics(SM_SWAPBUTTON) != 0 };
+                let (left_vk, right_vk) = if swapped {
+                    (VK_RBUTTON as i32, VK_LBUTTON as i32)
+                } else {
+                    (VK_LBUTTON as i32, VK_RBUTTON as i32)
+                };
+                let checks = [
+                    (0usize, left_vk, "left"),
+                    (1usize, right_vk, "right"),
+                    (2usize, VK_MBUTTON as i32, "middle"),
+                ];
+                for (idx, os_vk, name) in checks {
+                    if mouse_down[idx] {
+                        let physically_down =
+                            unsafe { (GetAsyncKeyState(os_vk) as u16 & 0x8000) != 0 };
+                        if !physically_down {
+                            mouse_down[idx] = false;
+                            let _ = app.emit(
+                                "kuro-input",
+                                InputEvent::MouseUp {
+                                    button: name.to_string(),
+                                },
+                            );
+                        }
+                    }
+                }
+
+                for vk in 1..dedup.logical_pressed.len() {
+                    if !dedup.logical_pressed[vk] {
+                        continue;
+                    }
+                    let os_vk = if vk == 0x10D {
+                        0x0D // Numpad Enter maps to VK_RETURN in GetAsyncKeyState
+                    } else if vk < 256 {
+                        vk as i32
+                    } else {
+                        continue;
+                    };
+                    let physically_down =
+                        unsafe { (GetAsyncKeyState(os_vk) as u16 & 0x8000) != 0 };
+                    if !physically_down {
+                        dedup.logical_pressed[vk] = false;
+                        if is_alt_vk(vk as u32) {
+                            ALT_HELD.store(false, Ordering::Relaxed);
+                        }
+                        let _ = app.emit(
+                            "kuro-input",
+                            InputEvent::KeyUp {
+                                vk: vk as u32,
+                                scan: 0,
+                            },
+                        );
+                    }
+                }
+            };
+
+        loop {
+            let msg = match rx.recv_timeout(Duration::from_millis(450)) {
+                Ok(m) => Some(m),
+                Err(mpsc::RecvTimeoutError::Timeout) => None,
+                Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            };
+
             if HOOKS_PAUSED.load(Ordering::Relaxed) {
+                release_all_held(&app, &mut dedup, &mut mouse_down);
                 continue;
             }
-            match msg {
-                RawHookMsg::KeyDown { vk, scan, source } => {
-                    if is_alt_vk(vk) {
-                        ALT_HELD.store(true, Ordering::Relaxed);
-                    }
-                    if PASSWORD_PRIVACY_ACTIVE.load(Ordering::Relaxed) {
-                        // Zero password keystrokes leave Rust — only emit a content-less privacy pulse!
+
+            if let Some(msg) = msg {
+                match msg {
+                    RawHookMsg::KeyDown { vk, scan, source } => {
+                        if is_alt_vk(vk) {
+                            ALT_HELD.store(true, Ordering::Relaxed);
+                        }
+                        if PASSWORD_PRIVACY_ACTIVE.load(Ordering::Relaxed) {
+                            // Zero password keystrokes leave Rust — only emit a content-less privacy pulse!
+                            if let Some(repeat) = dedup.on_key_down(vk, source, Instant::now()) {
+                                if !repeat {
+                                    let _ = app.emit("kuro-input", InputEvent::PrivacyTyping);
+                                }
+                            }
+                            continue;
+                        }
                         if let Some(repeat) = dedup.on_key_down(vk, source, Instant::now()) {
                             if !repeat {
-                                let _ = app.emit("kuro-input", InputEvent::PrivacyTyping);
+                                KEY_EVENTS_RECEIVED.fetch_add(1, Ordering::Relaxed);
                             }
+                            let _ =
+                                app.emit("kuro-input", InputEvent::KeyDown { vk, scan, repeat });
                         }
-                        continue;
                     }
-                    if let Some(repeat) = dedup.on_key_down(vk, source, Instant::now()) {
-                        if !repeat {
-                            KEY_EVENTS_RECEIVED.fetch_add(1, Ordering::Relaxed);
+                    RawHookMsg::KeyUp { vk, scan, source } => {
+                        if is_alt_vk(vk) {
+                            ALT_HELD.store(false, Ordering::Relaxed);
                         }
-                        let _ = app.emit("kuro-input", InputEvent::KeyDown { vk, scan, repeat });
+                        if PASSWORD_PRIVACY_ACTIVE.load(Ordering::Relaxed) {
+                            let _ = dedup.on_key_up(vk, source);
+                            continue;
+                        }
+                        if dedup.on_key_up(vk, source) {
+                            let _ = app.emit("kuro-input", InputEvent::KeyUp { vk, scan });
+                        }
                     }
-                }
-                RawHookMsg::KeyUp { vk, scan, source } => {
-                    if is_alt_vk(vk) {
-                        ALT_HELD.store(false, Ordering::Relaxed);
+                    RawHookMsg::MouseDown(btn) => {
+                        if let Some(i) = btn_index(btn) {
+                            mouse_down[i] = true;
+                        }
+                        let _ = app.emit(
+                            "kuro-input",
+                            InputEvent::MouseDown {
+                                button: btn.to_string(),
+                            },
+                        );
                     }
-                    if PASSWORD_PRIVACY_ACTIVE.load(Ordering::Relaxed) {
-                        let _ = dedup.on_key_up(vk, source);
-                        continue;
+                    RawHookMsg::MouseUp(btn) => {
+                        if let Some(i) = btn_index(btn) {
+                            mouse_down[i] = false;
+                        }
+                        let _ = app.emit(
+                            "kuro-input",
+                            InputEvent::MouseUp {
+                                button: btn.to_string(),
+                            },
+                        );
                     }
-                    if dedup.on_key_up(vk, source) {
-                        let _ = app.emit("kuro-input", InputEvent::KeyUp { vk, scan });
+                    RawHookMsg::MouseWheel(delta) => {
+                        let _ = app.emit("kuro-input", InputEvent::MouseWheel { delta });
                     }
-                }
-                RawHookMsg::MouseDown(btn) => {
-                    let _ = app.emit(
-                        "kuro-input",
-                        InputEvent::MouseDown {
-                            button: btn.to_string(),
-                        },
-                    );
-                }
-                RawHookMsg::MouseUp(btn) => {
-                    let _ = app.emit(
-                        "kuro-input",
-                        InputEvent::MouseUp {
-                            button: btn.to_string(),
-                        },
-                    );
-                }
-                RawHookMsg::MouseWheel(delta) => {
-                    let _ = app.emit("kuro-input", InputEvent::MouseWheel { delta });
-                }
-                RawHookMsg::MouseMove { x, y } => {
-                    let now = Instant::now();
-                    if now.duration_since(last_mouse_emit) >= Duration::from_millis(16) {
-                        last_mouse_emit = now;
-                        let (nx, ny) = normalize_screen_point(x, y);
-                        let _ = app.emit("kuro-input", InputEvent::MouseMove { x, y, nx, ny });
+                    RawHookMsg::MouseMove { x, y } => {
+                        let now = Instant::now();
+                        if now.duration_since(last_mouse_emit) >= Duration::from_millis(16) {
+                            last_mouse_emit = now;
+                            let (nx, ny) = normalize_screen_point(x, y);
+                            let _ =
+                                app.emit("kuro-input", InputEvent::MouseMove { x, y, nx, ny });
+                        }
                     }
                 }
             }
+
+            #[cfg(windows)]
+            {
+                let now = Instant::now();
+                if now.duration_since(last_reconcile) >= Duration::from_millis(450) {
+                    last_reconcile = now;
+                    reconcile_windows_held_state(&app, &mut dedup, &mut mouse_down);
+                }
+            }
+            #[cfg(not(windows))]
+            let _ = &mut last_reconcile;
         }
     });
 

@@ -294,10 +294,11 @@
       <!-- Linux / KylinOS (银河麒麟 / 优麒麟 / UOS / Ubuntu) -->
       <div class="macos-tip-card" id="linux-download">
         <div class="macos-tip-left">
-          <div class="tip-title">🐧 Linux / 银河麒麟 KylinOS / 优麒麟 / Ubuntu（x86_64 &amp; ARM64）</div>
+          <div class="tip-title">🐧 Linux / Ubuntu 22.04+ / 银河麒麟 V11+ / 优麒麟（x86_64 &amp; ARM64）</div>
           <p class="tip-body">
             原生支持 X11 全局键鼠监听（免 root）与 Wayland <code>evdev</code> 降级、透明无边框置顶、鼠标穿透（按住 <code>Alt</code> 临时拖动）及开机自启。
-            优先推荐下载轻量 <strong>.deb 安装包（1.9 MB）</strong>（双击或 <code>sudo apt install ./KuroCat-*.deb</code>）；若较老系统源缺少 <code>libwebkit2gtk-4.1</code> 或无管理员权限，可直接运行 <strong>.AppImage 绿色版</strong>（<code>chmod +x</code> 后双击）。
+            需要 <strong><code>glibc &gt;= 2.34</code></strong>（基于 Ubuntu 22.04+ / Debian 12+ / 银河麒麟 V11+，暂不支持基于 Ubuntu 20.04 / <code>glibc 2.31</code> 的银河麒麟 V10 SP1）。
+            优先推荐下载轻量 <strong>.deb 安装包（1.9 MB）</strong>（需 <code>libwebkit2gtk-4.1-0</code>，双击或 <code>sudo apt install ./KuroCat-*.deb</code>）；无管理员权限可直接运行 <strong>.AppImage 绿色版</strong>（<code>chmod +x</code> 后双击）。
           </p>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">

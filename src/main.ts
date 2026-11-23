@@ -538,6 +538,7 @@ async function bootstrap(): Promise<void> {
         await getCurrentWindow().startDragging();
       } finally {
         canvas.classList.remove('pet-dragging');
+        engine.onMouseUp('left');
         void invoke('set_dragging', { dragging: false });
         void invoke('save_window_pos');
       }

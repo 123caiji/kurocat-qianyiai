@@ -52,9 +52,10 @@
   - **首次打开说明（开源未公证应用）**：若提示「无法验证开发者」或「已损坏」，在终端执行一次 `xattr -cr /Applications/KuroCat.app` 后即可正常打开（后续 App 内一键升级会自动处理，无需再敲命令）。
   - **键盘与鼠标监听权限**：首次启动会自动弹出系统授权引导，请在「系统设置 → 隐私与安全性」中同时勾选 **「辅助功能」与「输入监控」** 里的 `KuroCat`（即开即生效，兼容 Karabiner-Elements；若覆盖升级后权限未生效，在列表中选中 `KuroCat` 点左下角 `-` 删除再重新 `+` 添加即可）。
   - **macOS Stdio MCP 路径**：`/Applications/KuroCat.app/Contents/MacOS/KuroCat`（参数 `--mcp`），或在桌宠运行时直接连接 `http://127.0.0.1:27420/mcp`。
-- **🐧 Linux / 银河麒麟 KylinOS / 优麒麟 / Ubuntu / UOS（`v4.7.0`）**：
+- **🐧 Linux / Ubuntu 22.04+ / Debian 12+ / 银河麒麟 V11+ / UOS（`v4.7.0`）**：
   - **x86_64（Intel / AMD / 兆芯 / 海光）**：[**`.deb`（1.87 MB）**](https://github.com/qianyiai/kurocat/releases/download/v4.7.0/KuroCat-v4.7.0-linux-amd64.deb) · [**`.AppImage`（77.01 MB）**](https://github.com/qianyiai/kurocat/releases/download/v4.7.0/KuroCat-v4.7.0-linux-amd64.AppImage)
   - **ARM64（飞腾 / 鲲鹏 / 树莓派）**：[**`.deb`（1.83 MB）**](https://github.com/qianyiai/kurocat/releases/download/v4.7.0/KuroCat-v4.7.0-linux-arm64.deb) · [**`.AppImage`（75.19 MB）**](https://github.com/qianyiai/kurocat/releases/download/v4.7.0/KuroCat-v4.7.0-linux-arm64.AppImage)
+  - **系统要求说明**：基于 Tauri v2 + Ubuntu 22.04 基线构建，需要 **`glibc >= 2.34`** 且（`.deb` 版）依赖 **`libwebkit2gtk-4.1-0`** 与 **`libayatana-appindicator3-1`**（适用于 Ubuntu 22.04+ / Debian 12+ / 银河麒麟 V11+ 等发行版；**暂不支持基于 Ubuntu 20.04 / `glibc 2.31` / `webkit2gtk-4.0` 的银河麒麟 V10 SP1**）。
   - 原生动态加载 X11 `XRecord`（免 root 捕获全局键鼠，Wayland 自动支持 `evdev` 回退），官网亦提供全部国内高速镜像：[`https://qianyi.one/kurocat/#linux-download`](https://qianyi.one/kurocat/#linux-download)。
 
 ## ✨ 核心特性
@@ -85,6 +86,7 @@
 - **摸头眯眼与呼噜互动**：鼠标移到猫头上自动切换为黑白描边小手光标，来回抚摸即触发慵懒细眯眼表情，并伴随 Web Audio 实时合成的温柔猫咪呼噜声（默认开启，可随时开关，不干扰自身键鼠声音）。
 - **错落弹跳 3D 按键气泡**：键盘上方实时弹出白底立体键帽，支持一键隐藏（输密码更安心）。
 - **智能鼠标穿透 & 系统托盘**：透明区域自动点击穿透不遮挡办公或游戏，右键猫咪或系统托盘可一键切换外观、使用 **20%–150% 丝滑滑动条**无级调节尺寸、开关 MCP 服务并**一键复制 MCP 配置**。
+- **多显示器选择 & macOS 原生全屏悬浮**：Windows 与 macOS 系统托盘均提供 **「选择显示器」** 子菜单，可将桌宠固定到指定显示器的工作区右下角（拔插外接屏自动回退主屏并在重连后恢复，拖动或选择「自由摆放」即可解除固定）；macOS 13+ 原生支持跨 App 全屏空间悬浮显示。
 
 ## 🤖 MCP 接入指南（用 AI 改猫 / 加自己的猫）
 
