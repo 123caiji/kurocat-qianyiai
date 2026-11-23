@@ -168,7 +168,7 @@ class MainActivity : AppCompatActivity(), KuroPetListener {
             typeface = Typeface.DEFAULT_BOLD
         })
         titleCol.addView(TextView(this).apply {
-            text = "v4.7.0 · 透明悬浮打字桌宠 · 免费开源"
+            text = "v4.8.0 · 透明悬浮打字桌宠 · 免费开源"
             setTextColor(0xFF8F9DB5.toInt())
             textSize = 12.5f
             setPadding(0, dp(2), 0, 0)

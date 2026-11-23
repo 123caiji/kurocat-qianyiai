@@ -4,9 +4,9 @@ import type { KeyboardLayoutId } from '../../src/keyboardLayout';
 import { BUILTIN_WEB_CATS } from './builtinCats';
 import { keyboardEventToVk } from './webKeyMap';
 
-const LOCAL_MIRROR_VERSION = 'v4.7.0';
-const LOCAL_MIRROR_VER_NUM = '4.7.0';
-const MACOS_MIRROR_VERSION = 'v4.7.0';
+const LOCAL_MIRROR_VERSION = 'v4.8.0';
+const LOCAL_MIRROR_VER_NUM = '4.8.0';
+const MACOS_MIRROR_VERSION = 'v4.8.0';
 
 interface ReleaseAssetMap {
   win65: { name: string; primaryUrl: string; ghUrl: string; sizeText: string };
