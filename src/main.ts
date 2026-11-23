@@ -2,10 +2,16 @@ import './style.css';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { KuroCatEngine, type KeyboardOrientation } from './catEngine';
+import {
+  DEFAULT_TAIL_KEY_IDS,
+  KuroCatEngine,
+  TAIL_KEY_PRESETS,
+  type KeyboardOrientation,
+  type TailKeyMode,
+} from './catEngine';
 import { catAudio } from './audio';
 import { DEFAULT_BUILTIN_CATS, type CatSkinConfig } from './catSkins';
-import type { KeyboardLayoutId } from './keyboardLayout';
+import { resolveKeyByVk, type KeyboardLayoutId } from './keyboardLayout';
 
 interface AppSettings {
   x: number | null;
@@ -22,6 +28,11 @@ interface AppSettings {
   keyboardLayout: KeyboardLayoutId;
   keyboardOrientation: KeyboardOrientation;
   privacyPasswordGuard: boolean;
+  tailKeyMode: TailKeyMode;
+  tailKeyIds: string[];
+  obsEnabled?: boolean;
+  obsPort?: number;
+  obsHidePet?: boolean;
 }
 
 type InputEvent =
@@ -60,7 +71,7 @@ interface UpdateProgressEvent {
   info: UpdateInfo | null;
 }
 
-let appVersion = '4.8.0';
+let appVersion = '4.9.0';
 let latestUpdateInfo: UpdateInfo | null = null;
 let updateBusy = false;
 let dismissedVersion: string | null = null;
@@ -69,6 +80,15 @@ let sliderDragging = false;
 let altOverride = false;
 let lastKnownLockState: boolean | null = null;
 let syncWin7OverlayFn: ((focusMenu?: boolean) => void) | null = null;
+let tailPickerOpen = false;
+let tailPickerStatusOverride: string | null = null;
+
+const TAIL_MODE_LABELS: Record<TailKeyMode, string> = {
+  smart: '智能第三只手',
+  custom: '自定义按键',
+  edge: '近尾边缘区',
+  off: '仅摆动',
+};
 
 let settings: AppSettings = {
   x: null,
@@ -85,6 +105,8 @@ let settings: AppSettings = {
   keyboardLayout: '65',
   keyboardOrientation: 'cat',
   privacyPasswordGuard: true,
+  tailKeyMode: 'smart',
+  tailKeyIds: [...DEFAULT_TAIL_KEY_IDS],
 };
 
 let catList: CatSkinConfig[] = [...DEFAULT_BUILTIN_CATS];
@@ -99,6 +121,11 @@ const updateToastTextEl = document.getElementById('update-toast-text') as HTMLSp
 const btnToastInstallEl = document.getElementById('btn-toast-install') as HTMLButtonElement;
 const btnToastOpenEl = document.getElementById('btn-toast-open') as HTMLButtonElement;
 const btnToastCloseEl = document.getElementById('btn-toast-close') as HTMLButtonElement;
+const tailPickerBarEl = document.getElementById('tail-picker-bar') as HTMLDivElement;
+const tailPickerTitleEl = document.getElementById('tail-picker-title') as HTMLSpanElement;
+const btnTailDoneEl = document.getElementById('btn-tail-done') as HTMLButtonElement;
+const tailModeBadgeEl = document.getElementById('tail-mode-badge') as HTMLSpanElement;
+const tailKeysCountEl = document.getElementById('tail-keys-count') as HTMLSpanElement;
 const engine = new KuroCatEngine(canvas);
 
 function renderBreedPills(): void {
@@ -148,12 +175,33 @@ function syncMenuUI(): void {
 
   const kbLayout: KeyboardLayoutId = settings.keyboardLayout === '108' ? '108' : '65';
   const kbOrient: KeyboardOrientation = settings.keyboardOrientation === 'viewer' ? 'viewer' : 'cat';
+  const tailMode: TailKeyMode =
+    settings.tailKeyMode === 'custom' ||
+    settings.tailKeyMode === 'edge' ||
+    settings.tailKeyMode === 'off'
+      ? settings.tailKeyMode
+      : 'smart';
+  const tailIds = Array.isArray(settings.tailKeyIds) ? settings.tailKeyIds : [...DEFAULT_TAIL_KEY_IDS];
+
   document.querySelectorAll<HTMLButtonElement>('[data-kblayout]').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.kblayout === kbLayout);
   });
   document.querySelectorAll<HTMLButtonElement>('[data-kborient]').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.kborient === kbOrient);
   });
+  document.querySelectorAll<HTMLButtonElement>('[data-tailmode]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.tailmode === tailMode);
+  });
+  if (tailModeBadgeEl) {
+    tailModeBadgeEl.textContent = TAIL_MODE_LABELS[tailMode];
+  }
+  if (tailKeysCountEl) {
+    tailKeysCountEl.textContent = `${tailIds.length} 键`;
+  }
+  if (tailPickerTitleEl) {
+    tailPickerTitleEl.textContent =
+      tailPickerStatusOverride || `🐾 点键帽或敲键盘开关（已选 ${tailIds.length} 键）`;
+  }
 
   const activeCat = catList.find((c) => c.id === settings.catBreed) ?? catList[0];
   renderBreedPills();
@@ -168,31 +216,101 @@ function syncMenuUI(): void {
   engine.showKeyBubbles = settings.showKeyBubbles;
   engine.setCatAppearance(activeCat?.id || 'black', activeCat);
   engine.setKeyboardConfig(kbLayout, kbOrient);
+  engine.setTailKeyConfig(tailMode, tailIds);
   if (!sliderDragging) {
     engine.setRenderScale(settings.scale);
   }
   catAudio.setEnabled(settings.soundEnabled);
 }
 
+function syncWindowInteractiveState(): void {
+  const open = !menuEl.classList.contains('hidden') || tailPickerOpen;
+  void invoke('set_menu_open', { open });
+}
+
 function closeContextMenu(): void {
   if (!menuEl.classList.contains('hidden')) {
     menuEl.classList.add('hidden');
-    void invoke('set_menu_open', { open: false });
+    syncWindowInteractiveState();
     syncWin7OverlayFn?.(false);
+  }
+  void invoke('close_context_menu');
+}
+
+function openContextMenu(_clientX: number, _clientY: number): void {
+  // Always pop the dedicated non-overlapping side menu window beside the cat so it NEVER blocks the pet!
+  if (!menuEl.classList.contains('hidden')) {
+    menuEl.classList.add('hidden');
+    syncWindowInteractiveState();
+    syncWin7OverlayFn?.(false);
+  }
+  void invoke('open_context_menu');
+}
+
+function openTailPicker(): void {
+  closeContextMenu();
+  tailPickerOpen = true;
+  tailPickerStatusOverride = null;
+  tailPickerBarEl.classList.remove('hidden');
+  engine.setTailPickerActive(true);
+  syncWindowInteractiveState();
+  if (settings.tailKeyMode !== 'custom') {
+    void applySettingsPatch({ tailKeyMode: 'custom' });
+  } else {
+    syncMenuUI();
+  }
+  requestAnimationFrame(() => syncWin7OverlayFn?.(true));
+}
+
+function closeTailPicker(): void {
+  if (!tailPickerOpen) return;
+  tailPickerOpen = false;
+  tailPickerStatusOverride = null;
+  tailPickerBarEl.classList.add('hidden');
+  canvas.classList.remove('tail-key-hover');
+  engine.setTailPickerActive(false);
+  syncWindowInteractiveState();
+  syncWin7OverlayFn?.(false);
+}
+
+function toggleTailKeyId(specId: string, label?: string): void {
+  const cur = Array.isArray(settings.tailKeyIds) ? [...settings.tailKeyIds] : [];
+  const idx = cur.indexOf(specId);
+  let added = false;
+  if (idx >= 0) {
+    cur.splice(idx, 1);
+  } else {
+    cur.push(specId);
+    added = true;
+  }
+  const keyText = label || specId.toUpperCase();
+  tailPickerStatusOverride = added
+    ? `🐾 已加「${keyText}」· 共 ${cur.length} 键`
+    : `🐾 已取消「${keyText}」· 共 ${cur.length} 键`;
+  void applySettingsPatch({ tailKeyMode: 'custom', tailKeyIds: cur });
+  if (added) {
+    engine.previewTailTap(specId);
   }
 }
 
-function openContextMenu(clientX: number, clientY: number): void {
-  syncMenuUI();
-  menuEl.classList.remove('hidden');
-  void invoke('set_menu_open', { open: true });
-
-  const rect = menuEl.getBoundingClientRect();
-  const maxX = Math.max(8, window.innerWidth - rect.width - 8);
-  const maxY = Math.max(8, window.innerHeight - rect.height - 8);
-  menuEl.style.left = `${Math.max(8, Math.min(clientX, maxX))}px`;
-  menuEl.style.top = `${Math.max(8, Math.min(clientY, maxY))}px`;
-  syncWin7OverlayFn?.(true);
+function applyTailPreset(presetKey: string): void {
+  let nextIds: string[] = [];
+  let label = '已清空';
+  if (presetKey === 'office') {
+    nextIds = [...TAIL_KEY_PRESETS.office.ids];
+    label = '预设：回车空格';
+  } else if (presetKey === 'rightFn') {
+    nextIds = [...TAIL_KEY_PRESETS.rightFn.ids];
+    label = '预设：方向/小键盘';
+  } else if (presetKey === 'edgeMods') {
+    nextIds = [...TAIL_KEY_PRESETS.edgeMods.ids];
+    label = '预设：外侧功能键';
+  }
+  tailPickerStatusOverride = `🐾 ${label}（${nextIds.length} 键）`;
+  void applySettingsPatch({ tailKeyMode: 'custom', tailKeyIds: nextIds });
+  if (nextIds.length > 0) {
+    engine.previewTailTap(nextIds[0]);
+  }
 }
 
 async function applySettingsPatch(patch: Partial<AppSettings>): Promise<void> {
@@ -488,14 +606,48 @@ async function bootstrap(): Promise<void> {
     }
   });
 
+  await listen('kuro-open-tail-picker', () => {
+    openTailPicker();
+  });
+
+  await listen<number>('kuro-scale-preview', (ev) => {
+    if (typeof ev.payload === 'number' && Number.isFinite(ev.payload)) {
+      engine.setRenderScale(Math.max(0.2, Math.min(1.5, ev.payload)));
+    }
+  });
+
+  btnTailDoneEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeTailPicker();
+  });
+
+  tailPickerBarEl.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-tailpreset]');
+    if (!btn) return;
+    e.stopPropagation();
+    const preset = btn.dataset.tailpreset;
+    if (preset) applyTailPreset(preset);
+  });
+
   await listen<InputEvent>('kuro-input', (ev) => {
     const p = ev.payload;
     switch (p.kind) {
       case 'keyDown':
+        if (tailPickerOpen) {
+          if (!p.repeat) {
+            const spec = resolveKeyByVk(p.vk, settings.keyboardLayout);
+            if (spec) {
+              toggleTailKeyId(spec.id, spec.bubble || spec.label);
+            }
+          }
+          break;
+        }
         engine.onKeyDown(p.vk, p.repeat);
         break;
       case 'keyUp':
-        engine.onKeyUp(p.vk);
+        if (!tailPickerOpen) {
+          engine.onKeyUp(p.vk);
+        }
         break;
       case 'mouseMove':
         engine.onGlobalMouseMove(p.nx, p.ny);
@@ -527,10 +679,32 @@ async function bootstrap(): Promise<void> {
     canvas.classList.toggle('pet-hover', c.overCat && interactive);
   });
 
-  // Left-click drag to reposition transparent window
+  canvas.addEventListener('mousemove', (e) => {
+    if (!tailPickerOpen) return;
+    const hit = engine.hitTestKeyAtClientPoint(e.clientX, e.clientY);
+    engine.setTailPickerHover(hit ? hit.id : null);
+    canvas.classList.toggle('tail-key-hover', Boolean(hit));
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    if (!tailPickerOpen) return;
+    engine.setTailPickerHover(null);
+    canvas.classList.remove('tail-key-hover');
+  });
+
+  // Left-click keycap toggle in tail-picker mode, OR drag to reposition transparent window
   canvas.addEventListener('mousedown', async (e) => {
     if (e.button === 0) {
       closeContextMenu();
+      if (tailPickerOpen) {
+        const hit = engine.hitTestKeyAtClientPoint(e.clientX, e.clientY);
+        if (hit) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleTailKeyId(hit.id, hit.bubble || hit.label);
+          return;
+        }
+      }
       if (settings.clickThroughLocked && !altOverride && !e.altKey) return;
       canvas.classList.add('pet-dragging');
       void invoke('set_dragging', { dragging: true });
@@ -548,18 +722,21 @@ async function bootstrap(): Promise<void> {
   // Right-click opens sleek dark glass settings menu
   canvas.addEventListener('contextmenu', (e) => {
     e.preventDefault();
+    if (tailPickerOpen) {
+      closeTailPicker();
+    }
     if (settings.clickThroughLocked && !altOverride && !e.altKey) return;
     openContextMenu(e.clientX, e.clientY);
   });
 
-  window.addEventListener('blur', () => closeContextMenu());
+  // Side menu window auto-closes on its own focus loss; do NOT close on main blur (clicking the menu blurs main!)
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeContextMenu();
+    if (e.key === 'Escape' && !tailPickerOpen) closeContextMenu();
   });
 
   menuEl.addEventListener('click', (e) => {
     const target = (e.target as HTMLElement).closest<HTMLElement>(
-      '[data-action], [data-scale], [data-breed], [data-kblayout], [data-kborient]',
+      '[data-action], [data-scale], [data-breed], [data-kblayout], [data-kborient], [data-tailmode]',
     );
     if (!target) return;
 
@@ -574,6 +751,17 @@ async function bootstrap(): Promise<void> {
     if (kbOrientAttr === 'cat' || kbOrientAttr === 'viewer') {
       void applySettingsPatch({ keyboardOrientation: kbOrientAttr });
       closeContextMenu();
+      return;
+    }
+
+    const tailModeAttr = target.dataset.tailmode;
+    if (
+      tailModeAttr === 'smart' ||
+      tailModeAttr === 'custom' ||
+      tailModeAttr === 'edge' ||
+      tailModeAttr === 'off'
+    ) {
+      void applySettingsPatch({ tailKeyMode: tailModeAttr });
       return;
     }
 
@@ -623,6 +811,9 @@ async function bootstrap(): Promise<void> {
       case 'check-update':
         void triggerManualUpdateCheck();
         break;
+      case 'open-tail-picker':
+        openTailPicker();
+        break;
       case 'reset-pos':
         void invoke('reset_position');
         closeContextMenu();
@@ -663,6 +854,18 @@ async function bootstrap(): Promise<void> {
               Math.min(physW, Math.ceil(r.right * dpr)),
               Math.min(physH, Math.ceil(r.bottom * dpr)),
               Math.round(12 * dpr),
+            );
+          }
+        }
+        if (tailPickerBarEl && !tailPickerBarEl.classList.contains('hidden')) {
+          const r = tailPickerBarEl.getBoundingClientRect();
+          if (r.width > 2 && r.height > 2) {
+            rects.push(
+              Math.max(0, Math.floor(r.left * dpr)),
+              Math.max(0, Math.floor(r.top * dpr)),
+              Math.min(physW, Math.ceil(r.right * dpr)),
+              Math.min(physH, Math.ceil(r.bottom * dpr)),
+              Math.round(13 * dpr),
             );
           }
         }

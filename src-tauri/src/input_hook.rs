@@ -363,13 +363,18 @@ pub fn start_global_hooks(app: AppHandle) {
             }
         };
 
+        let emit_input = |app: &AppHandle, ev: InputEvent| {
+            crate::obs::broadcast_input(&ev);
+            let _ = app.emit("kuro-input", ev);
+        };
+
         let release_all_held =
             |app: &AppHandle, dedup: &mut KeyDeduplicator, mouse_down: &mut [bool; 3]| {
                 for (i, name) in [(0usize, "left"), (1, "right"), (2, "middle")] {
                     if mouse_down[i] {
                         mouse_down[i] = false;
-                        let _ = app.emit(
-                            "kuro-input",
+                        emit_input(
+                            app,
                             InputEvent::MouseUp {
                                 button: name.to_string(),
                             },
@@ -379,8 +384,8 @@ pub fn start_global_hooks(app: AppHandle) {
                 for vk in 0..dedup.logical_pressed.len() {
                     if dedup.logical_pressed[vk] {
                         dedup.logical_pressed[vk] = false;
-                        let _ = app.emit(
-                            "kuro-input",
+                        emit_input(
+                            app,
                             InputEvent::KeyUp {
                                 vk: vk as u32,
                                 scan: 0,
@@ -417,8 +422,8 @@ pub fn start_global_hooks(app: AppHandle) {
                             unsafe { (GetAsyncKeyState(os_vk) as u16 & 0x8000) != 0 };
                         if !physically_down {
                             mouse_down[idx] = false;
-                            let _ = app.emit(
-                                "kuro-input",
+                            emit_input(
+                                app,
                                 InputEvent::MouseUp {
                                     button: name.to_string(),
                                 },
@@ -445,8 +450,8 @@ pub fn start_global_hooks(app: AppHandle) {
                         if is_alt_vk(vk as u32) {
                             ALT_HELD.store(false, Ordering::Relaxed);
                         }
-                        let _ = app.emit(
-                            "kuro-input",
+                        emit_input(
+                            app,
                             InputEvent::KeyUp {
                                 vk: vk as u32,
                                 scan: 0,
@@ -478,7 +483,7 @@ pub fn start_global_hooks(app: AppHandle) {
                             // Zero password keystrokes leave Rust — only emit a content-less privacy pulse!
                             if let Some(repeat) = dedup.on_key_down(vk, source, Instant::now()) {
                                 if !repeat {
-                                    let _ = app.emit("kuro-input", InputEvent::PrivacyTyping);
+                                    emit_input(&app, InputEvent::PrivacyTyping);
                                 }
                             }
                             continue;
@@ -487,8 +492,7 @@ pub fn start_global_hooks(app: AppHandle) {
                             if !repeat {
                                 KEY_EVENTS_RECEIVED.fetch_add(1, Ordering::Relaxed);
                             }
-                            let _ =
-                                app.emit("kuro-input", InputEvent::KeyDown { vk, scan, repeat });
+                            emit_input(&app, InputEvent::KeyDown { vk, scan, repeat });
                         }
                     }
                     RawHookMsg::KeyUp { vk, scan, source } => {
@@ -500,15 +504,15 @@ pub fn start_global_hooks(app: AppHandle) {
                             continue;
                         }
                         if dedup.on_key_up(vk, source) {
-                            let _ = app.emit("kuro-input", InputEvent::KeyUp { vk, scan });
+                            emit_input(&app, InputEvent::KeyUp { vk, scan });
                         }
                     }
                     RawHookMsg::MouseDown(btn) => {
                         if let Some(i) = btn_index(btn) {
                             mouse_down[i] = true;
                         }
-                        let _ = app.emit(
-                            "kuro-input",
+                        emit_input(
+                            &app,
                             InputEvent::MouseDown {
                                 button: btn.to_string(),
                             },
@@ -518,23 +522,22 @@ pub fn start_global_hooks(app: AppHandle) {
                         if let Some(i) = btn_index(btn) {
                             mouse_down[i] = false;
                         }
-                        let _ = app.emit(
-                            "kuro-input",
+                        emit_input(
+                            &app,
                             InputEvent::MouseUp {
                                 button: btn.to_string(),
                             },
                         );
                     }
                     RawHookMsg::MouseWheel(delta) => {
-                        let _ = app.emit("kuro-input", InputEvent::MouseWheel { delta });
+                        emit_input(&app, InputEvent::MouseWheel { delta });
                     }
                     RawHookMsg::MouseMove { x, y } => {
                         let now = Instant::now();
                         if now.duration_since(last_mouse_emit) >= Duration::from_millis(16) {
                             last_mouse_emit = now;
                             let (nx, ny) = normalize_screen_point(x, y);
-                            let _ =
-                                app.emit("kuro-input", InputEvent::MouseMove { x, y, nx, ny });
+                            emit_input(&app, InputEvent::MouseMove { x, y, nx, ny });
                         }
                     }
                 }

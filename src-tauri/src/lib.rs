@@ -6,6 +6,7 @@ mod input_hook;
 #[cfg(target_os = "macos")]
 mod macos_window;
 mod mcp;
+mod obs;
 mod privacy;
 mod tray;
 mod updater;
@@ -20,13 +21,14 @@ const WIN7_OFFSCREEN_PARK_POS: i32 = -16000;
 use cats::{all_cats, cat_exists, cats_path, sanitize_cat_id, CatSkinConfig};
 use config::{
     config_path, load_settings, normalize_keyboard_layout, normalize_keyboard_orientation,
-    save_settings, set_windows_autostart, AppSettings,
+    normalize_tail_key_ids, normalize_tail_key_mode, save_settings, set_windows_autostart,
+    AppSettings,
 };
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
-use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Size, State};
+use tauri::{AppHandle, Emitter, Listener, LogicalSize, Manager, PhysicalPosition, Size, State};
 
 pub const BASE_WIDTH: f64 = 420.0;
 pub const BASE_HEIGHT: f64 = 440.0;
@@ -195,6 +197,7 @@ pub fn set_pet_always_on_top(app: &AppHandle, on_top: bool) {
 }
 
 pub fn shutdown_pet_windows() {
+    obs::shutdown_obs_server();
     #[cfg(windows)]
     if win_needs_win7_ulw() {
         win7_layered::shutdown();
@@ -208,6 +211,7 @@ pub fn run_mcp_stdio() {
 pub struct AppState {
     pub settings: Arc<Mutex<AppSettings>>,
     pub menu_open: Arc<AtomicBool>,
+    pub menu_opened_at: Arc<Mutex<Instant>>,
     pub dragging: Arc<AtomicBool>,
     pub mcp_enabled: Arc<AtomicBool>,
     pub update_banner_open: Arc<AtomicBool>,
@@ -264,18 +268,37 @@ fn update_settings(app: AppHandle, state: State<'_, AppState>, mut patch: AppSet
     if patch.mcp_port == 0 {
         patch.mcp_port = 27420;
     }
+    if patch.obs_port == 0 {
+        patch.obs_port = 27421;
+    }
+    if !patch.obs_enabled {
+        patch.obs_hide_pet = false;
+    }
     patch.keyboard_layout = normalize_keyboard_layout(&patch.keyboard_layout);
     patch.keyboard_orientation = normalize_keyboard_orientation(&patch.keyboard_orientation);
+    patch.tail_key_mode = normalize_tail_key_mode(&patch.tail_key_mode);
+    patch.tail_key_ids = normalize_tail_key_ids(&patch.tail_key_ids);
 
-    let (prev_autostart, prev_scale, prev_layout) = {
+    let (prev_autostart, prev_scale, prev_layout, prev_obs_hide) = {
         let s = state.settings.lock().unwrap();
-        (s.autostart, s.scale, s.keyboard_layout.clone())
+        (
+            s.autostart,
+            s.scale,
+            s.keyboard_layout.clone(),
+            s.obs_enabled && s.obs_hide_pet,
+        )
     };
     if patch.autostart != prev_autostart {
         let _ = set_windows_autostart(patch.autostart);
     }
 
     state.mcp_enabled.store(patch.mcp_enabled, Ordering::Relaxed);
+    obs::sync_obs_server(&app, patch.obs_enabled, patch.obs_port);
+
+    let next_obs_hide = patch.obs_enabled && patch.obs_hide_pet;
+    if next_obs_hide != prev_obs_hide && !state.paused_guard.load(Ordering::Relaxed) {
+        set_pet_visible(&app, !next_obs_hide);
+    }
 
     let size_changed = (patch.scale - prev_scale).abs() > 0.005 || patch.keyboard_layout != prev_layout;
     set_pet_always_on_top(&app, patch.always_on_top);
@@ -313,7 +336,222 @@ fn update_settings(app: AppHandle, state: State<'_, AppState>, mut patch: AppSet
         save_settings(&s);
     }
     let _ = app.emit("kuro-settings", patch.clone());
+    if size_changed {
+        reposition_context_menu_if_open(&app);
+    }
     patch
+}
+
+const SIDE_MENU_LOGICAL_W: f64 = 266.0;
+
+/// Computes a non-overlapping physical position `(mx, my)` for the floating menu popover
+/// beside the cat window: prefers LEFT (since the cat defaults to bottom-right), then RIGHT,
+/// then ABOVE, never covering the cat when screen space allows.
+fn compute_side_menu_pos(
+    pet_rect: (i32, i32, i32, i32),
+    work_area: (i32, i32, i32, i32),
+    menu_size: (i32, i32),
+    gap: i32,
+    pad: i32,
+) -> (i32, i32) {
+    let (px, py, pw, ph) = pet_rect;
+    let (wx, wy, ww, wh) = work_area;
+    let (mw, mh) = menu_size;
+
+    let min_x = wx + pad;
+    let max_x = (wx + ww - mw - pad).max(min_x);
+    let min_y = wy + pad;
+    let max_y = (wy + wh - mh - pad).max(min_y);
+
+    let space_left = (px - gap) - min_x;
+    let space_right = (wx + ww - pad) - (px + pw + gap);
+
+    if space_left >= mw {
+        let mx = px - mw - gap;
+        let my = (py + ph - mh).clamp(min_y, max_y);
+        return (mx.clamp(min_x, max_x), my);
+    }
+    if space_right >= mw {
+        let mx = px + pw + gap;
+        let my = (py + ph - mh).clamp(min_y, max_y);
+        return (mx.clamp(min_x, max_x), my);
+    }
+
+    // Tight horizontal screen fallback: try placing directly above the cat
+    let space_above = (py - gap) - min_y;
+    if space_above >= mh {
+        let mx = (px + (pw - mw) / 2).clamp(min_x, max_x);
+        let my = (py - mh - gap).clamp(min_y, max_y);
+        return (mx, my);
+    }
+
+    // Last resort on very small viewports: pick side with more space, clamped on-screen
+    let mx = if space_left >= space_right { min_x } else { max_x };
+    let my = (py + ph - mh).clamp(min_y, max_y);
+    (mx, my)
+}
+
+fn current_pet_rect_and_monitor(app: &AppHandle) -> Option<((i32, i32, i32, i32), (i32, i32, i32, i32), f64)> {
+    let main_win = app.get_webview_window("main")?;
+    let sf = main_win.scale_factor().unwrap_or(1.0);
+
+    #[cfg(windows)]
+    let pet_rect = if win_needs_win7_ulw() {
+        win7_layered::get_rect().map(|(x, y, w, h)| (x, y, w as i32, h as i32))
+    } else {
+        match (main_win.outer_position().ok(), main_win.outer_size().ok()) {
+            (Some(p), Some(sz)) => Some((p.x, p.y, sz.width as i32, sz.height as i32)),
+            _ => None,
+        }
+    };
+    #[cfg(not(windows))]
+    let pet_rect = match (main_win.outer_position().ok(), main_win.outer_size().ok()) {
+        (Some(p), Some(sz)) => Some((p.x, p.y, sz.width as i32, sz.height as i32)),
+        _ => None,
+    };
+
+    let pet_rect = pet_rect?;
+    let monitor = main_win
+        .current_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| main_win.primary_monitor().ok().flatten());
+
+    let work_area = if let Some(mon) = monitor {
+        let mp = mon.position();
+        let ms = mon.size();
+        let taskbar_margin = (46.0 * sf).round() as i32;
+        (mp.x, mp.y, ms.width as i32, (ms.height as i32 - taskbar_margin).max(320))
+    } else {
+        (0, 0, (1920.0 * sf).round() as i32, (1030.0 * sf).round() as i32)
+    };
+
+    Some((pet_rect, work_area, sf))
+}
+
+fn side_menu_geometry(app: &AppHandle) -> Option<(i32, i32, f64, f64)> {
+    let (pet_rect, work_area, sf) = current_pet_rect_and_monitor(app)?;
+    let mon_logical_h = work_area.3 as f64 / sf.max(0.5);
+    let menu_logical_h = (mon_logical_h - 24.0).clamp(360.0, 650.0);
+    let mw = (SIDE_MENU_LOGICAL_W * sf).round() as i32;
+    let mh = (menu_logical_h * sf).round() as i32;
+    let gap = (10.0 * sf).round() as i32;
+    let pad = (10.0 * sf).round() as i32;
+    let (mx, my) = compute_side_menu_pos(pet_rect, work_area, (mw, mh), gap, pad);
+    Some((mx, my, SIDE_MENU_LOGICAL_W, menu_logical_h))
+}
+
+fn reposition_context_menu_if_open(app: &AppHandle) {
+    let Some(menu_win) = app.get_webview_window("menu") else {
+        return;
+    };
+    if !menu_win.is_visible().unwrap_or(false) {
+        return;
+    }
+    if let Some((mx, my, lw, lh)) = side_menu_geometry(app) {
+        let _ = menu_win.set_size(Size::Logical(LogicalSize::new(lw, lh)));
+        let _ = menu_win.set_position(PhysicalPosition::new(mx, my));
+    }
+}
+
+#[tauri::command]
+fn open_context_menu(app: AppHandle) {
+    let Some((mx, my, lw, lh)) = side_menu_geometry(&app) else {
+        return;
+    };
+
+    let menu_win = if let Some(existing) = app.get_webview_window("menu") {
+        existing
+    } else {
+        #[cfg(windows)]
+        let use_transparent = !win_needs_win7_ulw();
+        #[cfg(not(windows))]
+        let use_transparent = true;
+
+        let Ok(created) = tauri::WebviewWindowBuilder::new(
+            &app,
+            "menu",
+            tauri::WebviewUrl::App("menu.html".into()),
+        )
+        .title("KuroCat Menu")
+        .inner_size(lw, lh)
+        .decorations(false)
+        .resizable(false)
+        .transparent(use_transparent)
+        .shadow(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .visible(false)
+        .build() else {
+            return;
+        };
+
+        let app_ev = app.clone();
+        created.on_window_event(move |event| match event {
+            tauri::WindowEvent::Focused(false) => {
+                let state = app_ev.state::<AppState>();
+                let elapsed = state.menu_opened_at.lock().unwrap().elapsed();
+                if elapsed >= Duration::from_millis(240) {
+                    if let Some(w) = app_ev.get_webview_window("menu") {
+                        let _ = w.hide();
+                    }
+                    state.menu_open.store(false, Ordering::Relaxed);
+                }
+            }
+            tauri::WindowEvent::CloseRequested { api, .. } => {
+                api.prevent_close();
+                if let Some(w) = app_ev.get_webview_window("menu") {
+                    let _ = w.hide();
+                }
+                app_ev
+                    .state::<AppState>()
+                    .menu_open
+                    .store(false, Ordering::Relaxed);
+            }
+            _ => {}
+        });
+        created
+    };
+
+    let state = app.state::<AppState>();
+    *state.menu_opened_at.lock().unwrap() = Instant::now();
+    state.menu_open.store(true, Ordering::Relaxed);
+
+    let _ = menu_win.set_size(Size::Logical(LogicalSize::new(lw, lh)));
+    let _ = menu_win.set_position(PhysicalPosition::new(mx, my));
+    let _ = menu_win.set_always_on_top(true);
+    let _ = menu_win.show();
+    let _ = menu_win.set_focus();
+    let _ = app.emit("kuro-menu-opened", ());
+}
+
+#[tauri::command]
+fn close_context_menu(app: AppHandle) {
+    if let Some(menu_win) = app.get_webview_window("menu") {
+        let _ = menu_win.hide();
+    }
+    app.state::<AppState>()
+        .menu_open
+        .store(false, Ordering::Relaxed);
+}
+
+#[tauri::command]
+fn open_tail_picker_from_menu(app: AppHandle) {
+    close_context_menu(app.clone());
+    set_pet_visible(&app, true);
+    let _ = app.emit("kuro-open-tail-picker", ());
+}
+
+#[tauri::command]
+fn preview_scale(app: AppHandle, scale: f64) {
+    let clamped = scale.clamp(0.20, 1.50);
+    let _ = app.emit("kuro-scale-preview", clamped);
+}
+
+#[tauri::command]
+fn get_obs_url(state: State<'_, AppState>) -> String {
+    let port = state.settings.lock().unwrap().obs_port;
+    obs::obs_url(port)
 }
 
 #[tauri::command]
@@ -573,6 +811,18 @@ pub fn apply_keyboard_orientation_and_save(app: &AppHandle, orientation: &str) {
     let updated = {
         let mut s = state.settings.lock().unwrap();
         s.keyboard_orientation = normalized;
+        save_settings(&s);
+        s.clone()
+    };
+    let _ = app.emit("kuro-settings", updated);
+}
+
+pub fn apply_tail_key_mode_and_save(app: &AppHandle, mode: &str) {
+    let normalized = normalize_tail_key_mode(mode);
+    let state = app.state::<AppState>();
+    let updated = {
+        let mut s = state.settings.lock().unwrap();
+        s.tail_key_mode = normalized;
         save_settings(&s);
         s.clone()
     };
@@ -1608,6 +1858,7 @@ pub fn run() {
     }
     let settings_arc = Arc::new(Mutex::new(initial_settings.clone()));
     let menu_open = Arc::new(AtomicBool::new(false));
+    let menu_opened_at = Arc::new(Mutex::new(Instant::now() - Duration::from_secs(10)));
     let dragging = Arc::new(AtomicBool::new(false));
     let mcp_enabled = Arc::new(AtomicBool::new(initial_settings.mcp_enabled));
     let update_banner_open = Arc::new(AtomicBool::new(false));
@@ -1624,6 +1875,7 @@ pub fn run() {
         .manage(AppState {
             settings: settings_arc,
             menu_open,
+            menu_opened_at,
             dragging,
             mcp_enabled,
             update_banner_open,
@@ -1742,6 +1994,22 @@ pub fn run() {
                 reload_and_emit_all(&http_handle);
             });
 
+            // Forward settings / cats / privacy broadcasts to OBS SSE clients (1ns no-op when OBS is off)
+            handle.listen("kuro-settings", |ev| {
+                obs::broadcast_raw("settings", ev.payload());
+            });
+            handle.listen("kuro-cats", |ev| {
+                obs::broadcast_raw("cats", ev.payload());
+            });
+            handle.listen("kuro-privacy", |ev| {
+                let active = ev.payload().trim() == "true";
+                obs::set_privacy_active(active);
+            });
+            obs::sync_obs_server(&handle, s.obs_enabled, s.obs_port);
+            if s.obs_enabled && s.obs_hide_pet {
+                set_pet_visible(&handle, false);
+            }
+
             if std::env::args().any(|a| a == "--demo") {
                 let demo_handle = handle.clone();
                 std::thread::spawn(move || {
@@ -1779,8 +2047,13 @@ pub fn run() {
             get_settings,
             get_cats,
             get_mcp_config,
+            get_obs_url,
             get_app_version,
             update_settings,
+            open_context_menu,
+            close_context_menu,
+            open_tail_picker_from_menu,
+            preview_scale,
             set_menu_open,
             set_dragging,
             set_update_banner_open,
@@ -1906,8 +2179,44 @@ mod windows_zorder_tests {
             assert_ne!(PtInRegion(rgn, 100, 150), 0, "inside context menu");
             assert_ne!(PtInRegion(rgn, 200, 24), 0, "inside update toast");
             assert_eq!(PtInRegion(rgn, 10, 10), 0, "sharp 12px corner tip should be rounded off");
-            assert_eq!(PtInRegion(rgn, 350, 200), 0, "empty area outside overlays must be clipped away");
-            DeleteObject(rgn as _);
-        }
+        assert_eq!(PtInRegion(rgn, 350, 200), 0, "empty area outside overlays must be clipped away");
+        DeleteObject(rgn as _);
+    }
+}
+}
+
+#[cfg(test)]
+mod side_menu_layout_tests {
+    use super::compute_side_menu_pos;
+
+    #[test]
+    fn places_menu_to_left_of_bottom_right_cat_with_zero_overlap() {
+        // 1920x1040 monitor, cat at bottom-right (1580, 620, 315, 410)
+        let pet = (1580, 620, 315, 410);
+        let work = (0, 0, 1920, 1040);
+        let menu = (266, 620);
+        let (mx, my) = compute_side_menu_pos(pet, work, menu, 10, 10);
+        assert_eq!(mx, 1580 - 266 - 10, "should open cleanly to the left of the cat");
+        assert!(mx + menu.0 <= pet.0, "menu must NOT overlap the cat horizontally");
+        assert_eq!(my, 620 + 410 - 620, "should align cleanly to cat bottom edge");
+    }
+
+    #[test]
+    fn flips_menu_to_right_when_cat_sits_near_left_edge() {
+        let pet = (16, 620, 315, 410);
+        let work = (0, 0, 1920, 1040);
+        let menu = (266, 620);
+        let (mx, _my) = compute_side_menu_pos(pet, work, menu, 10, 10);
+        assert_eq!(mx, 16 + 315 + 10, "should flip cleanly to the right of the cat");
+        assert!(mx >= pet.0 + pet.2, "menu must NOT overlap the cat horizontally");
+    }
+
+    #[test]
+    fn places_menu_above_cat_when_horizontal_space_is_tight() {
+        let pet = (100, 560, 300, 300);
+        let work = (0, 0, 520, 900);
+        let menu = (266, 400);
+        let (_mx, my) = compute_side_menu_pos(pet, work, menu, 10, 10);
+        assert!(my + menu.1 <= pet.1, "should open cleanly above the cat");
     }
 }

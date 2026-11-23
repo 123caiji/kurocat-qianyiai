@@ -27,7 +27,7 @@
         <a class="brand-current" href="#top">
           <img class="nav-icon" src="/kurocat/assets/kurocat-icon.png" alt="KuroCat" width="20" height="20" />
           <span>KuroCat</span>
-          <span class="ver-pill" id="nav-ver-pill">v4.8.0</span>
+          <span class="ver-pill" id="nav-ver-pill">v4.9.0</span>
         </a>
       </div>
       <nav class="nav-links" aria-label="主导航">
@@ -51,7 +51,7 @@
             <div class="eyebrow" style="margin-bottom:4px;">Windows &amp; macOS · Open Source</div>
             <div class="hero-meta-line">
               <span class="live-dot"></span>
-              <span id="hero-release-label">最新版本 v4.8.0</span>
+              <span id="hero-release-label">最新版本 v4.9.0</span>
               <span class="meta-divider" id="github-stats-sep" style="display:none;">·</span>
               <span id="github-stats-text" style="display:none;"></span>
             </div>
@@ -69,7 +69,7 @@
         </p>
 
         <div class="hero-actions">
-          <a class="btn-lime" id="hero-primary-dl" href="/kurocat/releases/v4.8.0/KuroCat-4.8.0-x64-setup.exe" download>
+          <a class="btn-lime" id="hero-primary-dl" href="/kurocat/releases/v4.9.0/KuroCat-4.9.0-x64-setup.exe" download>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2.2v7.6m0 0L4.8 6.6M8 9.8l3.2-3.2M2.5 12.8h11" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
             <span id="hero-primary-dl-label">免费下载 Windows 版（1.96 MB）</span>
           </a>
@@ -115,6 +115,18 @@
             <span>🖱️ 点左/右键</span>
             <span>🤚 来回摸猫头</span>
           </div>
+          <div class="web-tail-picker-bar hidden" id="web-tail-picker-bar" role="dialog" aria-label="自定义尾巴按键">
+            <div class="web-tail-picker-top">
+              <span class="web-tail-picker-title" id="web-tail-picker-title">🐾 直接点击下方键帽或敲实体键盘开关（已选 4 键）</span>
+              <button class="web-tail-done-btn" id="btn-web-tail-done" type="button">完成</button>
+            </div>
+            <div class="web-tail-picker-presets">
+              <button class="web-tail-preset" data-web-tailpreset="office" type="button">回车空格</button>
+              <button class="web-tail-preset" data-web-tailpreset="rightFn" type="button">方向/小键盘</button>
+              <button class="web-tail-preset" data-web-tailpreset="edgeMods" type="button">外侧功能键</button>
+              <button class="web-tail-preset danger" data-web-tailpreset="clear" type="button">清空</button>
+            </div>
+          </div>
           <div class="stage-status-pill" id="stage-status-pill">65% 紧凑 · 面向猫咪</div>
         </div>
 
@@ -141,9 +153,24 @@
             <div class="action-group">
               <button class="chip-btn active" id="btn-auto-demo" type="button" title="自动演示打字与鼠标点击">▶ 自动演示</button>
               <button class="chip-btn" id="btn-mouse-demo" type="button" title="演示独立左/右键点击">🖱️ 左右键</button>
+              <button class="chip-btn" id="btn-curious-demo" type="button" title="触发逗猫棒好奇大圆瞳（也可快速甩动鼠标自然触发）">👀 好奇眼</button>
+              <button class="chip-btn" id="btn-cross-demo" type="button" title="触发飞机耳 + 尾巴三连捶桌（也可乱拍键盘自然触发）">💢 尾巴捶桌</button>
+              <button class="chip-btn" id="btn-sleep-demo" type="button" title="触发趴下打瞌睡冒 Zzz（敲任意键抖头醒来）">💤 打瞌睡</button>
               <button class="chip-btn active" id="btn-bubbles" type="button" title="开关悬浮按键气泡">💬 气泡</button>
               <button class="chip-btn active" id="btn-purr" type="button" title="开关摸头呼噜声">🔊 呼噜</button>
             </div>
+          </div>
+
+          <!-- Row 2.5: Customizable Tail Key Patting -->
+          <div class="dock-row tail-row">
+            <span class="dock-label">尾巴拍键</span>
+            <div class="seg-control" role="group" aria-label="尾巴拍键模式">
+              <button class="seg-btn active" data-web-tailmode="smart" type="button" title="平时双手打字，两手忙不过来或打完回车时自动出尾">智能第三只手</button>
+              <button class="seg-btn" data-web-tailmode="custom" type="button" title="只拍你亲手勾选的按键">自定义</button>
+              <button class="seg-btn" data-web-tailmode="edge" type="button" title="近尾外侧边缘区（不拆 WASD）">近尾边缘</button>
+              <button class="seg-btn" data-web-tailmode="off" type="button" title="尾巴只自然摆动，不拍键">仅摆动</button>
+            </div>
+            <button class="chip-btn tail-pick-chip" id="btn-web-tail-picker" type="button" title="直接在上方键盘点击键帽或敲实体键盘自定义尾巴按键">🐾 点选尾巴按键（4）</button>
           </div>
 
           <!-- Row 3: Password Privacy Live Test -->
@@ -191,14 +218,14 @@
             开箱即 65% 紧凑机械键盘，自动创建桌面 <code>KuroCat</code> 图标、开始菜单与系统卸载入口；右键随时可一键切换 <strong>108 键全尺寸小键盘</strong>与内置自更新。
           </p>
           <div class="dl-meta">
-            <span class="dl-filename" data-asset-name="win65">KuroCat-4.8.0-x64-setup.exe</span>
+            <span class="dl-filename" data-asset-name="win65">KuroCat-4.9.0-x64-setup.exe</span>
             <span class="dl-size" data-asset-size="win65">1.96 MB</span>
           </div>
           <div class="dl-actions">
-            <a class="btn-lime btn-full" data-dl-primary="win65" href="/kurocat/releases/v4.8.0/KuroCat-4.8.0-x64-setup.exe" download>
+            <a class="btn-lime btn-full" data-dl-primary="win65" href="/kurocat/releases/v4.9.0/KuroCat-4.9.0-x64-setup.exe" download>
               高速直链下载
             </a>
-            <a class="dl-alt-link" data-dl-gh="win65" href="https://github.com/qianyiai/kurocat/releases/download/v4.8.0/KuroCat-4.8.0-x64-setup.exe" target="_blank" rel="noopener">
+            <a class="dl-alt-link" data-dl-gh="win65" href="https://github.com/qianyiai/kurocat/releases/download/v4.9.0/KuroCat-4.9.0-x64-setup.exe" target="_blank" rel="noopener">
               GitHub 官方源 ›
             </a>
           </div>
@@ -220,14 +247,14 @@
             原生编译 ARM64 + x86_64 通用镜像，兼容 M1/M2/M3/M4 与老款 Intel Mac（macOS 10.15 Catalina 及以上），内置 65% / 108 键、6 款猫咪与大肥鱼皮肤。打开 <code>.dmg</code> 拖入「应用程序」即可运行。
           </p>
           <div class="dl-meta">
-            <span class="dl-filename" data-asset-name="macos">KuroCat-v4.8.0-macos-universal.dmg</span>
+            <span class="dl-filename" data-asset-name="macos">KuroCat-v4.9.0-macos-universal.dmg</span>
             <span class="dl-size" data-asset-size="macos">5.53 MB</span>
           </div>
           <div class="dl-actions">
-            <a class="btn-solid btn-full" data-dl-primary="macos" href="/kurocat/releases/v4.8.0/KuroCat-v4.8.0-macos-universal.dmg" download>
+            <a class="btn-solid btn-full" data-dl-primary="macos" href="/kurocat/releases/v4.9.0/KuroCat-v4.9.0-macos-universal.dmg" download>
               高速直链下载
             </a>
-            <a class="dl-alt-link" data-dl-gh="macos" href="https://github.com/qianyiai/kurocat/releases/download/v4.8.0/KuroCat-v4.8.0-macos-universal.dmg" target="_blank" rel="noopener">
+            <a class="dl-alt-link" data-dl-gh="macos" href="https://github.com/qianyiai/kurocat/releases/download/v4.9.0/KuroCat-v4.9.0-macos-universal.dmg" target="_blank" rel="noopener">
               GitHub 官方源 ›
             </a>
           </div>
@@ -282,10 +309,10 @@
           </p>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
-          <a class="btn-outline" href="/kurocat/releases/v4.8.0/KuroCat-v4.8.0-win7-x64-portable.zip" download style="white-space:nowrap;">
+          <a class="btn-outline" href="/kurocat/releases/v4.9.0/KuroCat-v4.9.0-win7-x64-portable.zip" download style="white-space:nowrap;">
             下载 Win7 兼容绿包版（178.78 MB）
           </a>
-          <a class="dl-alt-link" href="https://github.com/qianyiai/kurocat/releases/download/v4.8.0/KuroCat-v4.8.0-win7-x64-portable.zip" target="_blank" rel="noopener" style="font-size:12px;">
+          <a class="dl-alt-link" href="https://github.com/qianyiai/kurocat/releases/download/v4.9.0/KuroCat-v4.9.0-win7-x64-portable.zip" target="_blank" rel="noopener" style="font-size:12px;">
             GitHub 官方源（Win7 绿包）›
           </a>
         </div>
@@ -303,16 +330,16 @@
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
           <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;">
-            <a class="btn-outline" href="/kurocat/releases/v4.8.0/KuroCat-v4.8.0-linux-amd64.deb" download style="white-space:nowrap;">
+            <a class="btn-outline" href="/kurocat/releases/v4.9.0/KuroCat-v4.9.0-linux-amd64.deb" download style="white-space:nowrap;">
               x86_64 .deb（2.18 MB）
             </a>
-            <a class="btn-outline" href="/kurocat/releases/v4.8.0/KuroCat-v4.8.0-linux-arm64.deb" download style="white-space:nowrap;">
+            <a class="btn-outline" href="/kurocat/releases/v4.9.0/KuroCat-v4.9.0-linux-arm64.deb" download style="white-space:nowrap;">
               ARM64 飞腾/麒麟 .deb（2.14 MB）
             </a>
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:flex-end;font-size:12px;">
-            <a class="dl-alt-link" href="/kurocat/releases/v4.8.0/KuroCat-v4.8.0-linux-amd64.AppImage" download>x86_64 AppImage（77 MB）›</a>
-            <a class="dl-alt-link" href="/kurocat/releases/v4.8.0/KuroCat-v4.8.0-linux-arm64.AppImage" download>ARM64 AppImage（75 MB）›</a>
+            <a class="dl-alt-link" href="/kurocat/releases/v4.9.0/KuroCat-v4.9.0-linux-amd64.AppImage" download>x86_64 AppImage（77 MB）›</a>
+            <a class="dl-alt-link" href="/kurocat/releases/v4.9.0/KuroCat-v4.9.0-linux-arm64.AppImage" download>ARM64 AppImage（75 MB）›</a>
           </div>
         </div>
       </div>
@@ -320,10 +347,10 @@
       <!-- Game Fullscreen & Anti-Cheat Guide -->
       <div class="macos-tip-card">
         <div class="macos-tip-left">
-          <div class="tip-title">🎮 游戏全屏 / 直播怎么显示小黑猫？（含反作弊安全提示）</div>
+          <div class="tip-title">🎮 游戏全屏 / OBS 直播怎么显示小黑猫？（含反作弊安全提示）</div>
           <p class="tip-body">
             <strong>① 单机与常规游戏</strong>：在 Win10/11 全屏优化（FSO）或「无边框窗口化」下内置持续 Z 序置顶守卫且绝不抢焦点；建议开启「锁定鼠标穿透」（按住 <code>Alt</code> 键随时临时拖动或右键解锁）。若游戏以管理员权限运行导致无法捕获键鼠，右键系统托盘点<strong>「以管理员身份重启（捕获游戏键鼠）」</strong>即可。
-            <strong>② 直播 / 录屏</strong>：游戏可随意开独占全屏，在 OBS 中添加「窗口捕获 → KuroCat」分层叠加即可。
+            <strong>② OBS 直播 / 录屏（原生免抠像）</strong>：右键小猫或系统托盘点<strong>「复制 OBS 透明源地址」</strong>（自动开启本机 <code>http://127.0.0.1:27421/obs</code>，默认关闭零开销），在 OBS 添加「浏览器」来源即可直接获得原生 Alpha 透明通道（无需绿幕抠像，支持「仅 OBS 显示」隐藏桌面猫，密码防偷窥同步生效）。
             <strong>③ 强内核反作弊网游</strong>（无畏契约、三角洲行动等）：建议游玩前右键系统托盘点一下<strong>「暂停监听并隐藏（游戏反作弊护航）」</strong>，彻底卸载钩子保护账号安全。
           </p>
         </div>
@@ -333,7 +360,7 @@
     <!-- Features Showcase -->
     <section class="section-block reveal visible" id="features">
       <div class="section-header">
-        <div class="eyebrow">Crafted Every Pixel · v4.8.0</div>
+        <div class="eyebrow">Crafted Every Pixel · v4.9.0</div>
         <h2 class="section-title">把桌宠，做到强迫症级别的丝滑</h2>
       </div>
 

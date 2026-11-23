@@ -158,11 +158,39 @@ export class DaFeiYuRenderer {
     this.lastMouseClickAt = now;
   }
 
+  public getHandBusyState(now: number): { leftHeld: number; rightHeld: number; rightBusy: boolean } {
+    const leftHeld = this.leftHand.heldVks.size;
+    const rightHeld = this.rightHand.heldVks.size;
+    const rightBusy = rightHeld > 0 || now - this.rightHand.lastAt < 135;
+    return { leftHeld, rightHeld, rightBusy };
+  }
+
+  public triggerTailPreview(pt: { x: number; y: number }, layout: DaFeiYuLayout): void {
+    if (layout.privacyMode) return;
+    const now = performance.now();
+    this.lastKeyGazeAt = now;
+    this.lastKeyPtX = pt.x;
+    this.lastKeyPtY = pt.y;
+    this.tail.slapAt = now;
+    this.tail.releaseAt = now + 220;
+    this.tail.slapTargetX = pt.x;
+    this.tail.slapTargetY = pt.y;
+    this.tail.squash = 1;
+    this.bodyBob = Math.min(1.0, this.bodyBob + 0.55);
+    const normX = Math.max(-1, Math.min(1, (pt.x - layout.kbCenterX) / (layout.kbWidth * 0.46)));
+    this.bodyTiltTarget = normX * 0.065;
+    this.bodyShiftTarget = normX * 8;
+    this.ripples.push({ x: pt.x, y: pt.y, r: 6, life: 1 });
+    this.ripples.push({ x: pt.x, y: pt.y, r: 2, life: 0.85 });
+    this.spawnParticles(pt.x, pt.y - 8, 3, true);
+  }
+
   public onKeyDown(
     vk: number,
     pt: { x: number; y: number },
     layout: DaFeiYuLayout,
     repeat: boolean,
+    useTail: boolean,
   ): void {
     if (layout.privacyMode || repeat) return;
     const now = performance.now();
@@ -177,10 +205,9 @@ export class DaFeiYuRenderer {
     const normX = Math.max(-1, Math.min(1, (pt.x - layout.kbCenterX) / (layout.kbWidth * 0.46)));
     const mouseBusy = layout.mouseLeft || layout.mouseRight || now - layout.mouseActiveAt < 900;
     const isLeftSide = pt.x < layout.kbCenterX - 2;
-    const rightEdgeThreshold = layout.kbCenterX + layout.kbWidth * (layout.is108 ? 0.16 : 0.215);
 
-    if (pt.x >= rightEdgeThreshold) {
-      // Right-edge action / arrow / numpad keys -> animated ocean-blue whale tail slap!
+    if (useTail) {
+      // Animated ocean-blue whale tail slap onto any configured/smart key!
       this.tail.slapAt = now;
       this.tail.releaseAt = -10000;
       this.tail.heldVks.add(vk);
@@ -188,8 +215,8 @@ export class DaFeiYuRenderer {
       this.tail.slapTargetY = pt.y;
       this.tail.squash = 1;
       if (!mouseBusy) {
-        this.bodyTiltTarget = -0.075;
-        this.bodyShiftTarget = -7;
+        this.bodyTiltTarget = normX >= 0 ? -0.075 : 0.055;
+        this.bodyShiftTarget = normX >= 0 ? -7 : 8;
       }
       this.ripples.push({ x: pt.x, y: pt.y, r: 6, life: 1 });
       this.ripples.push({ x: pt.x, y: pt.y, r: 2, life: 0.85 });
@@ -954,8 +981,15 @@ export class DaFeiYuRenderer {
   ): void {
     const idleCtrlX = rootX + 52;
     const idleCtrlY = rootY - 6;
-    const slapCtrlX = Math.min(logicalW - 18, Math.max(rootX + 94, tipX + 42));
-    const slapCtrlY = Math.min(rootY - 42, (rootY + tipY) * 0.5 - 64);
+    // Smoothly wrap around the right hip and sweep over the keyboard deck when slapping far-left keys
+    // so the whale tail never cuts across her torso or face!
+    const crossLeft = Math.max(0, Math.min(1, (rootX + 24 - tipX) / 145));
+    const nearSlapCtrlX = Math.min(logicalW - 18, Math.max(rootX + 94, tipX + 42));
+    const nearSlapCtrlY = Math.min(rootY - 42, (rootY + tipY) * 0.5 - 64);
+    const farSlapCtrlX = Math.min(logicalW - 16, rootX + 104);
+    const farSlapCtrlY = Math.max(rootY + 28, tipY - 14);
+    const slapCtrlX = nearSlapCtrlX + (farSlapCtrlX - nearSlapCtrlX) * crossLeft;
+    const slapCtrlY = nearSlapCtrlY + (farSlapCtrlY - nearSlapCtrlY) * crossLeft;
 
     const ctrlX = idleCtrlX + (slapCtrlX - idleCtrlX) * slapPhase;
     const ctrlY = idleCtrlY + (slapCtrlY - idleCtrlY) * slapPhase;
