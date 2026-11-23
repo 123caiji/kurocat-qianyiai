@@ -1,7 +1,7 @@
-import idleUrl from './assets/dafeiyu/notail_idle.webp';
-import blinkUrl from './assets/dafeiyu/notail_blink.webp';
-import shyUrl from './assets/dafeiyu/notail_shy.webp';
-import happyUrl from './assets/dafeiyu/notail_happy2.webp';
+import idleUrl from './assets/dafeiyu/notail_idle.png';
+import blinkUrl from './assets/dafeiyu/notail_blink.png';
+import shyUrl from './assets/dafeiyu/notail_shy.png';
+import happyUrl from './assets/dafeiyu/notail_happy2.png';
 
 export interface DaFeiYuLayout {
   logicalW: number;

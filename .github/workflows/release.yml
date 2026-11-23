@@ -10,6 +10,10 @@ on:
         description: 'Only build Linux (x86_64 + ARM64) packages'
         type: boolean
         default: false
+      macos_only:
+        description: 'Only build macOS Universal (10.15+) packages'
+        type: boolean
+        default: false
       release_tag:
         description: 'Optional tag label for artifact naming (e.g. v4.7.0)'
         type: string
@@ -20,7 +24,7 @@ permissions:
 
 jobs:
   build-windows:
-    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.linux_only) }}
+    if: ${{ !(github.event_name == 'workflow_dispatch' && (inputs.linux_only || inputs.macos_only)) }}
     runs-on: windows-latest
     steps:
       - name: Checkout repository
@@ -102,10 +106,21 @@ jobs:
 
       - name: Package Universal macOS .dmg and .app.tar.gz
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          if [[ ! "$TAG" =~ ^v ]]; then TAG="latest"; fi
+          TAG="${{ inputs.release_tag }}"
+          if [[ -z "$TAG" ]]; then
+            if [[ "${GITHUB_REF_NAME}" =~ ^v ]]; then
+              TAG="${GITHUB_REF_NAME}"
+            else
+              TAG="v$(node -p "require('./package.json').version")"
+            fi
+          fi
           APP_PATH="src-tauri/target/universal-apple-darwin/release/bundle/macos/KuroCat.app"
           test -d "$APP_PATH"
+          echo "=== Verify macOS minimum version & Universal slices ==="
+          plutil -p "$APP_PATH/Contents/Info.plist" | grep -i MinimumSystemVersion || true
+          lipo -info "$APP_PATH/Contents/MacOS/KuroCat"
+          otool -arch x86_64 -l "$APP_PATH/Contents/MacOS/KuroCat" | grep -A4 -E "LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX" || true
+          otool -arch arm64 -l "$APP_PATH/Contents/MacOS/KuroCat" | grep -A4 -E "LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX" || true
           mkdir -p dmg_staging
           cp -R "$APP_PATH" dmg_staging/
           ln -s /Applications dmg_staging/Applications
@@ -131,6 +146,7 @@ jobs:
             KuroCat-*-macos-universal.app.tar.gz
 
   build-linux:
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.macos_only) }}
     strategy:
       fail-fast: false
       matrix:
