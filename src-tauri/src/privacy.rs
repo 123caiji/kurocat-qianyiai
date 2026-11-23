@@ -74,13 +74,25 @@ mod win_impl {
         CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER,
         COINIT_MULTITHREADED,
     };
-    use windows::Win32::UI::Accessibility::{CUIAutomation, IUIAutomation};
+    use windows::Win32::UI::Accessibility::{
+        CUIAutomation, IUIAutomation, UIA_EditControlTypeId,
+    };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         GetClassNameW, GetForegroundWindow, GetGUIThreadInfo, GetWindowLongPtrW,
         GetWindowThreadProcessId, GUITHREADINFO, GWL_STYLE,
     };
 
+    const ES_MULTILINE: isize = 0x0004;
     const ES_PASSWORD: isize = 0x0020;
+    const MAX_PASSWORD_BOX_HEIGHT_PX: i32 = 140;
+
+    pub(super) fn is_plausible_password_rect(top: i32, bottom: i32) -> bool {
+        let h = bottom.saturating_sub(top);
+        // Real visible single-line password boxes are always between 8px and 140px tall.
+        // Reject both empty/unimplemented (0px) MSAA/UIA proxies and tall document editors
+        // (e.g. WPS Word / Word / Notepad canvases at 300-1000px).
+        (8..=MAX_PASSWORD_BOX_HEIGHT_PX).contains(&h)
+    }
 
     pub(super) fn is_classic_edit_class(class_name: &str) -> bool {
         let lower = class_name.to_ascii_lowercase();
@@ -113,10 +125,30 @@ mod win_impl {
                 let Ok(el) = self.uia.GetFocusedElement() else {
                     return false;
                 };
-                match el.CurrentIsPassword() {
+                let is_pwd = match el.CurrentIsPassword() {
                     Ok(b) => b.as_bool(),
                     Err(_) => false,
+                };
+                if !is_pwd {
+                    return false;
                 }
+                // Guard against buggy third-party UIA/MSAA providers (e.g. WPS Office on Windows 7)
+                // that falsely report IsPassword=TRUE on Document/Pane/Custom editor surfaces:
+                // real password inputs (browsers, UAC, Win32, Qt, Electron, WPF) expose Edit control
+                // type and single-line height (<= 140px).
+                let Ok(ctrl_type) = el.CurrentControlType() else {
+                    return false;
+                };
+                if ctrl_type != UIA_EditControlTypeId {
+                    return false;
+                }
+                let Ok(rc) = el.CurrentBoundingRectangle() else {
+                    return false;
+                };
+                if !is_plausible_password_rect(rc.top, rc.bottom) {
+                    return false;
+                }
+                true
             }
         }
     }
@@ -160,7 +192,7 @@ mod win_impl {
                 return false;
             }
             let style = GetWindowLongPtrW(info.hwndFocus, GWL_STYLE);
-            (style & ES_PASSWORD) != 0
+            (style & ES_PASSWORD) != 0 && (style & ES_MULTILINE) == 0
         }
     }
 
@@ -297,5 +329,9 @@ mod tests {
         assert!(!super::win_impl::is_classic_edit_class("SysTabControl32"));
         assert!(!super::win_impl::is_classic_edit_class("DirectUIHWND"));
         assert!(!super::win_impl::is_classic_edit_class("Chrome_RenderWidgetHostHWND"));
+        assert!(super::win_impl::is_plausible_password_rect(100, 132)); // 32px real password box
+        assert!(super::win_impl::is_plausible_password_rect(100, 180)); // 80px HiDPI password box
+        assert!(!super::win_impl::is_plausible_password_rect(0, 0));    // broken empty UIA proxy
+        assert!(!super::win_impl::is_plausible_password_rect(100, 720)); // 620px WPS Word document
     }
 }
