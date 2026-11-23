@@ -646,8 +646,13 @@ async function bootstrap(): Promise<void> {
         if (winW < 10 || winH < 10 || canvas.width < 10 || canvas.height < 10) return;
 
         const dpr = window.devicePixelRatio || 1;
-        const mw = Math.max(80, Math.min(240, Math.round(winW / 2)));
-        const mh = Math.max(80, Math.min(240, Math.round(winH / 2)));
+        const physW = Math.max(1, Math.round(winW * dpr));
+        const physH = Math.max(1, Math.round(winH * dpr));
+        // Full 1:1 physical-pixel silhouette sampling (capped only at extreme 4K HiDPI)
+        // so ears, tail, keyboard, and mouse edges are 1-pixel razor-sharp with zero mosaic staircasing.
+        const down = Math.max(1, Math.ceil(Math.max(physW, physH) / 960));
+        const mw = Math.max(1, Math.round(physW / down));
+        const mh = Math.max(1, Math.round(physH / down));
         if (maskCanvas.width !== mw || maskCanvas.height !== mh) {
           maskCanvas.width = mw;
           maskCanvas.height = mh;
@@ -657,10 +662,8 @@ async function bootstrap(): Promise<void> {
         maskCtx.drawImage(canvas, 0, 0, mw, mh);
         const imgData = maskCtx.getImageData(0, 0, mw, mh).data;
 
-        const sx = (winW * dpr) / mw;
-        const sy = (winH * dpr) / mh;
-        const physW = Math.max(1, Math.round(winW * dpr));
-        const physH = Math.max(1, Math.round(winH * dpr));
+        const sx = physW / mw;
+        const sy = physH / mh;
 
         // Build Y-X sorted non-overlapping horizontal spans for Win32 ExtCreateRegion
         const canvasRects: number[] = [];
@@ -674,11 +677,11 @@ async function bootstrap(): Promise<void> {
           let runStart = -1;
           for (let x = 0; x < mw; x++) {
             const a = imgData[rowOff + x * 4 + 3];
-            if (a >= 150) {
+            if (a >= 85) {
               if (runStart === -1) runStart = x;
             } else if (runStart !== -1) {
-              const px0 = Math.max(0, Math.round(runStart * sx));
-              const px1 = Math.min(physW, Math.round(x * sx));
+              const px0 = down === 1 ? runStart : Math.max(0, Math.round(runStart * sx));
+              const px1 = down === 1 ? x : Math.min(physW, Math.round(x * sx));
               if (px1 > px0) {
                 if (rowSpans.length > 0 && px0 <= rowSpans[rowSpans.length - 1]) {
                   rowSpans[rowSpans.length - 1] = Math.max(rowSpans[rowSpans.length - 1], px1);
@@ -690,8 +693,8 @@ async function bootstrap(): Promise<void> {
             }
           }
           if (runStart !== -1) {
-            const px0 = Math.max(0, Math.round(runStart * sx));
-            const px1 = Math.min(physW, Math.round(mw * sx));
+            const px0 = down === 1 ? runStart : Math.max(0, Math.round(runStart * sx));
+            const px1 = down === 1 ? mw : Math.min(physW, Math.round(mw * sx));
             if (px1 > px0) {
               if (rowSpans.length > 0 && px0 <= rowSpans[rowSpans.length - 1]) {
                 rowSpans[rowSpans.length - 1] = Math.max(rowSpans[rowSpans.length - 1], px1);
@@ -701,8 +704,8 @@ async function bootstrap(): Promise<void> {
             }
           }
 
-          const py0 = Math.round(y * sy);
-          const py1 = Math.min(physH, Math.round((y + 1) * sy));
+          const py0 = down === 1 ? y : Math.round(y * sy);
+          const py1 = down === 1 ? y + 1 : Math.min(physH, Math.round((y + 1) * sy));
           if (py1 <= py0) continue;
 
           // Merge adjacent rows with identical horizontal spans to minimize RECT count
@@ -775,9 +778,9 @@ async function bootstrap(): Promise<void> {
         });
       };
 
-      // Initial clip right after first draw + steady 20Hz live silhouette sync
+      // Initial clip right after first draw + smooth 30Hz 1:1 silhouette sync (0 IPC when idle)
       setTimeout(syncWin7Region, 80);
-      setInterval(syncWin7Region, 50);
+      setInterval(syncWin7Region, 33);
     }
   } catch {
     // Non-Win7 or unsupported: keep native transparency untouched
