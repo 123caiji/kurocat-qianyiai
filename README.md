@@ -39,6 +39,10 @@
 - **🪟 Windows 10 / 11（65% 经典安装版 · `v4.7.0`）**：[**`KuroCat-4.7.0-x64-setup.exe`**](https://github.com/qianyiai/kurocat/releases/download/v4.7.0/KuroCat-4.7.0-x64-setup.exe)（约 1.62 MB）｜[**官网国内高速下载**](https://qianyi.one/kurocat/#download)
   - 默认 65% 紧凑机械键盘，自动创建桌面 **`KuroCat`** 图标、开始菜单与系统卸载入口；右键或托盘随时一键切换 **108 键全尺寸小键盘**、**🐳 大肥鱼（鲸鱼娘）** 与 App 内一键更新。
   - **常见问题说明**：
+    - **Edge / Chrome 浏览器提示「通常不会下载 `.exe`」怎么办？**（开源免费软件未购商业代码签名证书，全量源码公开可放心信任）：
+      - **Edge 浏览器**：鼠标移到该下载条上 → 点右侧 **三个点 `···`** → 点 **「保留」** → 弹窗出现「删除」按钮时，点开旁边的 **下箭头 `▾`（显示更多）** → 选择 **「仍然保留」** 即可完成下载。
+      - **Chrome 浏览器**：按 `Ctrl + J` 打开下载记录 → 点 **「保留危险文件」** → **「仍然保留」**。
+      - **双击安装若弹出蓝框「Windows 已保护你的电脑」**：点 **「更多信息」** → 点 **「仍要运行」** 即可。
     - 极少数老版 Win10 / LTSC 精简版若提示缺少 `WebView2 Runtime`，安装微软官方 1.8 MB 引导程序（右键「以管理员身份运行」）即可：[`MicrosoftEdgeWebview2Setup.exe`](https://go.microsoft.com/fwlink/p/?LinkId=2124703)。
     - **游戏全屏 / 管理员权限 / 直播提示**：单机与常规游戏在 Win10/11 全屏优化（FSO）或「无边框窗口化」下内置持续 Z 序置顶守卫且绝不抢焦点（建议开启「锁定鼠标穿透」，按 `Alt` 随时解锁）；若游戏本身以管理员权限运行导致无法捕获键鼠，右键系统托盘点击 **「以管理员身份重启（捕获游戏键鼠）」** 即可无缝提权；直播录屏推荐 OBS 添加「窗口捕获」叠加；玩无畏契约 / 三角洲行动等强内核反作弊网游建议右键托盘开启 **「暂停监听并隐藏（游戏反作弊护航）」**。
 - **🖥️ Windows 7 SP1（64 位专属兼容绿包版 · `v4.7.0`）**：[**`KuroCat-v4.7.0-win7-x64-portable.zip`**](https://github.com/qianyiai/kurocat/releases/download/v4.7.0/KuroCat-v4.7.0-win7-x64-portable.zip)（178.76 MB）｜[**官网国内高速下载**](https://qianyi.one/kurocat/releases/v4.7.0/KuroCat-v4.7.0-win7-x64-portable.zip)

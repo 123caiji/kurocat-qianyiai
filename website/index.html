@@ -234,16 +234,28 @@
         </article>
       </div>
 
+      <!-- Windows Edge / Chrome Download Warning & SmartScreen Tip -->
+      <div class="macos-tip-card" id="windows-download-tip">
+        <div class="macos-tip-left">
+          <div class="tip-title">🛡️ Windows 浏览器提示「通常不会下载 .exe / 保护你的电脑」怎么办？</div>
+          <p class="tip-body">
+            由于本项目为免费开源软件、未购买商业 EV 代码签名证书，Edge 浏览器在下载新版本 <code>.exe</code> 时可能会弹出「通常不会下载」提示（全部源码已在 GitHub 公开，可放心使用）：<br />
+            <strong>① Edge 浏览器保留步骤</strong>：鼠标移到下载记录上 → 点右侧<strong>三个点 <code>···</code></strong> → 点<strong>「保留」</strong> → 弹窗显示「删除」按钮时，点击旁边的<strong>下箭头 <code>▾</code>（显示更多）</strong> → 选择<strong>「仍然保留」</strong>即可下载完成（Chrome 请按 <code>Ctrl + J</code> 打开下载页 → 点「保留危险文件」→「仍然保留」）。<br />
+            <strong>② 双击安装若弹出蓝框「Windows 已保护你的电脑」</strong>：点击<strong>「更多信息」</strong> → 点击<strong>「仍要运行」</strong>即可完成安装。
+          </p>
+        </div>
+      </div>
+
       <!-- macOS First-Run Tip -->
       <div class="macos-tip-card">
         <div class="macos-tip-left">
-          <div class="tip-title">🍎 macOS 首次打开说明（仅需一次）</div>
+          <div class="tip-title">🍎 macOS 首次打开说明（仅需一次 · 无需开着终端）</div>
           <p class="tip-body">
-            由于本项目为免费开源未公证应用，首次拖入「应用程序」后若提示「无法验证开发者」或「已损坏」，在终端执行右侧命令一次即可正常打开（后续 App 内一键更新会自动清除隔离属性）。全局键鼠响应请在<strong>「系统设置 → 隐私与安全性」</strong>中同时勾选<strong>「辅助功能」与「输入监控」</strong>里的 <code>KuroCat</code>，即开即生效（兼容 Karabiner-Elements）。
+            由于本项目为免费开源未公证应用，首次拖入「应用程序」后若提示「无法验证开发者」或「已损坏」，<strong>请勿进入包内容用终端运行</strong>，只需打开一次终端粘贴执行右侧命令即可彻底解除隔离（跑完可关闭终端，后续直接双击图标打开）。全局键鼠响应请在<strong>「系统设置 → 隐私与安全性」</strong>中同时勾选<strong>「辅助功能」与「输入监控」</strong>里的 <code>KuroCat</code>，即开即生效（兼容 Karabiner-Elements）。
           </p>
         </div>
         <div class="cli-pill">
-          <code id="macos-xattr-cmd">xattr -cr /Applications/KuroCat.app</code>
+          <code id="macos-xattr-cmd">xattr -cr /Applications/KuroCat.app && open /Applications/KuroCat.app</code>
           <button class="copy-trigger" id="copy-xattr-btn" type="button">复制命令</button>
         </div>
       </div>
