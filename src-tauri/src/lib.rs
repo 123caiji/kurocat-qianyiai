@@ -453,22 +453,33 @@ fn win_is_click_through(win: &tauri::WebviewWindow) -> Option<bool> {
 #[cfg(windows)]
 fn win_force_click_through(win: &tauri::WebviewWindow, ignore: bool) {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, SWP_FRAMECHANGED,
-        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_EX_LAYERED, WS_EX_TRANSPARENT,
+        GetWindowLongPtrW, SetLayeredWindowAttributes, SetWindowLongPtrW, SetWindowPos,
+        GWL_EXSTYLE, LWA_ALPHA, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+        SWP_NOZORDER, WS_EX_LAYERED, WS_EX_TRANSPARENT,
     };
     let Ok(raw_hwnd) = win.hwnd() else {
         return;
     };
     let hwnd = raw_hwnd.0 as windows_sys::Win32::Foundation::HWND;
+    let is_win7 = win_needs_region_mask();
     unsafe {
         let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
         let new_ex = if ignore {
             ex | (WS_EX_TRANSPARENT as isize) | (WS_EX_LAYERED as isize)
+        } else if is_win7 {
+            // On Windows 7, removing WS_EX_LAYERED cleanly when interactive avoids layered-window
+            // alpha=0 invisibility bugs while SetWindowRgn handles silhouette click-through.
+            ex & !(WS_EX_TRANSPARENT as isize) & !(WS_EX_LAYERED as isize)
         } else {
             ex & !(WS_EX_TRANSPARENT as isize)
         };
         if new_ex != ex {
             SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_ex);
+            if ignore && is_win7 {
+                // CRITICAL for Windows 7: a WS_EX_LAYERED window defaults to alpha=0 (completely
+                // invisible!) unless SetLayeredWindowAttributes(LWA_ALPHA, 255) is explicitly called!
+                let _ = SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
+            }
             let _ = SetWindowPos(
                 hwnd,
                 std::ptr::null_mut(),
@@ -970,16 +981,36 @@ fn start_hit_test_loop(
 
             let over_banner = is_banner && inside && ry <= 0.19;
 
+            // On Windows 7/8, SetWindowRgn ALREADY makes every pixel outside the cat/keyboard/mouse
+            // natively transparent and click-through at the kernel level, so we ONLY engage
+            // WS_EX_TRANSPARENT when the user explicitly locks click-through (`effective_locked`).
+            // This prevents Win7's WS_EX_LAYERED alpha=0 invisibility bug when moving the cursor off the cat!
+            #[cfg(windows)]
+            let is_win7_rgn = win_needs_region_mask();
+            #[cfg(not(windows))]
+            let is_win7_rgn = false;
+
             let should_ignore = if is_menu || is_drag || over_banner {
                 false
             } else if effective_locked {
                 true
+            } else if is_win7_rgn {
+                false
             } else {
                 !over_interactive
             };
 
             if last_ignore != Some(should_ignore) {
-                let _ = win.set_ignore_cursor_events(should_ignore);
+                #[cfg(windows)]
+                if is_win7_rgn {
+                    win_force_click_through(&win, should_ignore);
+                } else {
+                    let _ = win.set_ignore_cursor_events(should_ignore);
+                }
+                #[cfg(not(windows))]
+                {
+                    let _ = win.set_ignore_cursor_events(should_ignore);
+                }
                 last_ignore = Some(should_ignore);
                 #[cfg(windows)]
                 {
@@ -993,7 +1024,9 @@ fn start_hit_test_loop(
                         drift_ticks = drift_ticks.saturating_add(1);
                         if drift_ticks >= 4 {
                             win_force_click_through(&win, should_ignore);
-                            let _ = win.set_ignore_cursor_events(should_ignore);
+                            if !is_win7_rgn {
+                                let _ = win.set_ignore_cursor_events(should_ignore);
+                            }
                             drift_ticks = 0;
                         }
                     } else {
@@ -1200,6 +1233,8 @@ fn set_win7_window_region(
             return;
         }
         unsafe {
+            // bRedraw = 1 ensures clean repaint on both Win7 Aero (DWM double-buffered)
+            // and Win7 Basic (no ghost trails when menus close or ears move).
             // On success Windows owns the HRGN; only delete on failure.
             if SetWindowRgn(hwnd, rgn, 1) == 0 {
                 DeleteObject(rgn as _);
@@ -1319,6 +1354,12 @@ pub fn run() {
             }
 
             if let Some(win) = app.get_webview_window("main") {
+                #[cfg(windows)]
+                if win_needs_region_mask() {
+                    // Ensure Win7 window starts without WS_EX_LAYERED (which defaults to alpha=0
+                    // invisible on Win7) while SetWindowRgn provides native silhouette click-through.
+                    win_force_click_through(&win, false);
+                }
                 let _ = win.set_always_on_top(s.always_on_top);
                 #[cfg(target_os = "macos")]
                 {
