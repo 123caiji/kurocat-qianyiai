@@ -1013,10 +1013,46 @@ fn start_hit_test_loop(
     });
 }
 
+#[cfg(windows)]
+fn win_configure_local_webview2_runtime() {
+    let Ok(exe) = std::env::current_exe() else {
+        return;
+    };
+    let Some(dir) = exe.parent() else {
+        return;
+    };
+    let mut found_local_rt = false;
+    if std::env::var_os("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER").is_none() {
+        for candidate in ["WebView2Runtime", "WebView2"] {
+            let rt = dir.join(candidate);
+            if rt.join("msedgewebview2.exe").is_file() {
+                std::env::set_var("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER", &rt);
+                found_local_rt = true;
+                break;
+            }
+        }
+    }
+    // Isolate Fixed-Version WebView2 (v109 for Win7) user data folder so it never collides
+    // with a newer system WebView2 (Chromium 13x/14x) profile when tested or co-installed.
+    if (found_local_rt || cfg!(feature = "win7"))
+        && std::env::var_os("WEBVIEW2_USER_DATA_FOLDER").is_none()
+    {
+        let udf = std::env::var_os("LOCALAPPDATA")
+            .map(std::path::PathBuf::from)
+            .map(|base| base.join("KuroCat").join("EBWebView-Win7"))
+            .unwrap_or_else(|| dir.join("WebView2Data"));
+        let _ = std::fs::create_dir_all(&udf);
+        std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &udf);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(windows)]
-    win_wait_for_previous_pid_if_requested();
+    {
+        win_wait_for_previous_pid_if_requested();
+        win_configure_local_webview2_runtime();
+    }
 
     let mut initial_settings = load_settings();
     // Always start unlocked so users who accidentally toggled click-through lock can never be permanently trapped across restarts/upgrades

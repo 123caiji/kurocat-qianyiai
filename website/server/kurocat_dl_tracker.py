@@ -198,6 +198,8 @@ def classify_platform(filename: str) -> str:
     low = filename.lower()
     if "macos" in low or low.endswith(".dmg") or low.endswith(".app.tar.gz"):
         return "macOS 通用版"
+    if "win7" in low:
+        return "Windows 7 兼容整合包"
     if "108key" in low:
         return "Windows 108键安装版"
     if "setup.exe" in low or low.endswith(".msi"):

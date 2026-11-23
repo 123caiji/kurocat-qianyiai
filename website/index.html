@@ -253,12 +253,30 @@
         <div class="macos-tip-left">
           <div class="tip-title">🪟 Windows 提示「Could not find the WebView2 Runtime」怎么办？</div>
           <p class="tip-body">
-            常见于较老 Win10 / LTSC 精简版、卸过 Edge 浏览器或直接运行绿色单文件版的电脑（Win7 暂不支持）。优先推荐安装上方<strong>正式安装版（setup.exe）</strong>，或点击右侧下载微软官方 WebView2 引导程序（1.8 MB），<strong>右键 → 以管理员身份运行</strong>装完即可全机生效。
+            常见于较老 Win10 / LTSC 精简版、卸过 Edge 浏览器或直接运行绿色单文件版的电脑（<strong>Win7 用户请直接下载下方专属兼容绿包版</strong>）。优先推荐安装上方<strong>正式安装版（setup.exe）</strong>，或点击右侧下载微软官方 WebView2 引导程序（1.8 MB），<strong>右键 → 以管理员身份运行</strong>装完即可全机生效。
           </p>
         </div>
         <a class="btn-outline" href="https://go.microsoft.com/fwlink/p/?LinkId=2124703" target="_blank" rel="noopener" style="white-space:nowrap;">
           下载微软 WebView2 运行环境 ›
         </a>
+      </div>
+
+      <!-- Windows 7 SP1 Dedicated Compatible Edition -->
+      <div class="macos-tip-card" id="win7-download">
+        <div class="macos-tip-left">
+          <div class="tip-title">🖥️ Windows 7 SP1（64 位）专属兼容绿包版（内置 WebView2 109）</div>
+          <p class="tip-body">
+            专为 Windows 7 SP1 64 位单独编译适配（原生 PE 6.01，零 Win8/Win10 DLL 依赖，并内置微软官方最后一版支持 Win7 的 <strong>WebView2 109.0.1518.78</strong> 离线内核），彻底解决 Win7 报错 <code>PackageIdFromFullName</code> 与无法安装新版 WebView2 的问题。下载后请先<strong>全部解压</strong>，保持 <code>KuroCat.exe</code> 与 <code>WebView2Runtime</code> 同目录，直接双击运行即可（如遇黑框请开启 Win7 Aero 主题）。
+          </p>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+          <a class="btn-outline" href="/kurocat/releases/v4.7.0/KuroCat-v4.7.0-win7-x64-portable.zip" download style="white-space:nowrap;">
+            下载 Win7 兼容绿包版（178.34 MB）
+          </a>
+          <a class="dl-alt-link" href="https://github.com/qianyiai/kurocat/releases/download/v4.7.0/KuroCat-v4.7.0-win7-x64-portable.zip" target="_blank" rel="noopener" style="font-size:12px;">
+            GitHub 官方源（Win7 绿包）›
+          </a>
+        </div>
       </div>
 
       <!-- Game Fullscreen & Anti-Cheat Guide -->

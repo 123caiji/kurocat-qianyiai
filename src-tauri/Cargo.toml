@@ -16,6 +16,7 @@ path = "src/main.rs"
 [features]
 default = []
 layout-108 = []
+win7 = []
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

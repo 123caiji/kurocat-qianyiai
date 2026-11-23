@@ -72,7 +72,11 @@ fn extract_sha256(digest: &Option<String>) -> Option<String> {
 }
 
 fn detect_install_kind() -> &'static str {
-    #[cfg(windows)]
+    #[cfg(all(windows, feature = "win7"))]
+    {
+        return "windows-win7";
+    }
+    #[cfg(all(windows, not(feature = "win7")))]
     {
         if let Ok(exe) = std::env::current_exe() {
             if let Some(dir) = exe.parent() {
@@ -129,6 +133,10 @@ fn select_asset<'a>(assets: &'a [GhAsset], install_kind: &str) -> Option<&'a GhA
                     .iter()
                     .find(|a| a.name.to_ascii_lowercase().ends_with("-setup.exe"))
             }),
+        "windows-win7" => assets.iter().find(|a| {
+            let n = a.name.to_ascii_lowercase();
+            n.contains("win7") && n.ends_with(".zip")
+        }),
         "macos-app" => assets
             .iter()
             .find(|a| a.name.to_ascii_lowercase().ends_with("-macos-universal.app.tar.gz"))
@@ -354,6 +362,24 @@ fn install_windows_update(app: &AppHandle, info: &UpdateInfo) -> Result<(), Stri
     use std::process::Command;
 
     const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    if info.install_kind == "windows-win7"
+        || info
+            .asset_name
+            .as_deref()
+            .map(|n| n.to_ascii_lowercase().ends_with(".zip"))
+            .unwrap_or(false)
+    {
+        let target_url = info.download_url.as_deref().unwrap_or(&info.release_url);
+        open_url_in_browser(target_url);
+        emit_progress(
+            app,
+            "up_to_date",
+            format!("已在浏览器打开 v{} Win7 兼容整合包下载页", info.latest_version),
+            Some(info.clone()),
+        );
+        return Ok(());
+    }
 
     let url = info
         .download_url
