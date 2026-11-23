@@ -2,23 +2,45 @@
 
 > 🌐 **官方网站与网页端在线试玩 / 国内高速下载**：[**https://qianyi.one/kurocat**](https://qianyi.one/kurocat)
 
-轻量级 **Windows & macOS（Apple Silicon + Intel 通用版）** 透明置顶桌面打字猫咪伴侣（开箱自带 **6 款手绘猫咪皮肤 + 🐳 大肥鱼（鲸鱼娘）**：经典小黑猫、暖奶茶布偶猫、大橘猫、三花猫、奶牛猫、暹罗猫、大肥鱼，支持**输密码自动闭眼/捂眼防偷窥**，并原生内置 **MCP 协议服务端**，支持用 AI 一句话定制或新增更多你自己的猫咪！），基于 **Tauri v2（Rust 全局原生钩子 + 内置 MCP 引擎 + HTML5 Canvas 2D）** 打造。单文件轻量低耗，零外部运行时依赖。
+轻量级 **Windows（Win11/10 & Win7 SP1）/ macOS（10.15+ Apple Silicon & Intel）/ Linux（银河麒麟 KylinOS / Ubuntu / UOS）** 透明置顶桌面打字猫咪伴侣（开箱自带 **6 款手绘猫咪皮肤 + 🐳 大肥鱼（鲸鱼娘）**：经典小黑猫、暖奶茶布偶猫、大橘猫、三花猫、奶牛猫、暹罗猫、大肥鱼，支持**输密码自动闭眼/捂眼防偷窥**，并原生内置 **MCP 协议服务端**，支持用 AI 一句话定制或新增更多你自己的猫咪！），基于 **Tauri v2（Rust 全局原生钩子 + 内置 MCP 引擎 + HTML5 Canvas 2D）** 打造。单文件轻量低耗，零外部运行时依赖。
 
-## 📥 直接下载使用（Windows & macOS）
+## 🎬 演示视频（🐳 大肥鱼 · 鲸鱼娘 14s 实机演示）
+
+<p align="center">
+  <a href="https://qianyi.one/kurocat/#whale-demo" target="_blank" rel="noopener">
+    <img src="docs/whale-demo.webp" alt="KuroCat 🐳 大肥鱼（鲸鱼娘）14s 演示视频（鼠标 + 打字 + 鲸尾三同动 · 加速笑开花 · 密码捂眼防偷窥）" width="320" />
+  </a>
+</p>
+
+<p align="center">
+  <sub>🎬 鼠标 + 手打字 + 鲸尾甩拍三同动 → 加速打字笑开花 → 输密码自动捂眼防偷窥</sub><br/>
+  🔊 <a href="https://qianyi.one/kurocat/#whale-demo"><strong>官网在线观看 1080×1920 60fps 含同步键鼠音效原版</strong></a>
+  &nbsp;·&nbsp;
+  📥 <a href="https://qianyi.one/kurocat/media/whale-douyin-14s.mp4">下载原版 MP4（国内高速）</a>
+  &nbsp;·&nbsp;
+  📥 <a href="https://github.com/qianyiai/kurocat/releases/download/v4.7.0/KuroCat-whale-demo-14s.mp4">GitHub 原片下载</a>
+</p>
+
+## 📥 直接下载使用（Windows / Win7 / macOS / Linux）
 
 前往 [Releases](https://github.com/qianyiai/kurocat/releases) 页面或直接点击下方最新 **`v4.7.0`** 安装包下载（所有版本均内置 **20%–150% 丝滑缩放滑动条**、右键一键切换 **65% 紧凑 / 108 全尺寸小键盘** 与 **面向猫咪 / 面向观众** 方向、**输密码自动闭眼/捂眼防偷窥**、**按住 `Alt` 随时解锁鼠标穿透**、**无边框 / 全屏优化游戏持续 Z 序置顶守护**、托盘一键 **以管理员身份重启（捕获游戏键鼠）** & **游戏反作弊护航暂停** 与 App 内自动新版本提醒及一键自升级）：
 
-- **🪟 Windows 10 / 11（65% 经典安装版 · `v4.7.0`）**：[**`KuroCat-4.7.0-x64-setup.exe`**](https://github.com/qianyiai/kurocat/releases/download/v4.7.0/KuroCat-4.7.0-x64-setup.exe)（约 1.62 MB）
+- **🪟 Windows 10 / 11（65% 经典安装版 · `v4.7.0`）**：[**`KuroCat-4.7.0-x64-setup.exe`**](https://github.com/qianyiai/kurocat/releases/download/v4.7.0/KuroCat-4.7.0-x64-setup.exe)（约 1.62 MB）｜[**官网国内高速下载**](https://qianyi.one/kurocat/#download)
   - 默认 65% 紧凑机械键盘，自动创建桌面 **`KuroCat`** 图标、开始菜单与系统卸载入口；右键或托盘随时一键切换 **108 键全尺寸小键盘**、**🐳 大肥鱼（鲸鱼娘）** 与 App 内一键更新。
   - **常见问题说明**：
-    - 极少数老版 Win10 / LTSC 精简版若提示缺少 `WebView2 Runtime`，安装微软官方 1.8 MB 引导程序（右键「以管理员身份运行」）即可：[`MicrosoftEdgeWebview2Setup.exe`](https://go.microsoft.com/fwlink/p/?LinkId=2124703)（暂不支持 Windows 7）。
+    - 极少数老版 Win10 / LTSC 精简版若提示缺少 `WebView2 Runtime`，安装微软官方 1.8 MB 引导程序（右键「以管理员身份运行」）即可：[`MicrosoftEdgeWebview2Setup.exe`](https://go.microsoft.com/fwlink/p/?LinkId=2124703)。
     - **游戏全屏 / 管理员权限 / 直播提示**：单机与常规游戏在 Win10/11 全屏优化（FSO）或「无边框窗口化」下内置持续 Z 序置顶守卫且绝不抢焦点（建议开启「锁定鼠标穿透」，按 `Alt` 随时解锁）；若游戏本身以管理员权限运行导致无法捕获键鼠，右键系统托盘点击 **「以管理员身份重启（捕获游戏键鼠）」** 即可无缝提权；直播录屏推荐 OBS 添加「窗口捕获」叠加；玩无畏契约 / 三角洲行动等强内核反作弊网游建议右键托盘开启 **「暂停监听并隐藏（游戏反作弊护航）」**。
-- **🍎 macOS 11+（Apple Silicon M1/M2/M3/M4 & Intel 通用版）**：
-  - 通用稳定版（`v4.5.0`）：[**`KuroCat-v4.5.0-macos-universal.dmg`**](https://github.com/qianyiai/kurocat/releases/download/v4.5.0/KuroCat-v4.5.0-macos-universal.dmg)（约 4.72 MB）｜最新功能版（`v4.7.0`）：[**`KuroCat-v4.7.0-macos-universal.dmg`**](https://github.com/qianyiai/kurocat/releases/download/v4.7.0/KuroCat-v4.7.0-macos-universal.dmg)（约 4.89 MB）
-  - 打开 `.dmg` 将 `KuroCat.app` 拖入「应用程序」文件夹运行，同样内置 65% / 108 键切换与 6 款皮肤。
+- **🖥️ Windows 7 SP1（64 位专属兼容绿包版 · `v4.7.0`）**：[**`KuroCat-v4.7.0-win7-x64-portable.zip`**](https://github.com/qianyiai/kurocat/releases/download/v4.7.0/KuroCat-v4.7.0-win7-x64-portable.zip)（178.76 MB）｜[**官网国内高速下载**](https://qianyi.one/kurocat/releases/v4.7.0/KuroCat-v4.7.0-win7-x64-portable.zip)
+  - 原生 PE 6.01 编译（零 Win8/Win10 DLL 依赖），内置微软官方最后一版支持 Win7 的离线 **WebView2 109.0.1518.78** 运行库，并搭载 **Win7 原生 256 级逐像素透明抗锯齿渲染（`UpdateLayeredWindow`）**，开不开 Aero 均无白底框与锯齿；解压后保持 `KuroCat.exe` 与 `WebView2Runtime` 同目录直接双击即可运行。
+- **🍎 macOS 10.15 Catalina+（Apple Silicon M1–M4 & Intel 通用版 · `v4.7.0`）**：[**`KuroCat-v4.7.0-macos-universal.dmg`**](https://github.com/qianyiai/kurocat/releases/download/v4.7.0/KuroCat-v4.7.0-macos-universal.dmg)（5.50 MB）｜[**官网国内高速下载**](https://qianyi.one/kurocat/releases/v4.7.0/KuroCat-v4.7.0-macos-universal.dmg)
+  - 打开 `.dmg` 将 `KuroCat.app` 拖入「应用程序」文件夹运行，内置 65% / 108 键切换与全部 7 款皮肤（含 🐳 大肥鱼鲸鱼娘）。
   - **首次打开说明（开源未公证应用）**：若提示「无法验证开发者」或「已损坏」，在终端执行一次 `xattr -cr /Applications/KuroCat.app` 后即可正常打开（后续 App 内一键升级会自动处理，无需再敲命令）。
   - **键盘与鼠标监听权限**：首次启动会自动弹出系统授权引导，请在「系统设置 → 隐私与安全性」中同时勾选 **「辅助功能」与「输入监控」** 里的 `KuroCat`（即开即生效，兼容 Karabiner-Elements；若覆盖升级后权限未生效，在列表中选中 `KuroCat` 点左下角 `-` 删除再重新 `+` 添加即可）。
   - **macOS Stdio MCP 路径**：`/Applications/KuroCat.app/Contents/MacOS/KuroCat`（参数 `--mcp`），或在桌宠运行时直接连接 `http://127.0.0.1:27420/mcp`。
+- **🐧 Linux / 银河麒麟 KylinOS / 优麒麟 / Ubuntu / UOS（`v4.7.0`）**：
+  - **x86_64（Intel / AMD / 兆芯 / 海光）**：[**`.deb`（1.87 MB）**](https://github.com/qianyiai/kurocat/releases/download/v4.7.0/KuroCat-v4.7.0-linux-amd64.deb) · [**`.AppImage`（77.01 MB）**](https://github.com/qianyiai/kurocat/releases/download/v4.7.0/KuroCat-v4.7.0-linux-amd64.AppImage)
+  - **ARM64（飞腾 / 鲲鹏 / 树莓派）**：[**`.deb`（1.83 MB）**](https://github.com/qianyiai/kurocat/releases/download/v4.7.0/KuroCat-v4.7.0-linux-arm64.deb) · [**`.AppImage`（75.19 MB）**](https://github.com/qianyiai/kurocat/releases/download/v4.7.0/KuroCat-v4.7.0-linux-arm64.AppImage)
+  - 原生动态加载 X11 `XRecord`（免 root 捕获全局键鼠，Wayland 自动支持 `evdev` 回退），官网亦提供全部国内高速镜像：[`https://qianyi.one/kurocat/#linux-download`](https://qianyi.one/kurocat/#linux-download)。
 
 ## ✨ 核心特性
 
