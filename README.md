@@ -4,22 +4,33 @@
 
 轻量级 **Windows（Win11/10 & Win7 SP1）/ macOS（10.15+ Apple Silicon & Intel）/ Linux（银河麒麟 KylinOS / Ubuntu / UOS）** 透明置顶桌面打字猫咪伴侣（开箱自带 **6 款手绘猫咪皮肤 + 🐳 大肥鱼（鲸鱼娘）**：经典小黑猫、暖奶茶布偶猫、大橘猫、三花猫、奶牛猫、暹罗猫、大肥鱼，支持**输密码自动闭眼/捂眼防偷窥**，并原生内置 **MCP 协议服务端**，支持用 AI 一句话定制或新增更多你自己的猫咪！），基于 **Tauri v2（Rust 全局原生钩子 + 内置 MCP 引擎 + HTML5 Canvas 2D）** 打造。单文件轻量低耗，零外部运行时依赖。
 
-## 🎬 演示视频（🐳 大肥鱼 · 鲸鱼娘 14s 实机演示）
+## 🎬 在线试玩预览 & 鲸鱼娘 14s 演示视频
 
-<p align="center">
-  <a href="https://qianyi.one/kurocat/#whale-demo" target="_blank" rel="noopener">
-    <img src="docs/whale-demo.webp" alt="KuroCat 🐳 大肥鱼（鲸鱼娘）14s 演示视频（鼠标 + 打字 + 鲸尾三同动 · 加速笑开花 · 密码捂眼防偷窥）" width="320" />
-  </a>
-</p>
-
-<p align="center">
-  <sub>🎬 鼠标 + 手打字 + 鲸尾甩拍三同动 → 加速打字笑开花 → 输密码自动捂眼防偷窥</sub><br/>
-  🔊 <a href="https://qianyi.one/kurocat/#whale-demo"><strong>官网在线观看 1080×1920 60fps 含同步键鼠音效原版</strong></a>
-  &nbsp;·&nbsp;
-  📥 <a href="https://qianyi.one/kurocat/media/whale-douyin-14s.mp4">下载原版 MP4（国内高速）</a>
-  &nbsp;·&nbsp;
-  📥 <a href="https://github.com/qianyiai/kurocat/releases/download/v4.7.0/KuroCat-whale-demo-14s.mp4">GitHub 原片下载</a>
-</p>
+<table>
+  <tr>
+    <td align="center" width="54%" valign="top">
+      <a href="https://qianyi.one/kurocat/" target="_blank" rel="noopener">
+        <img src="docs/playground-demo.webp" alt="KuroCat 官网实时网页试玩（7 款皮肤切换 · 65%/108 键 · 密码防偷窥）" width="400" />
+      </a>
+      <br/>
+      <strong>🎮 <a href="https://qianyi.one/kurocat/">点此进入官网实时在线试玩（直接敲键盘 &amp; 摸猫头）→</a></strong>
+      <br/>
+      <sub>内置 6 款猫咪 + 🐳 大肥鱼 · 65%/108 键 · 正反双视角 · 密码防偷窥 · 20%–150% 无级缩放</sub>
+    </td>
+    <td align="center" width="46%" valign="top">
+      <a href="https://qianyi.one/kurocat/#whale-demo" target="_blank" rel="noopener">
+        <img src="docs/whale-demo.webp" alt="KuroCat 🐳 大肥鱼（鲸鱼娘）14s 演示视频（鼠标 + 打字 + 鲸尾三同动 · 加速笑开花 · 密码捂眼防偷窥）" width="272" />
+      </a>
+      <br/>
+      <strong>🐳 <a href="https://qianyi.one/kurocat/#whale-demo">观看 1080×1920 60fps 含音效原版视频 →</a></strong>
+      <br/>
+      <sub>
+        鼠标 + 手打字 + 鲸尾甩拍三同动 → 加速笑开花 → 密码捂眼防偷窥<br/>
+        📥 <a href="https://qianyi.one/kurocat/media/whale-douyin-14s.mp4">下载原版 MP4（国内高速）</a> · <a href="https://github.com/qianyiai/kurocat/releases/download/v4.7.0/KuroCat-whale-demo-14s.mp4">GitHub 原片</a>
+      </sub>
+    </td>
+  </tr>
+</table>
 
 ## 📥 直接下载使用（Windows / Win7 / macOS / Linux）
 
@@ -43,6 +54,19 @@
   - 原生动态加载 X11 `XRecord`（免 root 捕获全局键鼠，Wayland 自动支持 `evdev` 回退），官网亦提供全部国内高速镜像：[`https://qianyi.one/kurocat/#linux-download`](https://qianyi.one/kurocat/#linux-download)。
 
 ## ✨ 核心特性
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="website/public/assets/showcase-108key.webp" alt="65% 紧凑 / 108 键全尺寸 × 面向猫咪 / 面向观众双视角" />
+      <br/><sub>65% 紧凑 / 108 键全尺寸 × 面向猫咪 / 面向观众双视角</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="website/public/assets/showcase-mouse.webp" alt="鼠标左/右键独立高亮 + 自动更新提醒" />
+      <br/><sub>鼠标左/右键独立双色高亮 + App 内自动更新提醒</sub>
+    </td>
+  </tr>
+</table>
 
 - **7 款内置皮肤（6 款猫咪 + 🐳 大肥鱼鲸鱼娘）+ MCP 无限自定义**：
   - **🐈‍⬛ 经典小黑猫** / **🐱 暖奶茶布偶猫** / **🍊 大橘猫**（虎斑 `M` 额纹 + 环纹尾） / **🌸 三花猫** / **🐄 奶牛猫**（燕尾服 + 白手套） / **🤎 暹罗猫**（挖煤重点色） / **🐳 大肥鱼（鲸鱼娘）**（三肢同步键鼠 + 鲸鱼尾拍打右侧功能键带水花特效 + 稳定 4 表情与手速腮红），右键或系统托盘 0.1 秒一键无缝切换。
