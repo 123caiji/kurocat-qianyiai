@@ -21,8 +21,8 @@ function buildDefaultAssets(): ReleaseAssetMap {
   const n65 = `KuroCat-${LOCAL_MIRROR_VER_NUM}-x64-setup.exe`;
   const nMac = `KuroCat-${MACOS_MIRROR_VERSION}-macos-universal.dmg`;
   return {
-    win65: { name: n65, primaryUrl: `${localBase}/${n65}`, ghUrl: `${ghBase}/${n65}`, sizeText: '1.62 MB' },
-    macos: { name: nMac, primaryUrl: `${macLocalBase}/${nMac}`, ghUrl: `${macGhBase}/${nMac}`, sizeText: '5.50 MB' },
+    win65: { name: n65, primaryUrl: `${localBase}/${n65}`, ghUrl: `${ghBase}/${n65}`, sizeText: '1.96 MB' },
+    macos: { name: nMac, primaryUrl: `${macLocalBase}/${nMac}`, ghUrl: `${macGhBase}/${nMac}`, sizeText: '5.53 MB' },
   };
 }
 
