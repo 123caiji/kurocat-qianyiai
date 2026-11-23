@@ -250,8 +250,42 @@ pub fn set_windows_autostart(enabled: bool) -> Result<(), String> {
 }
 
 #[cfg(all(not(windows), not(target_os = "macos")))]
-pub fn set_windows_autostart(_enabled: bool) -> Result<(), String> {
-    Ok(())
+pub fn set_windows_autostart(enabled: bool) -> Result<(), String> {
+    let config_root = std::env::var("XDG_CONFIG_HOME")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+            PathBuf::from(home).join(".config")
+        });
+    let autostart_dir = config_root.join("autostart");
+    let desktop_path = autostart_dir.join("kurocat.desktop");
+
+    if enabled {
+        fs::create_dir_all(&autostart_dir).map_err(|e| e.to_string())?;
+        let exe = std::env::current_exe()
+            .map_err(|e| e.to_string())?
+            .to_string_lossy()
+            .to_string();
+        let entry = format!(
+            "[Desktop Entry]\n\
+             Type=Application\n\
+             Name=KuroCat\n\
+             Comment=Minimalist desktop cat typing & mouse companion\n\
+             Exec=\"{exe}\"\n\
+             Icon=KuroCat\n\
+             Terminal=false\n\
+             X-GNOME-Autostart-enabled=true\n",
+            exe = exe.replace('"', "\\\"")
+        );
+        fs::write(desktop_path, entry).map_err(|e| e.to_string())
+    } else {
+        if desktop_path.exists() {
+            let _ = fs::remove_file(desktop_path);
+        }
+        Ok(())
+    }
 }
 
 #[cfg(windows)]

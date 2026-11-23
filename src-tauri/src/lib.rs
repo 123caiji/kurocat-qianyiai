@@ -395,7 +395,13 @@ fn default_bottom_right_position(win_w: i32, win_h: i32, scale_factor: f64) -> (
     ((sw - win_w - pad_x).max(20), (sh - win_h - pad_y).max(20))
 }
 
-#[cfg(all(not(windows), not(target_os = "macos")))]
+#[cfg(target_os = "linux")]
+fn default_bottom_right_position(win_w: i32, win_h: i32, _scale_factor: f64) -> (i32, i32) {
+    let (sw, sh) = input_hook::linux_hook::primary_screen_size();
+    ((sw - win_w - 28).max(20), (sh - win_h - 68).max(20))
+}
+
+#[cfg(all(not(windows), not(target_os = "macos"), not(target_os = "linux")))]
 fn default_bottom_right_position(_win_w: i32, _win_h: i32, _scale_factor: f64) -> (i32, i32) {
     (900, 500)
 }
@@ -424,7 +430,12 @@ fn get_cursor_pos(scale_factor: f64) -> Option<(i32, i32)> {
     })
 }
 
-#[cfg(all(not(windows), not(target_os = "macos")))]
+#[cfg(target_os = "linux")]
+fn get_cursor_pos(_scale_factor: f64) -> Option<(i32, i32)> {
+    input_hook::linux_hook::cursor_pos()
+}
+
+#[cfg(all(not(windows), not(target_os = "macos"), not(target_os = "linux")))]
 fn get_cursor_pos(_scale_factor: f64) -> Option<(i32, i32)> {
     None
 }
@@ -1046,12 +1057,34 @@ fn win_configure_local_webview2_runtime() {
     }
 }
 
+#[cfg(target_os = "linux")]
+fn linux_configure_display_env() {
+    // Prevent WebKitGTK 4.1 DMABUF blank/black transparent window issues on KylinOS/Mesa/NVIDIA/VMs
+    // while keeping RGBA compositing transparency intact.
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
+    // Prefer X11/XWayland when DISPLAY is available so bottom-right window placement,
+    // XShape click-through, and zero-root XRecord global input work reliably across desktop environments.
+    if std::env::var_os("WAYLAND_DISPLAY").is_some()
+        && std::env::var_os("DISPLAY").map(|v| !v.is_empty()).unwrap_or(false)
+        && std::env::var_os("GDK_BACKEND").is_none()
+        && std::env::var_os("KUROCAT_WAYLAND").is_none()
+    {
+        std::env::set_var("GDK_BACKEND", "x11");
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(windows)]
     {
         win_wait_for_previous_pid_if_requested();
         win_configure_local_webview2_runtime();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        linux_configure_display_env();
     }
 
     let mut initial_settings = load_settings();
@@ -1098,6 +1131,11 @@ pub fn run() {
                 {
                     let _ = win.set_visible_on_all_workspaces(true);
                     configure_macos_fullscreen_overlay(&win, s.always_on_top);
+                }
+                #[cfg(target_os = "linux")]
+                {
+                    let _ = win.set_visible_on_all_workspaces(true);
+                    let _ = win.set_skip_taskbar(true);
                 }
                 let (win_w, win_h) = window_dimensions(&s.keyboard_layout, s.scale);
                 let _ = win.set_size(Size::Logical(LogicalSize::new(win_w, win_h)));

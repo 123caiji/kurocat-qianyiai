@@ -91,7 +91,14 @@ fn detect_install_kind() -> &'static str {
     {
         return "macos-app";
     }
-    #[cfg(all(not(windows), not(target_os = "macos")))]
+    #[cfg(target_os = "linux")]
+    {
+        if cfg!(target_arch = "aarch64") {
+            return "linux-deb-arm64";
+        }
+        return "linux-deb-amd64";
+    }
+    #[cfg(all(not(windows), not(target_os = "macos"), not(target_os = "linux")))]
     {
         return "manual";
     }
@@ -144,6 +151,30 @@ fn select_asset<'a>(assets: &'a [GhAsset], install_kind: &str) -> Option<&'a GhA
                 assets
                     .iter()
                     .find(|a| a.name.to_ascii_lowercase().ends_with("-macos-universal.dmg"))
+            }),
+        "linux-deb-arm64" => assets
+            .iter()
+            .find(|a| {
+                let n = a.name.to_ascii_lowercase();
+                n.ends_with(".deb") && (n.contains("arm64") || n.contains("aarch64"))
+            })
+            .or_else(|| {
+                assets.iter().find(|a| {
+                    let n = a.name.to_ascii_lowercase();
+                    n.ends_with(".appimage") && (n.contains("arm64") || n.contains("aarch64"))
+                })
+            }),
+        "linux-deb-amd64" => assets
+            .iter()
+            .find(|a| {
+                let n = a.name.to_ascii_lowercase();
+                n.ends_with(".deb") && (n.contains("amd64") || n.contains("x86_64"))
+            })
+            .or_else(|| {
+                assets.iter().find(|a| {
+                    let n = a.name.to_ascii_lowercase();
+                    n.ends_with(".appimage") && (n.contains("amd64") || n.contains("x86_64"))
+                })
             }),
         _ => None,
     }
@@ -215,7 +246,12 @@ fn fetch_latest_release_json() -> Result<String, String> {
 fn fetch_latest_release_json() -> Result<String, String> {
     use std::process::Command;
 
-    let output = Command::new("/usr/bin/curl")
+    let curl_bin = if cfg!(target_os = "macos") {
+        "/usr/bin/curl"
+    } else {
+        "curl"
+    };
+    let output = Command::new(curl_bin)
         .args([
             "-fsSL",
             "--connect-timeout",
@@ -300,6 +336,10 @@ pub fn open_url_in_browser(url: &str) {
     #[cfg(target_os = "macos")]
     {
         let _ = std::process::Command::new("/usr/bin/open").arg(url).spawn();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("xdg-open").arg(url).spawn();
     }
 }
 
@@ -648,7 +688,14 @@ pub fn perform_update_install(app: &AppHandle, info: UpdateInfo) -> Result<(), S
 
     #[cfg(all(not(windows), not(target_os = "macos")))]
     {
-        open_url_in_browser(&info.release_url);
+        let target_url = info.download_url.as_deref().unwrap_or(&info.release_url);
+        open_url_in_browser(target_url);
+        emit_progress(
+            app,
+            "up_to_date",
+            format!("已在浏览器打开 v{} 安装包下载页", info.latest_version),
+            Some(info),
+        );
         Ok(())
     }
 }
