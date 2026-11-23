@@ -8,11 +8,34 @@ import {
 import { catAudio } from '../../src/audio';
 import { resolveKeyByVk, type KeyboardLayoutId } from '../../src/keyboardLayout';
 import { BUILTIN_WEB_CATS } from './builtinCats';
+import {
+  KUROCAT_I18N,
+  applyStaticI18n,
+  detectInitialLocale,
+  persistLocale,
+  type Locale,
+} from './i18n';
 import { keyboardEventToVk } from './webKeyMap';
 
 const LOCAL_MIRROR_VERSION = 'v4.9.0';
 const LOCAL_MIRROR_VER_NUM = '4.9.0';
 const MACOS_MIRROR_VERSION = 'v4.9.0';
+
+let currentLocale: Locale = detectInitialLocale();
+let i18n = KUROCAT_I18N[currentLocale];
+const localeListeners: Array<() => void> = [];
+let activeReleaseTag = LOCAL_MIRROR_VERSION;
+let activeReleaseAssets: ReleaseAssetMap | null = null;
+
+function setLocale(next: Locale, shouldPersist: boolean): void {
+  currentLocale = next;
+  i18n = applyStaticI18n(next);
+  if (shouldPersist) persistLocale(next);
+  if (activeReleaseAssets) {
+    applyReleaseUI(activeReleaseTag, activeReleaseAssets);
+  }
+  localeListeners.forEach((fn) => fn());
+}
 
 interface ReleaseAssetMap {
   win65: { name: string; primaryUrl: string; ghUrl: string; sizeText: string };
@@ -37,11 +60,14 @@ function formatBytesMB(bytes: number): string {
 }
 
 function applyReleaseUI(tag: string, assets: ReleaseAssetMap): void {
+  activeReleaseTag = tag;
+  activeReleaseAssets = assets;
+
   const navPill = document.getElementById('nav-ver-pill');
   if (navPill) navPill.textContent = tag;
 
   const heroVer = document.getElementById('hero-release-label');
-  if (heroVer) heroVer.textContent = `最新版本 ${tag}`;
+  if (heroVer) heroVer.textContent = i18n.fmt.latestVersion(tag);
 
   const isMac = /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent);
   const heroBtn = document.getElementById('hero-primary-dl') as HTMLAnchorElement | null;
@@ -49,10 +75,10 @@ function applyReleaseUI(tag: string, assets: ReleaseAssetMap): void {
   if (heroBtn && heroLabel) {
     if (isMac) {
       heroBtn.href = assets.macos.primaryUrl;
-      heroLabel.textContent = `免费下载 macOS 通用版（${assets.macos.sizeText}）`;
+      heroLabel.textContent = i18n.fmt.heroDownloadMac(assets.macos.sizeText);
     } else {
       heroBtn.href = assets.win65.primaryUrl;
-      heroLabel.textContent = `免费下载 Windows 版（${assets.win65.sizeText}）`;
+      heroLabel.textContent = i18n.fmt.heroDownloadWin(assets.win65.sizeText);
     }
   }
 
@@ -222,16 +248,9 @@ function initPlayground(): void {
   let currentTailMode: TailKeyMode = 'smart';
   let currentTailKeyIds: string[] = [...DEFAULT_TAIL_KEY_IDS];
   let tailPickerOpen = false;
-  let tailPickerHintOverride: string | null = null;
+  let tailPickerHintOverride: (() => string) | null = null;
   let autoDemoRunning = true;
   let autoDemoTimer: number | null = null;
-
-  const TAIL_MODE_SHORT: Record<TailKeyMode, string> = {
-    smart: '尾巴：智能',
-    custom: '尾巴：自定义',
-    edge: '尾巴：边缘',
-    off: '尾巴：仅摆动',
-  };
 
   const statusPill = document.getElementById('stage-status-pill');
   const stageHint = document.getElementById('stage-hint');
@@ -242,9 +261,9 @@ function initPlayground(): void {
 
   const updateStatusPill = () => {
     if (!statusPill) return;
-    const layoutText = currentLayout === '108' ? '108 全尺寸' : '65% 紧凑';
-    const orientText = currentOrient === 'viewer' ? '面向观众' : '面向猫咪';
-    statusPill.textContent = `${layoutText} · ${orientText} · ${TAIL_MODE_SHORT[currentTailMode]}`;
+    const layoutText = i18n.fmt.layout(currentLayout);
+    const orientText = i18n.fmt.orient(currentOrient);
+    statusPill.textContent = `${layoutText} · ${orientText} · ${i18n.tailModeShort[currentTailMode]}`;
   };
 
   const syncTailUI = () => {
@@ -254,9 +273,7 @@ function initPlayground(): void {
     });
     if (btnWebTailPicker) {
       btnWebTailPicker.classList.toggle('active', tailPickerOpen);
-      btnWebTailPicker.textContent = tailPickerOpen
-        ? `✓ 正在点选（已选 ${currentTailKeyIds.length} 键）`
-        : `🐾 点选尾巴按键（${currentTailKeyIds.length}）`;
+      btnWebTailPicker.textContent = i18n.fmt.tailPickerBtn(tailPickerOpen, currentTailKeyIds.length);
     }
     if (webTailPickerBar) {
       webTailPickerBar.classList.toggle('hidden', !tailPickerOpen);
@@ -265,9 +282,9 @@ function initPlayground(): void {
       stageHint.style.display = tailPickerOpen ? 'none' : '';
     }
     if (webTailPickerTitle) {
-      webTailPickerTitle.textContent =
-        tailPickerHintOverride ||
-        `🐾 直接点击下方键帽或敲实体键盘开关（已选 ${currentTailKeyIds.length} 键）`;
+      webTailPickerTitle.textContent = tailPickerHintOverride
+        ? tailPickerHintOverride()
+        : i18n.fmt.tailPickerTitleDefault(currentTailKeyIds.length);
     }
     updateStatusPill();
   };
@@ -296,9 +313,9 @@ function initPlayground(): void {
     }
     currentTailMode = 'custom';
     const keyText = label || specId.toUpperCase();
-    tailPickerHintOverride = added
-      ? `🐾 已加「${keyText}」· 共 ${currentTailKeyIds.length} 键（点完成开始打字测试）`
-      : `🐾 已取消「${keyText}」· 共 ${currentTailKeyIds.length} 键`;
+    const count = currentTailKeyIds.length;
+    tailPickerHintOverride = () =>
+      added ? i18n.fmt.tailKeyAdded(keyText, count) : i18n.fmt.tailKeyRemoved(keyText, count);
     syncTailUI();
     if (added) {
       engine.previewTailTap(specId);
@@ -313,15 +330,26 @@ function initPlayground(): void {
   const ro = new ResizeObserver(() => engine.resize());
   ro.observe(viewport);
 
-  // Build 6 skin buttons
+  // Build 7 skin buttons (re-labeled automatically when switching language)
   const skinHost = document.getElementById('skin-pills');
+  const syncSkinLabels = () => {
+    if (!skinHost) return;
+    skinHost.querySelectorAll<HTMLButtonElement>('.skin-btn').forEach((btn) => {
+      const id = btn.dataset.skinId || '';
+      const skin = BUILTIN_WEB_CATS.find((c) => c.id === id);
+      if (skin) {
+        const displayName = i18n.skins[skin.id] || skin.name;
+        btn.textContent = `${skin.emoji || '🐱'} ${displayName}`;
+      }
+    });
+  };
   if (skinHost) {
     BUILTIN_WEB_CATS.forEach((skin) => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = `skin-btn${skin.id === currentSkinId ? ' active' : ''}`;
       btn.dataset.skinId = skin.id;
-      btn.textContent = `${skin.emoji || '🐱'} ${skin.name}`;
+      btn.textContent = `${skin.emoji || '🐱'} ${i18n.skins[skin.id] || skin.name}`;
       btn.addEventListener('click', () => {
         currentSkinId = skin.id;
         engine.setCatAppearance(skin.id, skin);
@@ -401,16 +429,19 @@ function initPlayground(): void {
     const preset = presetBtn.dataset.webTailpreset;
     if (preset === 'office') {
       currentTailKeyIds = [...TAIL_KEY_PRESETS.office.ids];
-      tailPickerHintOverride = `🐾 已套用「回车空格」（${currentTailKeyIds.length} 键）`;
+      const count = currentTailKeyIds.length;
+      tailPickerHintOverride = () => i18n.fmt.tailPresetApplied('office', count);
     } else if (preset === 'rightFn') {
       currentTailKeyIds = [...TAIL_KEY_PRESETS.rightFn.ids];
-      tailPickerHintOverride = `🐾 已套用「方向/小键盘」（${currentTailKeyIds.length} 键）`;
+      const count = currentTailKeyIds.length;
+      tailPickerHintOverride = () => i18n.fmt.tailPresetApplied('rightFn', count);
     } else if (preset === 'edgeMods') {
       currentTailKeyIds = [...TAIL_KEY_PRESETS.edgeMods.ids];
-      tailPickerHintOverride = `🐾 已套用「外侧功能键」（${currentTailKeyIds.length} 键）`;
+      const count = currentTailKeyIds.length;
+      tailPickerHintOverride = () => i18n.fmt.tailPresetApplied('edgeMods', count);
     } else if (preset === 'clear') {
       currentTailKeyIds = [];
-      tailPickerHintOverride = '🐾 已清空全部尾巴按键（点键帽或敲键添加）';
+      tailPickerHintOverride = () => i18n.fmt.tailCleared();
     }
     currentTailMode = 'custom';
     syncTailUI();
@@ -452,12 +483,13 @@ function initPlayground(): void {
   // Whale demo vertical video sound toggle
   const whaleVideo = document.getElementById('whale-demo-video') as HTMLVideoElement | null;
   const whaleSoundBtn = document.getElementById('whale-sound-toggle');
+  const syncSoundBtn = () => {
+    if (!whaleVideo || !whaleSoundBtn) return;
+    const muted = whaleVideo.muted;
+    whaleSoundBtn.classList.toggle('active', !muted);
+    whaleSoundBtn.textContent = i18n.fmt.whaleSoundBtn(muted);
+  };
   if (whaleVideo && whaleSoundBtn) {
-    const syncSoundBtn = () => {
-      const muted = whaleVideo.muted;
-      whaleSoundBtn.classList.toggle('active', !muted);
-      whaleSoundBtn.textContent = muted ? '🔇 点此开启音效' : '🔊 音效已开启';
-    };
     whaleSoundBtn.addEventListener('click', () => {
       whaleVideo.muted = !whaleVideo.muted;
       if (!whaleVideo.muted && whaleVideo.paused) {
@@ -510,7 +542,7 @@ function initPlayground(): void {
     engine.setPrivacyMode(active);
     if (btnPrivacy) {
       btnPrivacy.classList.toggle('active', active);
-      btnPrivacy.textContent = active ? '🙈 密码防偷窥中' : '🔒 密码防偷窥';
+      btnPrivacy.textContent = i18n.fmt.privacyBtn(active);
     }
   };
   if (btnPrivacy) {
@@ -609,7 +641,7 @@ function initPlayground(): void {
     }
     if (btnAutoDemo) {
       btnAutoDemo.classList.remove('active');
-      btnAutoDemo.textContent = '▶ 自动演示';
+      btnAutoDemo.textContent = i18n.fmt.autoDemoBtn(false);
     }
   };
 
@@ -632,10 +664,20 @@ function initPlayground(): void {
     autoDemoRunning = true;
     if (btnAutoDemo) {
       btnAutoDemo.classList.add('active');
-      btnAutoDemo.textContent = '⏸ 停止演示';
+      btnAutoDemo.textContent = i18n.fmt.autoDemoBtn(true);
     }
     autoDemoTimer = window.setTimeout(runDemoTick, 240);
   };
+
+  localeListeners.push(() => {
+    syncSkinLabels();
+    syncTailUI();
+    syncSoundBtn();
+    syncPrivacyState();
+    if (btnAutoDemo) {
+      btnAutoDemo.textContent = i18n.fmt.autoDemoBtn(autoDemoRunning);
+    }
+  });
 
   if (btnAutoDemo) {
     btnAutoDemo.addEventListener('click', () => {
@@ -782,34 +824,21 @@ function initPlayground(): void {
 }
 
 function initMcpCodeTabs(): void {
-  const snippets: Record<string, { raw: string; html: string }> = {
-    win: {
-      raw: `{\n  "mcpServers": {\n    "kurocat": {\n      "command": "C:\\\\Users\\\\<你的用户名>\\\\AppData\\\\Local\\\\KuroCat\\\\KuroCat.exe",\n      "args": ["--mcp"]\n    }\n  }\n}`,
-      html: `<span class="c-dim">// Windows Stdio 模式（Claude / Cursor / Antigravity 通用）</span>\n{\n  <span class="c-key">"mcpServers"</span>: {\n    <span class="c-key">"kurocat"</span>: {\n      <span class="c-key">"command"</span>: <span class="c-str">"C:\\\\Users\\\\&lt;你的用户名&gt;\\\\AppData\\\\Local\\\\KuroCat\\\\KuroCat.exe"</span>,\n      <span class="c-key">"args"</span>: [<span class="c-str">"--mcp"</span>]\n    }\n  }\n}`,
-    },
-    mac: {
-      raw: `{\n  "mcpServers": {\n    "kurocat": {\n      "command": "/Applications/KuroCat.app/Contents/MacOS/KuroCat",\n      "args": ["--mcp"]\n    }\n  }\n}`,
-      html: `<span class="c-dim">// macOS Stdio 模式（零依赖直连 App 内置二进制）</span>\n{\n  <span class="c-key">"mcpServers"</span>: {\n    <span class="c-key">"kurocat"</span>: {\n      <span class="c-key">"command"</span>: <span class="c-str">"/Applications/KuroCat.app/Contents/MacOS/KuroCat"</span>,\n      <span class="c-key">"args"</span>: [<span class="c-str">"--mcp"</span>]\n    }\n  }\n}`,
-    },
-    http: {
-      raw: `{\n  "mcpServers": {\n    "kurocat": {\n      "url": "http://127.0.0.1:27420/mcp"\n    }\n  }\n}`,
-      html: `<span class="c-dim">// 本机 Streamable HTTP 模式（桌宠运行时直接连接）</span>\n{\n  <span class="c-key">"mcpServers"</span>: {\n    <span class="c-key">"kurocat"</span>: {\n      <span class="c-key">"url"</span>: <span class="c-str">"http://127.0.0.1:27420/mcp"</span>\n    }\n  }\n}`,
-    },
-  };
-
-  let active = 'win';
+  let active: 'win' | 'mac' | 'http' = 'win';
   const codeEl = document.getElementById('mcp-code');
   const copyBtn = document.getElementById('copy-mcp-btn');
 
-  const render = (key: string) => {
+  const render = (key: 'win' | 'mac' | 'http') => {
     active = key;
-    if (codeEl) codeEl.innerHTML = snippets[key].html;
+    if (codeEl) codeEl.innerHTML = i18n.mcpSnippets[key].html;
   };
   render('win');
+  localeListeners.push(() => render(active));
 
   document.querySelectorAll('[data-mcp-tab]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const key = (btn as HTMLElement).dataset.mcpTab || 'win';
+      const raw = (btn as HTMLElement).dataset.mcpTab;
+      const key: 'win' | 'mac' | 'http' = raw === 'mac' || raw === 'http' ? raw : 'win';
       document.querySelectorAll('[data-mcp-tab]').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
       render(key);
@@ -818,10 +847,10 @@ function initMcpCodeTabs(): void {
 
   if (copyBtn) {
     copyBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText(snippets[active].raw).then(() => {
-        copyBtn.textContent = '已复制 ✓';
+      navigator.clipboard.writeText(i18n.mcpSnippets[active].raw).then(() => {
+        copyBtn.textContent = i18n.fmt.copied();
         window.setTimeout(() => {
-          copyBtn.textContent = '复制配置';
+          copyBtn.textContent = i18n.fmt.copyConfig();
         }, 1600);
       });
     });
@@ -831,10 +860,10 @@ function initMcpCodeTabs(): void {
   const xattrBtn = document.getElementById('copy-xattr-btn');
   if (xattrBtn) {
     xattrBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText('xattr -cr /Applications/KuroCat.app').then(() => {
-        xattrBtn.textContent = '已复制 ✓';
+      navigator.clipboard.writeText('xattr -cr /Applications/KuroCat.app && open /Applications/KuroCat.app').then(() => {
+        xattrBtn.textContent = i18n.fmt.copied();
         window.setTimeout(() => {
-          xattrBtn.textContent = '复制命令';
+          xattrBtn.textContent = i18n.fmt.copyCmd();
         }, 1600);
       });
     });
@@ -847,9 +876,9 @@ function initMcpCodeTabs(): void {
       const em = chip.querySelector('em');
       navigator.clipboard.writeText(prompt).then(() => {
         if (em) {
-          em.textContent = '已复制 ✓';
+          em.textContent = i18n.fmt.copied();
           window.setTimeout(() => {
-            em.textContent = '复制';
+            em.textContent = i18n.fmt.copyShort();
           }, 1500);
         }
       });
@@ -888,9 +917,22 @@ function initPolish(): void {
   }
 }
 
+function initLanguageSwitcher(): void {
+  document.querySelectorAll<HTMLButtonElement>('[data-lang]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const lang = btn.dataset.lang;
+      if (lang === 'zh' || lang === 'en' || lang === 'ja') {
+        setLocale(lang, true);
+      }
+    });
+  });
+}
+
 applyReleaseUI(LOCAL_MIRROR_VERSION, buildDefaultAssets());
 initDownloadTracking();
 initPlayground();
 initMcpCodeTabs();
+initLanguageSwitcher();
+setLocale(currentLocale, false);
 initPolish();
 void syncGithubMetadata();

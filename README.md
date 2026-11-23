@@ -1,5 +1,11 @@
 # 🐈‍⬛ KuroCat
 
+<p align="center">
+  <strong>🇨🇳 简体中文</strong> &nbsp;|&nbsp;
+  <a href="./README.en.md">🇺🇸 English</a> &nbsp;|&nbsp;
+  <a href="./README.ja.md">🇯🇵 日本語</a>
+</p>
+
 > 🌐 **官方网站与网页端在线试玩 / 国内高速下载**：[**https://qianyi.one/kurocat**](https://qianyi.one/kurocat)
 
 轻量级 **Windows（Win11/10 & Win7 SP1）/ macOS（10.15+ Apple Silicon & Intel）/ Linux（银河麒麟 KylinOS / Ubuntu / UOS）** 透明置顶桌面打字猫咪伴侣（开箱自带 **6 款手绘猫咪皮肤 + 🐳 大肥鱼（鲸鱼娘）**：经典小黑猫、暖奶茶布偶猫、大橘猫、三花猫、奶牛猫、暹罗猫、大肥鱼，支持**输密码自动闭眼/捂眼防偷窥**，并原生内置 **MCP 协议服务端**，支持用 AI 一句话定制或新增更多你自己的猫咪！），基于 **Tauri v2（Rust 全局原生钩子 + 内置 MCP 引擎 + HTML5 Canvas 2D）** 打造。单文件轻量低耗，零外部运行时依赖。
