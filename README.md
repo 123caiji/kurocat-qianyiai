@@ -152,6 +152,20 @@ npm run tauri:dev      # 本地热更新调试
 npm run tauri:build    # 编译 Release 可执行文件与安装包
 ```
 
+### macOS 发布签名（升级后保留系统权限）
+
+macOS 按代码签名记住 KuroCat 的「辅助功能」和「输入监控」授权。临时签名（ad hoc）每个版本都不同，用户升级后必须重新授权；每次发版都用同一张代码签名证书签名，授权就能保留。自签名证书即可，不需要 Apple 开发者账号。维护者只需配置一次：
+
+```bash
+scripts/macos-codesign.sh create-cert /path/outside/repo/kurocat-signing
+gh secret set MACOS_SIGNING_CERT_P12_BASE64 < /path/outside/repo/kurocat-signing/kurocat-signing.p12.base64
+gh secret set MACOS_SIGNING_CERT_PASSWORD < /path/outside/repo/kurocat-signing/kurocat-signing.password
+```
+
+发布流程会用这张证书给 macOS 包签名，并检查 DMG 和自动更新包里的 App。请备份证书和密码，之后每个版本都要用它签名，换证书后用户需要重新授权。
+
+这两个 Secrets 是可选的：都不配置时，发布照常完成，macOS 包会补上完整的临时签名，安装后权限可以正常生效，只是用户升级后仍要重新授权，Actions 日志里会给出提示。只配置了一个、证书无法导入或密码不对时，发布会失败并提示原因；修正 Secrets，或者把两个都删掉退回临时签名即可。自签名证书不能代替 Apple 公证，首次打开时仍需在「隐私与安全性」里允许运行。
+
 ## 📄 开源协议与致谢
 
 本项目基于 [MIT License](LICENSE) 开源。
