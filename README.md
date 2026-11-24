@@ -180,6 +180,18 @@ gh secret set MACOS_SIGNING_CERT_PASSWORD < /path/outside/repo/kurocat-signing/k
 
 这两个 Secrets 是可选的：都不配置时，发布照常完成，macOS 包会补上完整的临时签名，安装后权限可以正常生效，只是用户升级后仍要重新授权，Actions 日志里会给出提示。只配置了一个、证书无法导入或密码不对时，发布会失败并提示原因；修正 Secrets，或者把两个都删掉退回临时签名即可。自签名证书不能代替 Apple 公证，首次打开时仍需在「隐私与安全性」里允许运行。
 
+## 📈 实时增长曲线
+
+<a href="https://qianyi.one/kurocat/#growth">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://qianyi.one/kurocat/api/growth-chart?theme=dark&amp;lang=zh" />
+    <source media="(prefers-color-scheme: light)" srcset="https://qianyi.one/kurocat/api/growth-chart?theme=light&amp;lang=zh" />
+    <img alt="KuroCat 实时下载量与 GitHub Stars 增长曲线" src="https://qianyi.one/kurocat/api/growth-chart?theme=dark&amp;lang=zh" width="100%" />
+  </picture>
+</a>
+
+> 📡 实时同步累计下载量与 GitHub Stars（自动适配 GitHub 深/浅色主题）。[点击查看官网可交互双轴曲线 →](https://qianyi.one/kurocat/#growth)
+
 ## 📄 开源协议与致谢
 
 本项目基于 [MIT License](LICENSE) 开源。

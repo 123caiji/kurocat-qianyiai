@@ -165,6 +165,18 @@ npm run tauri:dev      # ホットリロード開発起動
 npm run tauri:build    # リリースバイナリ・インストーラーのビルド
 ```
 
+## 📈 リアルタイム成長グラフ
+
+<a href="https://qianyi.one/kurocat/?lang=ja#growth">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://qianyi.one/kurocat/api/growth-chart?theme=dark&amp;lang=ja" />
+    <source media="(prefers-color-scheme: light)" srcset="https://qianyi.one/kurocat/api/growth-chart?theme=light&amp;lang=ja" />
+    <img alt="KuroCat 累計ダウンロード数・GitHub Stars リアルタイム成長グラフ" src="https://qianyi.one/kurocat/api/growth-chart?theme=dark&amp;lang=ja" width="100%" />
+  </picture>
+</a>
+
+> 📡 累計ダウンロード数と GitHub Stars をリアルタイム同期（GitHub のダーク／ライトテーマに自動対応）。[公式サイトでインタラクティブ版を見る →](https://qianyi.one/kurocat/?lang=ja#growth)
+
 ## 📄 ライセンスと謝辞
 
 本プロジェクトは [MIT License](LICENSE) のもとで公開されています。

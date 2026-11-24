@@ -165,6 +165,18 @@ npm run tauri:dev      # Live hot-reload development
 npm run tauri:build    # Production release bundle & installer
 ```
 
+## 📈 Live Growth
+
+<a href="https://qianyi.one/kurocat/?lang=en#growth">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://qianyi.one/kurocat/api/growth-chart?theme=dark&amp;lang=en" />
+    <source media="(prefers-color-scheme: light)" srcset="https://qianyi.one/kurocat/api/growth-chart?theme=light&amp;lang=en" />
+    <img alt="KuroCat Live Downloads and GitHub Stars Growth Chart" src="https://qianyi.one/kurocat/api/growth-chart?theme=dark&amp;lang=en" width="100%" />
+  </picture>
+</a>
+
+> 📡 Live-synced cumulative downloads and GitHub Stars (auto-adapts to GitHub dark/light themes). [Explore the interactive dual-axis chart on the website →](https://qianyi.one/kurocat/?lang=en#growth)
+
 ## 📄 License & Credits
 
 Released under the [MIT License](LICENSE).

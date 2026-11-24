@@ -666,6 +666,56 @@
         </div>
       </article>
     </section>
+
+    <!-- Live Growth Curve Section (Downloads + GitHub Stars) -->
+    <section class="section-block reveal" id="growth">
+      <article class="stage-card growth-card">
+        <div class="growth-head">
+          <div class="growth-head-left">
+            <div class="eyebrow" data-i18n="growth.eyebrow">Live Growth · Real-Time Telemetry</div>
+            <h2 class="growth-title" data-i18n="growth.title">实时增长曲线</h2>
+            <p class="growth-sub" data-i18n="growth.sub">实时追踪全渠道累计下载量与 GitHub Stars 增长轨迹，移动鼠标查看各时段精确数据。</p>
+          </div>
+          <div class="growth-head-right">
+            <div class="growth-kpis">
+              <div class="growth-kpi kpi-dl">
+                <span class="growth-kpi-dot"></span>
+                <div>
+                  <div class="growth-kpi-lbl" data-i18n="growth.dlLbl">累计下载量</div>
+                  <div class="growth-kpi-val" id="growth-kpi-dl">--</div>
+                </div>
+              </div>
+              <div class="growth-kpi kpi-star">
+                <span class="growth-kpi-dot"></span>
+                <div>
+                  <div class="growth-kpi-lbl" data-i18n="growth.starLbl">GitHub Stars</div>
+                  <div class="growth-kpi-val" id="growth-kpi-stars">--</div>
+                </div>
+              </div>
+            </div>
+            <div class="seg-control growth-mode-tabs" role="group" aria-label="Growth chart series">
+              <button class="seg-btn active" data-growth-mode="both" type="button" data-i18n="growth.modeBoth">双曲线</button>
+              <button class="seg-btn" data-growth-mode="downloads" type="button" data-i18n="growth.modeDl">仅下载</button>
+              <button class="seg-btn" data-growth-mode="stars" type="button" data-i18n="growth.modeStars">仅 Stars</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="growth-chart-stage" id="growth-chart-stage">
+          <svg id="growth-chart-svg" class="growth-svg" viewBox="0 0 920 330" preserveAspectRatio="xMidYMid meet" role="img" aria-label="KuroCat live growth chart"></svg>
+          <div class="growth-tooltip hidden" id="growth-tooltip">
+            <div class="growth-tt-time" id="growth-tt-time">--</div>
+            <div class="growth-tt-row dl"><i class="dot"></i><span data-i18n="growth.dlLbl">累计下载量</span><strong id="growth-tt-dl">--</strong></div>
+            <div class="growth-tt-row star"><i class="dot"></i><span data-i18n="growth.starLbl">GitHub Stars</span><strong id="growth-tt-stars">--</strong></div>
+          </div>
+        </div>
+
+        <div class="growth-foot">
+          <span class="growth-updated" id="growth-updated" data-i18n="growth.loading">正在同步实时增长数据…</span>
+          <a class="growth-star-cta" href="https://github.com/qianyiai/kurocat" target="_blank" rel="noopener" data-i18n="growth.starCta">⭐ 去 GitHub 点颗星支持开源 ›</a>
+        </div>
+      </article>
+    </section>
   </main>
 
   <footer>
