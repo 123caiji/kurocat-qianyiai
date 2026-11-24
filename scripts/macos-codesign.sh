@@ -22,6 +22,7 @@ WORK_DIR=""
 TEMP_KEYCHAIN=""
 MOUNT_POINT=""
 TEMP_TRUSTED_CERT=""
+ORIG_DEFAULT_KEYCHAIN=""
 ORIG_KEYCHAINS=()
 
 usage() {
@@ -66,6 +67,10 @@ cleanup() {
   if [[ -n "$MOUNT_POINT" ]]; then
     hdiutil detach "$MOUNT_POINT" >/dev/null 2>&1 ||
       hdiutil detach -force "$MOUNT_POINT" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$ORIG_DEFAULT_KEYCHAIN" ]]; then
+    security default-keychain -d user -s "$ORIG_DEFAULT_KEYCHAIN" >/dev/null 2>&1 || true
+    ORIG_DEFAULT_KEYCHAIN=""
   fi
   if [[ ${#ORIG_KEYCHAINS[@]} -gt 0 ]]; then
     security list-keychains -d user -s "${ORIG_KEYCHAINS[@]}" >/dev/null 2>&1 || true
@@ -120,6 +125,7 @@ sign_with_p12() {
     die "MACOS_SIGNING_CERT_P12_BASE64 is not valid base64. $SECRET_HINT"
   [[ -s "$WORK_DIR/signing.p12" ]] || die "MACOS_SIGNING_CERT_P12_BASE64 is empty. $SECRET_HINT"
 
+  ORIG_DEFAULT_KEYCHAIN="$(security default-keychain -d user 2>/dev/null | sed -e 's/^[[:space:]]*"//' -e 's/"[[:space:]]*$//' || true)"
   ORIG_KEYCHAINS=()
   while IFS= read -r kc; do
     kc="${kc#"${kc%%[![:space:]]*}"}"
@@ -129,14 +135,18 @@ sign_with_p12() {
   done < <(security list-keychains -d user)
 
   security create-keychain -p "$keychain_password" "$TEMP_KEYCHAIN"
-  security set-keychain-settings -lut 3600 "$TEMP_KEYCHAIN"
+  security set-keychain-settings "$TEMP_KEYCHAIN"
   security unlock-keychain -p "$keychain_password" "$TEMP_KEYCHAIN"
+  security default-keychain -d user -s "$TEMP_KEYCHAIN"
   security list-keychains -d user -s "$TEMP_KEYCHAIN" "${ORIG_KEYCHAINS[@]}"
+  # Use -A alone (without -T, which overrides -A) so codesign never triggers a headless GUI ACL prompt.
   security import "$WORK_DIR/signing.p12" -k "$TEMP_KEYCHAIN" -f pkcs12 \
-    -P "$MACOS_SIGNING_CERT_PASSWORD" -A -T /usr/bin/codesign -T /usr/bin/security >/dev/null 2>&1 ||
+    -P "$MACOS_SIGNING_CERT_PASSWORD" -A >/dev/null 2>&1 ||
     die "could not import the certificate. MACOS_SIGNING_CERT_P12_BASE64 must be the base64 of kurocat-signing.p12 and MACOS_SIGNING_CERT_PASSWORD its password. $SECRET_HINT"
-  security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
+  # Omit -s so OpenSSL-exported RSA keys in this single-key keychain always get the partition list updated.
+  security set-key-partition-list -S apple-tool:,apple:,codesign: \
     -k "$keychain_password" "$TEMP_KEYCHAIN" >/dev/null
+  security unlock-keychain -p "$keychain_password" "$TEMP_KEYCHAIN"
 
   identity="$(security find-identity -p codesigning "$TEMP_KEYCHAIN" |
     awk '/^[[:space:]]*[0-9]+\)/ { print $2; exit }')"
@@ -157,7 +167,8 @@ sign_with_p12() {
   fi
 
   echo "Signing $app with certificate SHA-1 $identity"
-  codesign --force --sign "$identity" --keychain "$TEMP_KEYCHAIN" \
+  security find-identity -v -p codesigning "$TEMP_KEYCHAIN" || true
+  perl -e 'alarm 45; exec @ARGV' codesign --force --sign "$identity" --keychain "$TEMP_KEYCHAIN" \
     --identifier "$id" --timestamp=none "$app"
 
   # Remove temporary trust before verify_app so verification mirrors an end-user Mac.
