@@ -17,9 +17,9 @@ import {
 } from './i18n';
 import { keyboardEventToVk } from './webKeyMap';
 
-const LOCAL_MIRROR_VERSION = 'v4.9.0';
-const LOCAL_MIRROR_VER_NUM = '4.9.0';
-const MACOS_MIRROR_VERSION = 'v4.9.0';
+const LOCAL_MIRROR_VERSION = 'v4.9.1';
+const LOCAL_MIRROR_VER_NUM = '4.9.1';
+const MACOS_MIRROR_VERSION = 'v4.9.1';
 
 let currentLocale: Locale = detectInitialLocale();
 let i18n = KUROCAT_I18N[currentLocale];

@@ -211,6 +211,7 @@ pub fn run_mcp_stdio() {
 pub struct AppState {
     pub settings: Arc<Mutex<AppSettings>>,
     pub menu_open: Arc<AtomicBool>,
+    pub menu_creating: Arc<AtomicBool>,
     pub menu_opened_at: Arc<Mutex<Instant>>,
     pub dragging: Arc<AtomicBool>,
     pub mcp_enabled: Arc<AtomicBool>,
@@ -454,63 +455,117 @@ fn reposition_context_menu_if_open(app: &AppHandle) {
     }
 }
 
-#[tauri::command]
-fn open_context_menu(app: AppHandle) {
-    let Some((mx, my, lw, lh)) = side_menu_geometry(&app) else {
-        return;
+#[cfg(windows)]
+fn win_is_menu_still_focused(menu_win: &tauri::WebviewWindow) -> bool {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, IsChild};
+    let Ok(raw_hwnd) = menu_win.hwnd() else {
+        return false;
     };
+    let menu_hwnd = raw_hwnd.0 as windows_sys::Win32::Foundation::HWND;
+    if menu_hwnd.is_null() {
+        return false;
+    }
+    let fg = unsafe { GetForegroundWindow() };
+    if fg.is_null() {
+        return false;
+    }
+    fg == menu_hwnd || unsafe { IsChild(menu_hwnd, fg) != 0 }
+}
+
+/// IMPORTANT: Must be `async fn` so Tauri executes it off the Windows UI main thread!
+/// Calling `WebviewWindowBuilder::build()` inside a synchronous `#[tauri::command]`
+/// deadlocks the Windows WebView2 / tao event loop (freezing right-click, left-drag, and tray exit).
+#[tauri::command]
+async fn open_context_menu(app: AppHandle) -> Result<(), String> {
+    let Some((mx, my, lw, lh)) = side_menu_geometry(&app) else {
+        return Err("side_menu_geometry returned None".into());
+    };
+
+    struct ResetFlag(Arc<AtomicBool>);
+    impl Drop for ResetFlag {
+        fn drop(&mut self) {
+            self.0.store(false, Ordering::Release);
+        }
+    }
 
     let menu_win = if let Some(existing) = app.get_webview_window("menu") {
         existing
     } else {
-        #[cfg(windows)]
-        let use_transparent = !win_needs_win7_ulw();
-        #[cfg(not(windows))]
-        let use_transparent = true;
+        let creating_flag = app.state::<AppState>().menu_creating.clone();
+        if creating_flag
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            return Ok(());
+        }
+        let _reset_guard = ResetFlag(creating_flag);
 
-        let Ok(created) = tauri::WebviewWindowBuilder::new(
-            &app,
-            "menu",
-            tauri::WebviewUrl::App("menu.html".into()),
-        )
-        .title("KuroCat Menu")
-        .inner_size(lw, lh)
-        .decorations(false)
-        .resizable(false)
-        .transparent(use_transparent)
-        .shadow(false)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .visible(false)
-        .build() else {
-            return;
-        };
+        // Re-check after acquiring creation guard in case a concurrent call just finished.
+        if let Some(existing) = app.get_webview_window("menu") {
+            existing
+        } else {
+            #[cfg(windows)]
+            let use_transparent = !win_needs_win7_ulw();
+            #[cfg(not(windows))]
+            let use_transparent = true;
 
-        let app_ev = app.clone();
-        created.on_window_event(move |event| match event {
-            tauri::WindowEvent::Focused(false) => {
-                let state = app_ev.state::<AppState>();
-                let elapsed = state.menu_opened_at.lock().unwrap().elapsed();
-                if elapsed >= Duration::from_millis(240) {
+            let created = match tauri::WebviewWindowBuilder::new(
+                &app,
+                "menu",
+                tauri::WebviewUrl::App("menu.html".into()),
+            )
+            .title("KuroCat Menu")
+            .inner_size(lw, lh)
+            .decorations(false)
+            .resizable(false)
+            .transparent(use_transparent)
+            .shadow(false)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .visible(false)
+            // MUST match `tauri.conf.json` main window's `additionalBrowserArgs` identically;
+            // otherwise Windows WebView2 rejects creating a 2nd window in the same userDataFolder
+            // with HRESULT 0x8007139F (ERROR_INVALID_STATE)!
+            .additional_browser_args("--autoplay-policy=no-user-gesture-required")
+            .build()
+            {
+                Ok(w) => w,
+                Err(err) => {
+                    eprintln!("[kurocat] open_context_menu: failed to build menu window: {err}");
+                    return Err(err.to_string());
+                }
+            };
+
+            let app_ev = app.clone();
+            created.on_window_event(move |event| match event {
+                tauri::WindowEvent::Focused(false) => {
+                    let state = app_ev.state::<AppState>();
+                    let elapsed = state.menu_opened_at.lock().unwrap().elapsed();
+                    if elapsed >= Duration::from_millis(360) {
+                        if let Some(w) = app_ev.get_webview_window("menu") {
+                            #[cfg(windows)]
+                            if win_is_menu_still_focused(&w) {
+                                return;
+                            }
+                            let _ = w.hide();
+                        }
+                        state.menu_open.store(false, Ordering::Relaxed);
+                    }
+                }
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    api.prevent_close();
                     if let Some(w) = app_ev.get_webview_window("menu") {
                         let _ = w.hide();
                     }
-                    state.menu_open.store(false, Ordering::Relaxed);
+                    app_ev
+                        .state::<AppState>()
+                        .menu_open
+                        .store(false, Ordering::Relaxed);
                 }
-            }
-            tauri::WindowEvent::CloseRequested { api, .. } => {
-                api.prevent_close();
-                if let Some(w) = app_ev.get_webview_window("menu") {
-                    let _ = w.hide();
-                }
-                app_ev
-                    .state::<AppState>()
-                    .menu_open
-                    .store(false, Ordering::Relaxed);
-            }
-            _ => {}
-        });
-        created
+                _ => {}
+            });
+            created
+        }
     };
 
     let state = app.state::<AppState>();
@@ -523,6 +578,7 @@ fn open_context_menu(app: AppHandle) {
     let _ = menu_win.show();
     let _ = menu_win.set_focus();
     let _ = app.emit("kuro-menu-opened", ());
+    Ok(())
 }
 
 #[tauri::command]
@@ -1502,10 +1558,9 @@ fn start_hit_test_loop(
 
             let over_banner = is_banner && inside && ry <= 0.19;
 
-            // On Windows 7/8 ULW mode, UpdateLayeredWindow(ULW_ALPHA) natively passes through all
-            // alpha==0 pixels at the OS level, so we ONLY toggle WS_EX_TRANSPARENT on ulw_hwnd when
-            // click-through is explicitly locked (`effective_locked`).
-            let should_ignore = if is_menu || is_drag || over_banner {
+            // The context menu is its own independent OS window ("menu"), so do NOT disable
+            // click-through on "main"'s empty transparent padding when `is_menu` is true.
+            let should_ignore = if is_drag || over_banner {
                 false
             } else if effective_locked {
                 true
@@ -1858,6 +1913,7 @@ pub fn run() {
     }
     let settings_arc = Arc::new(Mutex::new(initial_settings.clone()));
     let menu_open = Arc::new(AtomicBool::new(false));
+    let menu_creating = Arc::new(AtomicBool::new(false));
     let menu_opened_at = Arc::new(Mutex::new(Instant::now() - Duration::from_secs(10)));
     let dragging = Arc::new(AtomicBool::new(false));
     let mcp_enabled = Arc::new(AtomicBool::new(initial_settings.mcp_enabled));
@@ -1875,6 +1931,7 @@ pub fn run() {
         .manage(AppState {
             settings: settings_arc,
             menu_open,
+            menu_creating,
             menu_opened_at,
             dragging,
             mcp_enabled,

@@ -71,7 +71,7 @@ interface UpdateProgressEvent {
   info: UpdateInfo | null;
 }
 
-let appVersion = '4.9.0';
+let appVersion = '4.9.1';
 let latestUpdateInfo: UpdateInfo | null = null;
 let updateBusy = false;
 let dismissedVersion: string | null = null;
@@ -237,14 +237,25 @@ function closeContextMenu(): void {
   void invoke('close_context_menu');
 }
 
-function openContextMenu(_clientX: number, _clientY: number): void {
+function openContextMenu(clientX: number, clientY: number): void {
   // Always pop the dedicated non-overlapping side menu window beside the cat so it NEVER blocks the pet!
   if (!menuEl.classList.contains('hidden')) {
     menuEl.classList.add('hidden');
     syncWindowInteractiveState();
     syncWin7OverlayFn?.(false);
   }
-  void invoke('open_context_menu');
+  void invoke('open_context_menu').catch(() => {
+    // Defensive fallback to inline menu if side-window creation ever fails on an unsupported WM
+    menuEl.classList.remove('hidden');
+    const mw = menuEl.offsetWidth || 236;
+    const mh = menuEl.offsetHeight || 360;
+    const left = Math.max(8, Math.min(window.innerWidth - mw - 8, clientX));
+    const top = Math.max(8, Math.min(window.innerHeight - mh - 8, clientY));
+    menuEl.style.left = `${left}px`;
+    menuEl.style.top = `${top}px`;
+    syncWindowInteractiveState();
+    syncWin7OverlayFn?.(true);
+  });
 }
 
 function openTailPicker(): void {
