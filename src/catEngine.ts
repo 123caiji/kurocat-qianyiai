@@ -1979,13 +1979,13 @@ export class KuroCatEngine {
       }
     }
 
-    // Keep full smooth FPS while alive emotions, eye tracking, fidgets, sleep Zzz, or FX are active
+    // Keep active animations smooth. Sleep particles continue drawing at the idle rate.
     if (
       isCatMode &&
       (curiousNow ||
         this.crossAmount > 0.03 ||
         this.idleAct !== null ||
-        this.fxParticles.length > 0 ||
+        this.fxParticles.some((fx) => fx.kind !== 'z') ||
         (this.sleepAmount > 0.02 && this.sleepAmount < 0.98) ||
         (wakeElapsed >= 0 && wakeElapsed < 0.65) ||
         Math.abs(this.deskHopY) > 0.15 ||
