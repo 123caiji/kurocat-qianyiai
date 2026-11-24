@@ -59,7 +59,7 @@
         "description": "Lightweight, transparent, always-on-top open-source desktop typing & mouse cat companion built with Tauri v2 and Rust. Features 6 hand-crafted cats + BigFish whale-girl, 65%/108-key layouts, customizable tail-key patting, native OBS transparent browser source, automatic password privacy guard, and a built-in MCP server for AI cat creation.",
         "applicationCategory": "UtilitiesApplication",
         "operatingSystem": "Windows 11, Windows 10, Windows 7, macOS, Linux, Android",
-        "softwareVersion": "5.0.1",
+        "softwareVersion": "5.0.2",
         "url": "https://qianyi.one/kurocat/",
         "downloadUrl": "https://qianyi.one/kurocat/#download",
         "codeRepository": "https://github.com/qianyiai/kurocat",
@@ -104,16 +104,16 @@
   <header class="global-nav">
     <div class="nav-inner">
       <div class="nav-brand-group">
-        <a class="brand-back" href="/" aria-label="返回谦一主页" data-i18n="nav.back">← 谦一</a>
+        <a class="brand-back" href="/" aria-label="返回谦一主页" data-i18n="nav.back" data-i18n-aria="nav.backAria">← 谦一</a>
         <span class="brand-sep">/</span>
         <a class="brand-current" href="#top">
           <img class="nav-icon" src="/kurocat/assets/kurocat-icon.png" alt="KuroCat" width="20" height="20" />
           <span>KuroCat</span>
-          <span class="ver-pill" id="nav-ver-pill">v5.0.1</span>
+          <span class="ver-pill" id="nav-ver-pill">v5.0.2</span>
         </a>
       </div>
       <div class="nav-right">
-        <nav class="nav-links" aria-label="主导航">
+        <nav class="nav-links" aria-label="主导航" data-i18n-aria="nav.mainAria">
           <a href="#playground" data-i18n="nav.playground">在线试玩</a>
           <a href="#whale-demo" data-i18n="nav.whale">鲸鱼娘视频</a>
           <a href="#download" data-i18n="nav.download">立即下载</a>
@@ -135,12 +135,12 @@
     <section class="hero-stage reveal visible" id="playground">
       <div class="hero-copy">
         <div class="hero-badge-row">
-          <img class="hero-app-icon" src="/kurocat/assets/kurocat-icon.png" alt="KuroCat 图标" width="56" height="56" />
+          <img class="hero-app-icon" src="/kurocat/assets/kurocat-icon.png" alt="KuroCat 图标" data-i18n-alt="hero.iconAlt" width="56" height="56" />
           <div>
             <div class="eyebrow" style="margin-bottom:4px;" data-i18n="hero.eyebrow">Windows · macOS · Linux · Open Source</div>
             <div class="hero-meta-line">
               <span class="live-dot"></span>
-              <span id="hero-release-label">最新版本 v5.0.1</span>
+              <span id="hero-release-label">最新版本 v5.0.2</span>
               <span class="meta-divider" id="github-stats-sep" style="display:none;">·</span>
               <span id="github-stats-text" style="display:none;"></span>
             </div>
@@ -158,7 +158,7 @@
         </p>
 
         <div class="hero-actions">
-          <a class="btn-lime" id="hero-primary-dl" href="/kurocat/releases/v5.0.1/KuroCat-5.0.1-x64-setup.exe" download>
+          <a class="btn-lime" id="hero-primary-dl" href="/kurocat/releases/v5.0.2/KuroCat-5.0.2-x64-setup.exe" download>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2.2v7.6m0 0L4.8 6.6M8 9.8l3.2-3.2M2.5 12.8h11" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
             <span id="hero-primary-dl-label">免费下载 Windows 版（2.15 MB）</span>
           </a>
@@ -192,11 +192,11 @@
             <span class="playground-title" data-i18n="pg.title">实时网页引擎 · 直接敲键盘或摸猫头</span>
           </div>
           <div class="playground-bar-right">
-            <div class="backdrop-pills web-mode-pills" role="group" aria-label="3D / 2D 模式切换">
-              <button class="mini-pill active" data-web-rendermode="3d" type="button">✨ 3D 立体</button>
-              <button class="mini-pill" data-web-rendermode="2d" type="button">🎨 2D 经典</button>
+            <div class="backdrop-pills web-mode-pills" role="group" aria-label="3D / 2D 模式切换" data-i18n-aria="pg.modeAria">
+              <button class="mini-pill active" data-web-rendermode="3d" type="button" data-i18n="pg.mode3d">✨ 3D 立体</button>
+              <button class="mini-pill" data-web-rendermode="2d" type="button" data-i18n="pg.mode2d">🎨 2D 经典</button>
             </div>
-            <div class="backdrop-pills" role="group" aria-label="预览桌布背景">
+            <div class="backdrop-pills" role="group" aria-label="预览桌布背景" data-i18n-aria="pg.backdropAria">
               <button class="mini-pill active" data-backdrop="dark" type="button" data-i18n="pg.bgDark">深色桌布</button>
               <button class="mini-pill" data-backdrop="light" type="button" data-i18n="pg.bgLight">浅色桌布</button>
             </div>
@@ -204,14 +204,14 @@
         </div>
 
         <div class="canvas-viewport backdrop-dark" id="canvas-viewport">
-          <canvas id="kurocat-canvas" aria-label="KuroCat 2D 实时交互试玩画布"></canvas>
-          <canvas id="kurocat-canvas-3d" class="hidden" aria-label="KuroCat 3D 实时交互试玩画布"></canvas>
+          <canvas id="kurocat-canvas" aria-label="KuroCat 2D 实时交互试玩画布" data-i18n-aria="pg.canvas2dAria"></canvas>
+          <canvas id="kurocat-canvas-3d" class="hidden" aria-label="KuroCat 3D 实时交互试玩画布" data-i18n-aria="pg.canvas3dAria"></canvas>
           <div class="stage-hint" id="stage-hint">
             <span data-i18n="pg.hintKey">⌨️ 敲键盘</span>
             <span data-i18n="pg.hintMouse">🖱️ 点左/右键</span>
             <span data-i18n="pg.hintPet">🤚 来回摸猫头</span>
           </div>
-          <div class="web-tail-picker-bar hidden" id="web-tail-picker-bar" role="dialog" aria-label="自定义尾巴按键">
+          <div class="web-tail-picker-bar hidden" id="web-tail-picker-bar" role="dialog" aria-label="自定义尾巴按键" data-i18n-aria="pg.tailPickerAria">
             <div class="web-tail-picker-top">
               <span class="web-tail-picker-title" id="web-tail-picker-title">🐾 直接点击下方键帽或敲实体键盘开关（已选 4 键）</span>
               <button class="web-tail-done-btn" id="btn-web-tail-done" type="button" data-i18n="pg.done">完成</button>
@@ -230,17 +230,17 @@
           <!-- Row 1: 7 Built-in Skins (6 Cats + BigFish) -->
           <div class="dock-row">
             <span class="dock-label" data-i18n="pg.lblSkin">切换皮肤</span>
-            <div class="skin-pills" id="skin-pills" role="group" aria-label="选择桌宠皮肤"></div>
+            <div class="skin-pills" id="skin-pills" role="group" aria-label="选择桌宠皮肤" data-i18n-aria="pg.skinGroupAria"></div>
           </div>
 
           <!-- Row 2: Layout, Orientation & Actions -->
           <div class="dock-row dock-row-split">
             <div class="seg-group">
-              <div class="seg-control" role="group" aria-label="键盘配列">
+              <div class="seg-control" role="group" aria-label="键盘配列" data-i18n-aria="pg.layoutAria">
                 <button class="seg-btn active" data-layout="65" type="button" data-i18n="pg.layout65">65% 紧凑</button>
                 <button class="seg-btn" data-layout="108" type="button" data-i18n="pg.layout108">108 全尺寸</button>
               </div>
-              <div class="seg-control" role="group" aria-label="键盘视角">
+              <div class="seg-control" role="group" aria-label="键盘视角" data-i18n-aria="pg.orientAria">
                 <button class="seg-btn active" data-orient="cat" type="button" data-i18n="pg.orientCat">面向猫咪</button>
                 <button class="seg-btn" data-orient="viewer" type="button" data-i18n="pg.orientViewer">面向观众</button>
               </div>
@@ -254,27 +254,27 @@
               <button class="chip-btn" id="btn-sleep-demo" type="button" title="触发趴下打瞌睡冒 Zzz（敲任意键抖头醒来）" data-i18n="pg.btnSleep" data-i18n-title="pg.sleepTitle">💤 打瞌睡</button>
               <button class="chip-btn active" id="btn-bubbles" type="button" title="开关悬浮按键气泡" data-i18n="pg.btnBubbles" data-i18n-title="pg.bubblesTitle">💬 气泡</button>
               <button class="chip-btn active" id="btn-purr" type="button" title="开关摸头呼噜声" data-i18n="pg.btnPurr" data-i18n-title="pg.purrTitle">🔊 呼噜</button>
-              <button class="chip-btn" id="btn-web-headphones" type="button" title="开关电竞耳机（桌面端支持检测到游戏自动戴上）">🎧 电竞耳机</button>
-              <button class="chip-btn" id="btn-web-orbit" type="button" title="开启后在画布上拖动可 360° 旋转查看 3D 立体模型">🔄 360° 旋转</button>
+              <button class="chip-btn" id="btn-web-headphones" type="button" title="开关电竞耳机（桌面端支持检测到游戏自动戴上）" data-i18n="pg.btnHeadphones" data-i18n-title="pg.headphonesTitle">🎧 电竞耳机</button>
+              <button class="chip-btn" id="btn-web-orbit" type="button" title="开启后在画布上拖动可 360° 旋转查看 3D 立体模型" data-i18n="pg.btnOrbit" data-i18n-title="pg.orbitTitle">🔄 360° 旋转</button>
             </div>
           </div>
 
           <!-- Row 2.2: Optional 3D Collar & Bell -->
           <div class="dock-row" id="web-collar-row">
-            <span class="dock-label">3D 项圈</span>
-            <div class="seg-control" role="group" aria-label="3D 项圈铃铛颜色">
-              <button class="seg-btn active" data-web-collar="none" type="button">无</button>
-              <button class="seg-btn" data-web-collar="red" type="button">🔴 红</button>
-              <button class="seg-btn" data-web-collar="blue" type="button">🔵 蓝</button>
-              <button class="seg-btn" data-web-collar="pink" type="button">🩷 粉</button>
-              <button class="seg-btn" data-web-collar="green" type="button">🟢 绿</button>
+            <span class="dock-label" data-i18n="pg.lblCollar">3D 项圈</span>
+            <div class="seg-control" role="group" aria-label="3D 项圈铃铛颜色" data-i18n-aria="pg.collarAria">
+              <button class="seg-btn active" data-web-collar="none" type="button" data-i18n="pg.collarNone">无</button>
+              <button class="seg-btn" data-web-collar="red" type="button" data-i18n="pg.collarRed">🔴 红</button>
+              <button class="seg-btn" data-web-collar="blue" type="button" data-i18n="pg.collarBlue">🔵 蓝</button>
+              <button class="seg-btn" data-web-collar="pink" type="button" data-i18n="pg.collarPink">🩷 粉</button>
+              <button class="seg-btn" data-web-collar="green" type="button" data-i18n="pg.collarGreen">🟢 绿</button>
             </div>
           </div>
 
           <!-- Row 2.5: Customizable Tail Key Patting -->
           <div class="dock-row tail-row">
             <span class="dock-label" data-i18n="pg.lblTail">尾巴拍键</span>
-            <div class="seg-control" role="group" aria-label="尾巴拍键模式">
+            <div class="seg-control" role="group" aria-label="尾巴拍键模式" data-i18n-aria="pg.tailModeAria">
               <button class="seg-btn active" data-web-tailmode="smart" type="button" title="平时双手打字，两手忙不过来或打完回车时自动出尾" data-i18n="pg.tailSmart" data-i18n-title="pg.tailSmartTitle">智能第三只手</button>
               <button class="seg-btn" data-web-tailmode="custom" type="button" title="只拍你亲手勾选的按键" data-i18n="pg.tailCustom" data-i18n-title="pg.tailCustomTitle">自定义</button>
               <button class="seg-btn" data-web-tailmode="edge" type="button" title="近尾外侧边缘区（不拆 WASD）" data-i18n="pg.tailEdge" data-i18n-title="pg.tailEdgeTitle">近尾边缘</button>
@@ -286,14 +286,14 @@
           <!-- Row 3: Password Privacy Live Test -->
           <div class="dock-row privacy-row">
             <span class="dock-label" data-i18n="pg.lblPwd">密码测试</span>
-            <input id="web-pwd-test" class="pwd-test-input" type="password" autocomplete="off" placeholder="点此输入密码：猫咪自动闭眼 / 大肥鱼捂眼且隐藏按键…" data-i18n-placeholder="pg.pwdPlaceholder" aria-label="密码防偷窥演示输入框" />
+            <input id="web-pwd-test" class="pwd-test-input" type="password" autocomplete="off" placeholder="点此输入密码：猫咪自动闭眼 / 大肥鱼捂眼且隐藏按键…" data-i18n-placeholder="pg.pwdPlaceholder" aria-label="密码防偷窥演示输入框" data-i18n-aria="pg.pwdAria" />
             <button class="chip-btn" id="btn-privacy-demo" type="button" title="手动切换密码防偷窥演示" data-i18n-title="pg.privacyTitle">🔒 密码防偷窥</button>
           </div>
 
           <!-- Row 4: 20%-150% Smooth Scale Slider -->
           <div class="dock-row scale-row">
             <span class="dock-label" data-i18n="pg.lblScale">无级缩放</span>
-            <input id="web-scale-slider" class="scale-slider" type="range" min="20" max="150" step="1" value="100" aria-label="缩放比例 20% 到 150%" />
+            <input id="web-scale-slider" class="scale-slider" type="range" min="20" max="150" step="1" value="100" aria-label="缩放比例 20% 到 150%" data-i18n-aria="pg.scaleAria" />
             <button class="scale-val-btn" id="web-scale-val" type="button" title="点击重置为 100%" data-i18n-title="pg.scaleResetTitle">100%</button>
           </div>
         </div>
@@ -328,14 +328,14 @@
             开箱即 65% 紧凑机械键盘，自动创建桌面 <code>KuroCat</code> 图标、开始菜单与系统卸载入口；右键随时可一键切换 <strong>108 键全尺寸小键盘</strong>与内置自更新。
           </p>
           <div class="dl-meta">
-            <span class="dl-filename" data-asset-name="win65">KuroCat-5.0.1-x64-setup.exe</span>
+            <span class="dl-filename" data-asset-name="win65">KuroCat-5.0.2-x64-setup.exe</span>
             <span class="dl-size" data-asset-size="win65">2.15 MB</span>
           </div>
           <div class="dl-actions">
-            <a class="btn-lime btn-full" data-dl-primary="win65" href="/kurocat/releases/v5.0.1/KuroCat-5.0.1-x64-setup.exe" download data-i18n="dl.primaryBtn">
+            <a class="btn-lime btn-full" data-dl-primary="win65" href="/kurocat/releases/v5.0.2/KuroCat-5.0.2-x64-setup.exe" download data-i18n="dl.primaryBtn">
               高速直链下载
             </a>
-            <a class="dl-alt-link" data-dl-gh="win65" href="https://github.com/qianyiai/kurocat/releases/download/v5.0.1/KuroCat-5.0.1-x64-setup.exe" target="_blank" rel="noopener" data-i18n="dl.ghBtn">
+            <a class="dl-alt-link" data-dl-gh="win65" href="https://github.com/qianyiai/kurocat/releases/download/v5.0.2/KuroCat-5.0.2-x64-setup.exe" target="_blank" rel="noopener" data-i18n="dl.ghBtn">
               GitHub 官方源 ›
             </a>
           </div>
@@ -357,14 +357,14 @@
             原生编译 ARM64 + x86_64 通用镜像，兼容 M1/M2/M3/M4 与老款 Intel Mac（macOS 10.15 Catalina 及以上），内置 65% / 108 键、6 款猫咪与大肥鱼皮肤。打开 <code>.dmg</code> 拖入「应用程序」即可运行。
           </p>
           <div class="dl-meta">
-            <span class="dl-filename" data-asset-name="macos">KuroCat-v5.0.1-macos-universal.dmg</span>
-            <span class="dl-size" data-asset-size="macos">5.97 MB</span>
+            <span class="dl-filename" data-asset-name="macos">KuroCat-v5.0.2-macos-universal.dmg</span>
+            <span class="dl-size" data-asset-size="macos">5.96 MB</span>
           </div>
           <div class="dl-actions">
-            <a class="btn-solid btn-full" data-dl-primary="macos" href="/kurocat/releases/v5.0.1/KuroCat-v5.0.1-macos-universal.dmg" download data-i18n="dl.primaryBtn">
+            <a class="btn-solid btn-full" data-dl-primary="macos" href="/kurocat/releases/v5.0.2/KuroCat-v5.0.2-macos-universal.dmg" download data-i18n="dl.primaryBtn">
               高速直链下载
             </a>
-            <a class="dl-alt-link" data-dl-gh="macos" href="https://github.com/qianyiai/kurocat/releases/download/v5.0.1/KuroCat-v5.0.1-macos-universal.dmg" target="_blank" rel="noopener" data-i18n="dl.ghBtn">
+            <a class="dl-alt-link" data-dl-gh="macos" href="https://github.com/qianyiai/kurocat/releases/download/v5.0.2/KuroCat-v5.0.2-macos-universal.dmg" target="_blank" rel="noopener" data-i18n="dl.ghBtn">
               GitHub 官方源 ›
             </a>
           </div>
@@ -419,10 +419,10 @@
           </p>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
-          <a class="btn-outline" href="/kurocat/releases/v5.0.1/KuroCat-v5.0.1-win7-x64-portable.zip" download style="white-space:nowrap;" data-i18n="dl.win7Btn">
+          <a class="btn-outline" href="/kurocat/releases/v5.0.2/KuroCat-v5.0.2-win7-x64-portable.zip" download style="white-space:nowrap;" data-i18n="dl.win7Btn">
             下载 Win7 兼容绿包版（178.99 MB）
           </a>
-          <a class="dl-alt-link" href="https://github.com/qianyiai/kurocat/releases/download/v5.0.1/KuroCat-v5.0.1-win7-x64-portable.zip" target="_blank" rel="noopener" style="font-size:12px;" data-i18n="dl.win7Gh">
+          <a class="dl-alt-link" href="https://github.com/qianyiai/kurocat/releases/download/v5.0.2/KuroCat-v5.0.2-win7-x64-portable.zip" target="_blank" rel="noopener" style="font-size:12px;" data-i18n="dl.win7Gh">
             GitHub 官方源（Win7 绿包）›
           </a>
         </div>
@@ -440,16 +440,16 @@
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
           <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;">
-            <a class="btn-outline" href="/kurocat/releases/v5.0.1/KuroCat-v5.0.1-linux-amd64.deb" download style="white-space:nowrap;">
+            <a class="btn-outline" href="/kurocat/releases/v5.0.2/KuroCat-v5.0.2-linux-amd64.deb" download style="white-space:nowrap;" data-i18n="dl.linuxX64Deb">
               x86_64 .deb（2.39 MB）
             </a>
-            <a class="btn-outline" href="/kurocat/releases/v5.0.1/KuroCat-v5.0.1-linux-arm64.deb" download style="white-space:nowrap;" data-i18n="dl.linuxArmDeb">
+            <a class="btn-outline" href="/kurocat/releases/v5.0.2/KuroCat-v5.0.2-linux-arm64.deb" download style="white-space:nowrap;" data-i18n="dl.linuxArmDeb">
               ARM64 飞腾/麒麟 .deb（2.35 MB）
             </a>
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:flex-end;font-size:12px;">
-            <a class="dl-alt-link" href="/kurocat/releases/v5.0.1/KuroCat-v5.0.1-linux-amd64.AppImage" download>x86_64 AppImage（77.53 MB）›</a>
-            <a class="dl-alt-link" href="/kurocat/releases/v5.0.1/KuroCat-v5.0.1-linux-arm64.AppImage" download>ARM64 AppImage（75.70 MB）›</a>
+            <a class="dl-alt-link" href="/kurocat/releases/v5.0.2/KuroCat-v5.0.2-linux-amd64.AppImage" download data-i18n="dl.linuxX64AppImage">x86_64 AppImage（77.53 MB）›</a>
+            <a class="dl-alt-link" href="/kurocat/releases/v5.0.2/KuroCat-v5.0.2-linux-arm64.AppImage" download data-i18n="dl.linuxArmAppImage">ARM64 AppImage（75.70 MB）›</a>
           </div>
         </div>
       </div>
@@ -470,7 +470,7 @@
     <!-- Features Showcase -->
     <section class="section-block reveal visible" id="features">
       <div class="section-header">
-        <div class="eyebrow">Crafted Every Pixel · v5.0.1</div>
+        <div class="eyebrow">Crafted Every Pixel · v5.0.2</div>
         <h2 class="section-title" data-i18n="feat.title">把桌宠，做到强迫症级别的丝滑</h2>
       </div>
 
@@ -501,7 +501,7 @@
               </div>
               <div class="card-cta-row">
                 <button class="btn-lime" id="try-dafeiyu-btn" type="button" data-i18n="feat.whaleTryBtn">在上方画布切到大肥鱼试玩 ↑</button>
-                <a class="btn-outline" href="/kurocat/media/whale-douyin-14s.mp4" download="KuroCat-鲸鱼娘-14s竖屏演示.mp4" data-i18n="feat.whaleDlBtn">
+                <a class="btn-outline" href="/kurocat/media/whale-douyin-14s.mp4" download="KuroCat-鲸鱼娘-14s竖屏演示.mp4" data-i18n="feat.whaleDlBtn" data-i18n-download="feat.whaleDlFile">
                   下载 1080P 竖屏演示（14s）
                 </a>
               </div>
@@ -558,7 +558,7 @@
               </div>
             </div>
             <div class="media-frame">
-              <img src="/kurocat/assets/showcase-108key.webp" alt="KuroCat 65% 与 108 键全尺寸及双视角对比展示" loading="lazy" />
+              <img src="/kurocat/assets/showcase-108key.webp" alt="KuroCat 65% 与 108 键全尺寸及双视角对比展示" data-i18n-alt="feat.kbImgAlt" loading="lazy" />
             </div>
           </div>
         </article>
@@ -567,7 +567,7 @@
         <article class="stage-card reveal">
           <div class="split-grid reverse">
             <div class="media-frame">
-              <img src="/kurocat/assets/showcase-mouse.webp" alt="KuroCat 独立鼠标左右键识别与内置新版本提醒展示" loading="lazy" />
+              <img src="/kurocat/assets/showcase-mouse.webp" alt="KuroCat 独立鼠标左右键识别与内置新版本提醒展示" data-i18n-alt="feat.mouseImgAlt" loading="lazy" />
             </div>
             <div>
               <div class="eyebrow">Independent L / R / M · Auto Updater</div>

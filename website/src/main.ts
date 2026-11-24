@@ -18,9 +18,9 @@ import {
 import { keyboardEventToVk } from './webKeyMap';
 import type { CollarColorId, KuroCatEngine3D } from '../../src/catEngine3d';
 
-const LOCAL_MIRROR_VERSION = 'v5.0.1';
-const LOCAL_MIRROR_VER_NUM = '5.0.1';
-const MACOS_MIRROR_VERSION = 'v5.0.1';
+const LOCAL_MIRROR_VERSION = 'v5.0.2';
+const LOCAL_MIRROR_VER_NUM = '5.0.2';
+const MACOS_MIRROR_VERSION = 'v5.0.2';
 
 let currentLocale: Locale = detectInitialLocale();
 let i18n = KUROCAT_I18N[currentLocale];
@@ -52,7 +52,7 @@ function buildDefaultAssets(): ReleaseAssetMap {
   const nMac = `KuroCat-${MACOS_MIRROR_VERSION}-macos-universal.dmg`;
   return {
     win65: { name: n65, primaryUrl: `${localBase}/${n65}`, ghUrl: `${ghBase}/${n65}`, sizeText: '2.15 MB' },
-    macos: { name: nMac, primaryUrl: `${macLocalBase}/${nMac}`, ghUrl: `${macGhBase}/${nMac}`, sizeText: '5.97 MB' },
+    macos: { name: nMac, primaryUrl: `${macLocalBase}/${nMac}`, ghUrl: `${macGhBase}/${nMac}`, sizeText: '5.96 MB' },
   };
 }
 
@@ -135,7 +135,7 @@ function refreshLiveDownloadStats(): void {
         if (sep && txt) {
           sep.style.display = '';
           txt.style.display = '';
-          txt.textContent = `累计下载 ${formatCount(combinedDl)} 次`;
+          txt.textContent = i18n.fmt.totalDownloads(formatCount(combinedDl));
         }
       }
 
@@ -154,7 +154,7 @@ function refreshLiveDownloadStats(): void {
           typeof data.updated_at_cst === 'string' && data.updated_at_cst.length >= 19
             ? data.updated_at_cst.slice(11, 19)
             : new Date().toTimeString().slice(0, 8);
-        updatedEl.textContent = `更新于 ${timePart} (UTC+8) · 每 30 秒自动刷新`;
+        updatedEl.textContent = i18n.fmt.statsUpdated(timePart);
       }
     })
     .catch(() => {});

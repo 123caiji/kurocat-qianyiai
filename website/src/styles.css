@@ -1711,6 +1711,13 @@ footer {
   }
   .playground-bar {
     padding: 10px 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .playground-bar-right {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
   }
   .playground-title {
     font-size: 11px;

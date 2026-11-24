@@ -51,6 +51,9 @@ export interface KuroCatI18nBundle {
   html: Record<string, string>;
   placeholders: Record<string, string>;
   titles: Record<string, string>;
+  ariaLabels: Record<string, string>;
+  alts: Record<string, string>;
+  downloads: Record<string, string>;
   prompts: Record<string, string>;
   skins: Record<string, string>;
   tailModeShort: Record<TailKeyMode, string>;
@@ -101,6 +104,8 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'hero.spec3Val': 'Win / Mac / Linux',
       'hero.spec3Lbl': '支持 Apple Silicon · Win7 · 麒麟',
       'pg.title': '实时网页引擎 · 直接敲键盘或摸猫头',
+      'pg.mode3d': '✨ 3D 立体',
+      'pg.mode2d': '🎨 2D 经典',
       'pg.bgDark': '深色桌布',
       'pg.bgLight': '浅色桌布',
       'pg.hintKey': '⌨️ 敲键盘',
@@ -122,6 +127,14 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'pg.btnSleep': '💤 打瞌睡',
       'pg.btnBubbles': '💬 气泡',
       'pg.btnPurr': '🔊 呼噜',
+      'pg.btnHeadphones': '🎧 电竞耳机',
+      'pg.btnOrbit': '🔄 360° 旋转',
+      'pg.lblCollar': '3D 项圈',
+      'pg.collarNone': '无',
+      'pg.collarRed': '🔴 红',
+      'pg.collarBlue': '🔵 蓝',
+      'pg.collarPink': '🩷 粉',
+      'pg.collarGreen': '🟢 绿',
       'pg.lblTail': '尾巴拍键',
       'pg.tailSmart': '智能第三只手',
       'pg.tailCustom': '自定义',
@@ -147,7 +160,10 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'dl.win7Btn': '下载 Win7 兼容绿包版（178.99 MB）',
       'dl.win7Gh': 'GitHub 官方源（Win7 绿包）›',
       'dl.linuxTitle': '🐧 Linux / Ubuntu 22.04+ / 银河麒麟 V11+ / 优麒麟（x86_64 & ARM64）',
+      'dl.linuxX64Deb': 'x86_64 .deb（2.39 MB）',
       'dl.linuxArmDeb': 'ARM64 飞腾/麒麟 .deb（2.35 MB）',
+      'dl.linuxX64AppImage': 'x86_64 AppImage（77.53 MB）›',
+      'dl.linuxArmAppImage': 'ARM64 AppImage（75.70 MB）›',
       'dl.tipGameTitle': '🎮 游戏全屏 / OBS 直播怎么显示小黑猫？（含反作弊安全提示）',
       'feat.title': '把桌宠，做到强迫症级别的丝滑',
       'feat.whaleEyebrow': 'New Skin · 🐳 BigFish (鲸鱼娘) · 14s Video',
@@ -209,7 +225,7 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'dl.win7Body':
         '专为 Windows 7 SP1 64 位单独编译适配（原生 PE 6.01，零 Win8/Win10 DLL 依赖，内置微软官方最后一版支持 Win7 的 <strong>WebView2 109.0.1518.78</strong> 离线内核，并启用 Win7 原生 256 级逐像素透明抗锯齿渲染，无论是否开启 Aero 均无白底框与锯齿）。下载后请先<strong>全部解压</strong>，保持 <code>KuroCat.exe</code> 与 <code>WebView2Runtime</code> 同目录，直接双击运行即可。',
       'dl.linuxBody':
-        '原生支持 X11 全局键鼠监听（免 root）与 Wayland <code>evdev</code> 降级、透明无边框置顶、鼠标穿透（按住 <code>Alt</code> 临时拖动）及开机自启。需要 <strong><code>glibc &gt;= 2.34</code></strong>（基于 Ubuntu 22.04+ / Debian 12+ / 银河麒麟 V11+，暂不支持基于 Ubuntu 20.04 / <code>glibc 2.31</code> 的银河麒麟 V10 SP1）。优先推荐下载轻量 <strong>.deb 安装包（2.2 MB）</strong>（需 <code>libwebkit2gtk-4.1-0</code>，双击或 <code>sudo apt install ./KuroCat-*.deb</code>）；无管理员权限可直接运行 <strong>.AppImage 绿色版</strong>（<code>chmod +x</code> 后双击）。',
+        '原生支持 X11 全局键鼠监听（免 root）与 Wayland <code>evdev</code> 降级、透明无边框置顶、鼠标穿透（按住 <code>Alt</code> 临时拖动）及开机自启。需要 <strong><code>glibc &gt;= 2.34</code></strong>（基于 Ubuntu 22.04+ / Debian 12+ / 银河麒麟 V11+，暂不支持基于 Ubuntu 20.04 / <code>glibc 2.31</code> 的银河麒麟 V10 SP1）。优先推荐下载轻量 <strong>.deb 安装包（2.4 MB）</strong>（需 <code>libwebkit2gtk-4.1-0</code>，双击或 <code>sudo apt install ./KuroCat-*.deb</code>）；无管理员权限可直接运行 <strong>.AppImage 绿色版</strong>（<code>chmod +x</code> 后双击）。',
       'dl.tipGameBody':
         '<strong>① 单机与常规游戏</strong>：在 Win10/11 全屏优化（FSO）或「无边框窗口化」下内置持续 Z 序置顶守卫且绝不抢焦点；建议开启「锁定鼠标穿透」（按住 <code>Alt</code> 键随时临时拖动或右键解锁）。若游戏以管理员权限运行导致无法捕获键鼠，右键系统托盘点<strong>「以管理员身份重启（捕获游戏键鼠）」</strong>即可。<br /><strong>② OBS 直播 / 录屏（原生免抠像）</strong>：右键小猫或系统托盘点<strong>「复制 OBS 透明源地址」</strong>（自动开启本机 <code>http://127.0.0.1:27421/obs</code>，默认关闭零开销），在 OBS 添加「浏览器」来源即可直接获得原生 Alpha 透明通道（无需绿幕抠像，支持「仅 OBS 显示」隐藏桌面猫，密码防偷窥同步生效）。<br /><strong>③ 强内核反作弊网游</strong>（无畏契约、三角洲行动等）：建议游玩前右键系统托盘点一下<strong>「暂停监听并隐藏（游戏反作弊护航）」</strong>，彻底卸载钩子保护账号安全。',
       'feat.whaleHeadline': '新皮肤「大肥鱼」登场<br />鲸尾拍键 · 脸红大笑 · 密码捂眼',
@@ -237,6 +253,8 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'pg.sleepTitle': '触发趴下打瞌睡冒 Zzz（敲任意键抖头醒来）',
       'pg.bubblesTitle': '开关悬浮按键气泡',
       'pg.purrTitle': '开关摸头呼噜声',
+      'pg.headphonesTitle': '开关电竞耳机（桌面端支持检测到游戏自动戴上）',
+      'pg.orbitTitle': '开启后在画布上拖动可 360° 旋转查看 3D 立体模型',
       'pg.tailSmartTitle': '平时双手打字，两手忙不过来或打完回车时自动出尾',
       'pg.tailCustomTitle': '只拍你亲手勾选的按键',
       'pg.tailEdgeTitle': '近尾外侧边缘区（不拆 WASD）',
@@ -244,6 +262,30 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'pg.tailPickerTitle': '直接在上方键盘点击键帽或敲实体键盘自定义尾巴按键',
       'pg.privacyTitle': '手动切换密码防偷窥演示',
       'pg.scaleResetTitle': '点击重置为 100%',
+    },
+    ariaLabels: {
+      'nav.backAria': '返回谦一主页',
+      'nav.mainAria': '主导航',
+      'pg.modeAria': '3D / 2D 模式切换',
+      'pg.backdropAria': '预览桌布背景',
+      'pg.canvas2dAria': 'KuroCat 2D 实时交互试玩画布',
+      'pg.canvas3dAria': 'KuroCat 3D 实时交互试玩画布',
+      'pg.tailPickerAria': '自定义尾巴按键',
+      'pg.skinGroupAria': '选择桌宠皮肤',
+      'pg.layoutAria': '键盘配列',
+      'pg.orientAria': '键盘视角',
+      'pg.collarAria': '3D 项圈铃铛颜色',
+      'pg.tailModeAria': '尾巴拍键模式',
+      'pg.pwdAria': '密码防偷窥演示输入框',
+      'pg.scaleAria': '缩放比例 20% 到 150%',
+    },
+    alts: {
+      'hero.iconAlt': 'KuroCat 图标',
+      'feat.kbImgAlt': 'KuroCat 65% 与 108 键全尺寸及双视角对比展示',
+      'feat.mouseImgAlt': 'KuroCat 独立鼠标左右键识别与内置新版本提醒展示',
+    },
+    downloads: {
+      'feat.whaleDlFile': 'KuroCat-鲸鱼娘-14s竖屏演示.mp4',
     },
     prompts: {
       'mcp.p1': '帮我用 KuroCat MCP 新增一只英短蓝猫，琥珀色大眼睛、浅灰蓝键盘高亮，并立刻切过去',
@@ -328,6 +370,8 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'hero.spec3Val': 'Win / Mac / Linux',
       'hero.spec3Lbl': 'Apple Silicon · Win7 · KylinOS',
       'pg.title': 'Live Web Engine · Type or Pet the Cat',
+      'pg.mode3d': '✨ 3D Mode',
+      'pg.mode2d': '🎨 2D Classic',
       'pg.bgDark': 'Dark Desk',
       'pg.bgLight': 'Light Desk',
       'pg.hintKey': '⌨️ Type',
@@ -349,6 +393,14 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'pg.btnSleep': '💤 Sleep',
       'pg.btnBubbles': '💬 Bubbles',
       'pg.btnPurr': '🔊 Purr',
+      'pg.btnHeadphones': '🎧 Headset',
+      'pg.btnOrbit': '🔄 360° Orbit',
+      'pg.lblCollar': '3D Collar',
+      'pg.collarNone': 'None',
+      'pg.collarRed': '🔴 Red',
+      'pg.collarBlue': '🔵 Blue',
+      'pg.collarPink': '🩷 Pink',
+      'pg.collarGreen': '🟢 Green',
       'pg.lblTail': 'Tail Keys',
       'pg.tailSmart': 'Smart 3rd Hand',
       'pg.tailCustom': 'Custom',
@@ -374,7 +426,10 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'dl.win7Btn': 'Download Win7 Portable (178.99 MB)',
       'dl.win7Gh': 'GitHub Official Mirror (Win7) ›',
       'dl.linuxTitle': '🐧 Linux / Ubuntu 22.04+ / Debian 12+ / KylinOS V11+ (x86_64 & ARM64)',
+      'dl.linuxX64Deb': 'x86_64 .deb (2.39 MB)',
       'dl.linuxArmDeb': 'ARM64 .deb (2.35 MB)',
+      'dl.linuxX64AppImage': 'x86_64 AppImage (77.53 MB) ›',
+      'dl.linuxArmAppImage': 'ARM64 AppImage (75.70 MB) ›',
       'dl.tipGameTitle': '🎮 Fullscreen Games, OBS Streaming & Anti-Cheat Guide',
       'feat.title': 'Desktop Pet Engineering, Polished to Every Pixel',
       'feat.whaleEyebrow': 'New Skin · 🐳 BigFish (Whale-Girl) · 14s Video',
@@ -420,7 +475,7 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
     html: {
       'hero.title': 'KuroCat — A Typing Black Cat<br /><span>Living on Your Desktop</span>',
       'hero.sub':
-        'Built with <strong>Tauri v2 + native Rust hooks + Three.js 3D / Canvas 2D dual engine</strong> as a transparent, always-on-top desk companion. Defaults to <strong>✨ 3D Volumetric Figurine</strong> (one-click switch to <strong>2D Classic</strong>), only <strong>2.15 MB</strong> installer; includes <strong>6 cats + 🐳 BigFish</strong>, <strong>optional auto-game gaming headphones</strong>, <strong>3D collar bells</strong>, <strong>customizable tail-key patting</strong>, <strong>native OBS transparent source</strong>, <strong>password privacy guard</strong>, and <strong>MCP AI cat studio</strong> (1:1 spots in 3D &amp; 2D).',
+        'Built with <strong>Tauri v2 + native Rust hooks + Three.js 3D / Canvas 2D dual engine</strong> as a transparent, always-on-top desk companion. Defaults to <strong>✨ 3D Volumetric Figurine</strong> (one-click switch to <strong>2D Classic</strong>), only <strong>2.15 MB</strong> installer; includes <strong>6 cats + 🐳 BigFish</strong>, <strong>optional gaming headset (auto-equips in PC games)</strong>, <strong>3D collar bells</strong>, <strong>customizable tail-key patting</strong>, <strong>native OBS transparent source</strong>, <strong>password privacy guard</strong>, and <strong>MCP AI cat studio</strong> (1:1 spots in 3D &amp; 2D).',
       'dl.sub':
         'Every build includes <strong>20%–150% smooth scaling</strong>, <strong>65% / 108-key switching</strong>, <strong>customizable tail keys</strong>, and <strong>in-app auto-updates</strong>.<br />Fast CDN mirrors on <code>qianyi.one</code> alongside official GitHub Releases with SHA-256 verification.',
       'dl.winDesc':
@@ -436,7 +491,7 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'dl.win7Body':
         'Compiled natively as PE 6.01 for Windows 7 SP1 x64 with zero Win8/Win10 DLL dependencies. Bundles Microsoft’s final Win7 offline <strong>WebView2 109.0.1518.78</strong> runtime and native 256-level per-pixel anti-aliased transparency (zero white box with or without Aero). Extract all files and run <code>KuroCat.exe</code> next to <code>WebView2Runtime</code>.',
       'dl.linuxBody':
-        'Native rootless X11 <code>XRecord</code> global hooks with Wayland <code>evdev</code> fallback, borderless transparency, click-through (hold <code>Alt</code> to drag) & autostart. Requires <strong><code>glibc &gt;= 2.34</code></strong> (Ubuntu 22.04+ / Debian 12+ / KylinOS V11+; not compatible with Ubuntu 20.04 / <code>glibc 2.31</code>). Use lightweight <strong>.deb (2.2 MB)</strong> (requires <code>libwebkit2gtk-4.1-0</code>) or portable <strong>.AppImage</strong>.',
+        'Native rootless X11 <code>XRecord</code> global hooks with Wayland <code>evdev</code> fallback, borderless transparency, click-through (hold <code>Alt</code> to drag) & autostart. Requires <strong><code>glibc &gt;= 2.34</code></strong> (Ubuntu 22.04+ / Debian 12+ / KylinOS V11+; not compatible with Ubuntu 20.04 / <code>glibc 2.31</code>). Use lightweight <strong>.deb (2.4 MB)</strong> (requires <code>libwebkit2gtk-4.1-0</code>) or portable <strong>.AppImage</strong>.',
       'dl.tipGameBody':
         '<strong>① Fullscreen &amp; Borderless Games</strong>: Built-in non-focus-stealing topmost guard for FSO &amp; borderless windows; enable Click-Through Lock (hold <code>Alt</code> anytime to move). For admin games, use tray → <strong>Restart as Administrator</strong>.<br /><strong>② OBS Streaming (Zero Chroma-Key)</strong>: Right-click pet or tray → <strong>Copy OBS Transparent Source URL</strong> (starts local <code>http://127.0.0.1:27421/obs</code>, off by default with zero overhead) and add as an OBS Browser Source for native Alpha transparency + OBS-Only mode + synced password guard.<br /><strong>③ Kernel Anti-Cheat Games</strong> (Valorant, etc.): Use tray → <strong>Pause Hook &amp; Hide (Anti-Cheat Safe Mode)</strong> before launching to fully unload global hooks.',
       'feat.whaleHeadline': 'Meet "BigFish" Whale-Girl<br />Tail Slaps · Speed Blush · Privacy Shield',
@@ -464,6 +519,8 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'pg.sleepTitle': 'Trigger sleepy loaf with floating Zzz (press any key to wake)',
       'pg.bubblesTitle': 'Toggle floating keycap bubbles',
       'pg.purrTitle': 'Toggle petting purr sound',
+      'pg.headphonesTitle': 'Toggle gaming headset (desktop app auto-equips when a game is detected)',
+      'pg.orbitTitle': 'Enable to drag on the canvas and rotate the 3D model 360°',
       'pg.tailSmartTitle': 'Paws type normally; tail assists as a 3rd hand when busy or on fast Enter',
       'pg.tailCustomTitle': 'Tail taps only the keys you select',
       'pg.tailEdgeTitle': 'Outer tail-side edge keys only (protects WASD)',
@@ -471,6 +528,30 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'pg.tailPickerTitle': 'Click keycaps on the keyboard above or press physical keys to toggle',
       'pg.privacyTitle': 'Toggle password privacy guard demo',
       'pg.scaleResetTitle': 'Click to reset to 100%',
+    },
+    ariaLabels: {
+      'nav.backAria': 'Back to Qianyi home',
+      'nav.mainAria': 'Main navigation',
+      'pg.modeAria': '3D / 2D render mode',
+      'pg.backdropAria': 'Preview desk backdrop',
+      'pg.canvas2dAria': 'KuroCat 2D live interactive playground canvas',
+      'pg.canvas3dAria': 'KuroCat 3D live interactive playground canvas',
+      'pg.tailPickerAria': 'Customize tail keys',
+      'pg.skinGroupAria': 'Choose pet skin',
+      'pg.layoutAria': 'Keyboard layout',
+      'pg.orientAria': 'Keyboard perspective',
+      'pg.collarAria': '3D collar and bell color',
+      'pg.tailModeAria': 'Tail key-patting mode',
+      'pg.pwdAria': 'Password privacy guard demo input',
+      'pg.scaleAria': 'Scale from 20% to 150%',
+    },
+    alts: {
+      'hero.iconAlt': 'KuroCat app icon',
+      'feat.kbImgAlt': 'KuroCat 65% compact vs 108-key full-size and dual perspective showcase',
+      'feat.mouseImgAlt': 'KuroCat independent L/R mouse highlights and in-app auto-updater showcase',
+    },
+    downloads: {
+      'feat.whaleDlFile': 'KuroCat-BigFish-14s-Vertical-Demo.mp4',
     },
     prompts: {
       'mcp.p1': 'Use KuroCat MCP to create a British Shorthair blue cat with amber eyes and ice-blue keycaps, and switch to it now',
@@ -555,6 +636,8 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'hero.spec3Val': 'Win / Mac / Linux',
       'hero.spec3Lbl': 'Apple Silicon · Win7 · KylinOS',
       'pg.title': 'リアルタイム体験版 · 打鍵やなでなでに対応',
+      'pg.mode3d': '✨ 3D モード',
+      'pg.mode2d': '🎨 2D クラシック',
       'pg.bgDark': 'ダーク壁紙',
       'pg.bgLight': 'ライト壁紙',
       'pg.hintKey': '⌨️ キー入力',
@@ -576,6 +659,14 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'pg.btnSleep': '💤 うたた寝',
       'pg.btnBubbles': '💬 バブル',
       'pg.btnPurr': '🔊 ゴロゴロ',
+      'pg.btnHeadphones': '🎧 ヘッドセット',
+      'pg.btnOrbit': '🔄 360° 回転',
+      'pg.lblCollar': '3D 首輪',
+      'pg.collarNone': 'なし',
+      'pg.collarRed': '🔴 赤',
+      'pg.collarBlue': '🔵 青',
+      'pg.collarPink': '🩷 ピンク',
+      'pg.collarGreen': '🟢 緑',
       'pg.lblTail': 'しっぽ打鍵',
       'pg.tailSmart': 'スマート第3の手',
       'pg.tailCustom': 'カスタム',
@@ -601,11 +692,14 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'dl.win7Btn': 'Win7 ポータブル版をダウンロード（178.99 MB）',
       'dl.win7Gh': 'GitHub 公式ミラー（Win7 版）›',
       'dl.linuxTitle': '🐧 Linux / Ubuntu 22.04+ / Debian 12+ / KylinOS V11+（x86_64 & ARM64）',
+      'dl.linuxX64Deb': 'x86_64 .deb（2.39 MB）',
       'dl.linuxArmDeb': 'ARM64 .deb（2.35 MB）',
+      'dl.linuxX64AppImage': 'x86_64 AppImage（77.53 MB）›',
+      'dl.linuxArmAppImage': 'ARM64 AppImage（75.70 MB）›',
       'dl.tipGameTitle': '🎮 フルスクリーンゲーム・OBS 配信・アンチチート案内',
       'feat.title': '1 ピクセルまでこだわり抜いた滑らかさ',
-      'feat.whaleEyebrow': 'New Skin · 🐳 クジラ娘（大肥鱼）· 14s Video',
-      'feat.whaleSpec1Val': '3 系統同動',
+      'feat.whaleEyebrow': 'New Skin · 🐳 クジラ娘（BigFish）· 14s Video',
+      'feat.whaleSpec1Val': '3 系統同時動作',
       'feat.whaleSpec1Lbl': 'マウス + 手打ち + クジラ尾',
       'feat.whaleSpec2Val': '速度連動',
       'feat.whaleSpec2Lbl': '高速打鍵で照れ顔 → 満面笑顔',
@@ -619,7 +713,7 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'feat.kbSpec2Val': '2 視点切替',
       'feat.kbSpec2Lbl': '猫目線 / 視聴者目線',
       'feat.kbSpec3Val': '完全識別',
-      'feat.kbSpec3Lbl': '主 Enter と Num↵ を独立認識',
+      'feat.kbSpec3Lbl': 'メイン Enter と Num↵ を独立認識',
       'feat.kbTryBtn': '上の体験版で 108 キーを試す ↑',
       'feat.mouseSpec1Lbl': '左右中クリック完全独立発光',
       'feat.mouseSpec2Lbl': 'SHA-256 自動検証更新',
@@ -647,7 +741,7 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
     html: {
       'hero.title': 'KuroCat · キーボードを叩く黒猫が<br /><span>あなたのデスクトップに</span>',
       'hero.sub':
-        '<strong>Tauri v2 + Rust ネイティブフック + Three.js 3D / Canvas 2D デュアルエンジン</strong> で開発した透過・最前面デスクトップ伴侶。初期設定の <strong>✨ 3D 立体フィギュア</strong> と <strong>2D クラシック</strong> をワンクリック切替、インストーラーわずか <strong>2.15 MB</strong>；<strong>猫 6 種 + 🐳 クジラ娘</strong>、<strong>ゲーム自動検出ゲーミングヘッドセット</strong>、<strong>3D 首輪ベル</strong>、<strong>しっぽタイピング</strong>、<strong>OBS 透過ソース</strong>、<strong>パスワード自動保護</strong>、<strong>MCP AI 捏猫</strong> を標準搭載。',
+        '<strong>Tauri v2 + Rust ネイティブフック + Three.js 3D / Canvas 2D デュアルエンジン</strong> で開発した透過・最前面デスクトップペット。初期設定の <strong>✨ 3D フィギュアモード</strong> と <strong>2D クラシック手描き</strong> をワンクリック切替、インストーラーはわずか <strong>2.15 MB</strong>。<strong>猫 6 種 + 🐳 クジラ娘</strong>、<strong>ゲーム自動検出ヘッドセット</strong>、<strong>3D 首輪ベル</strong>、<strong>しっぽタイピング</strong>、<strong>OBS 透過ソース</strong>、<strong>パスワード自動保護</strong>、<strong>MCP AI カスタム猫作成</strong>（3D/2D 模様同期）を標準搭載。',
       'dl.sub':
         '全パッケージに <strong>20%–150% 無段階ズーム</strong>・<strong>65% / 108 キー切替</strong>・<strong>しっぽキー選択</strong>・<strong>アプリ内自動更新</strong> を内蔵。<br /><code>qianyi.one</code> 高速ミラーと GitHub Releases 公式リンク（SHA-256 検証対応）を用意しています。',
       'dl.winDesc':
@@ -663,12 +757,12 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'dl.win7Body':
         'Windows 7 SP1 64bit 専用 PE 6.01 ネイティブビルド。Win7 最終版オフライン <strong>WebView2 109.0.1518.78</strong> を同梱し、Aero 有無を問わず白枠ゼロの 256 段階透過レンダリングを実現。すべて展開し <code>KuroCat.exe</code> と <code>WebView2Runtime</code> を同フォルダで起動してください。',
       'dl.linuxBody':
-        'root 不要の X11 <code>XRecord</code> 監視と Wayland <code>evdev</code> フォールバック、透過最前面・クリック透過（<code>Alt</code> ドラッグ）・自動起動に対応。<strong><code>glibc &gt;= 2.34</code></strong>（Ubuntu 22.04+ / Debian 12+ / KylinOS V11+）が必要です。軽量な <strong>.deb（2.2 MB）</strong>（要 <code>libwebkit2gtk-4.1-0</code>）または <strong>.AppImage</strong> をお選びください。',
+        'root 不要の X11 <code>XRecord</code> 監視と Wayland <code>evdev</code> フォールバック、透過最前面・クリック透過（<code>Alt</code> ドラッグ）・自動起動に対応。<strong><code>glibc &gt;= 2.34</code></strong>（Ubuntu 22.04+ / Debian 12+ / KylinOS V11+）が必要です。軽量な <strong>.deb（2.4 MB）</strong>（要 <code>libwebkit2gtk-4.1-0</code>）または <strong>.AppImage</strong> をお選びください。',
       'dl.tipGameBody':
         '<strong>① フルスクリーン＆ボーダレスゲーム</strong>：フォーカスを奪わない最前面ガードを内蔵（マウス透過ロック＋<code>Alt</code> 一時解除推奨）。管理者権限ゲームではトレイから <strong>管理者として再起動</strong> できます。<br /><strong>② OBS 透過配信（クロマキー不要）</strong>：右クリックまたはトレイから <strong>OBS 透過ソース URL をコピー</strong>（<code>http://127.0.0.1:27421/obs</code>、初期 OFF で負荷ゼロ）。OBS のブラウザソースに追加するだけで透過表示＆「OBS のみ表示」＆パスワード保護連動に対応します。<br /><strong>③ カーネル型アンチチート搭載ゲーム</strong>（VALORANT 等）：プレイ前にトレイの <strong>監視を一時停止して非表示</strong> をオンにすると安全にフックを解除できます。',
       'feat.whaleHeadline': '新スキン「クジラ娘」登場<br />クジラ尾打鍵・照れ笑顔・パスワード目隠し',
       'feat.whaleBody':
-        '標準搭載の <strong>🐳 クジラ娘（大肥鱼 / BigFish）</strong> は <strong>左手マウス + 右手タイピング + 水しぶき付きクジラ尾打鍵</strong> の 3 系統同時動作に対応。高速タイピングで頬が染まり満面の笑顔に、パスワード入力時は両手で目を覆って入力を隠します。',
+        '標準搭載の <strong>🐳 クジラ娘（BigFish）</strong> は <strong>左手マウス + 右手タイピング + 水しぶき付きクジラ尾打鍵</strong> の 3 系統同時動作に対応。高速タイピングで頬が染まり満面の笑顔に、パスワード入力時は両手で目を覆って入力を隠します。',
       'feat.kbHeadline': '65% コンパクト / 108 フルサイズ<br />2 視点をワンクリック切替',
       'feat.kbBody':
         '省スペースな 65% もテンキー完備の 108 キーも右クリック 1 秒で切替でき、右下基準でウィンドウ幅を自動調整。<strong>猫目線（180°）</strong> と <strong>視聴者目線（正立印字）</strong> に合わせてマウス左右ボタンも自動反転します。',
@@ -691,6 +785,8 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'pg.sleepTitle': '香箱座りうたた寝 Zzz をトリガー（キー入力で起床）',
       'pg.bubblesTitle': 'キーバブル表示のオン/オフ',
       'pg.purrTitle': 'なでなでゴロゴロ音のオン/オフ',
+      'pg.headphonesTitle': 'ゲーミングヘッドセットのオン/オフ（デスクトップ版はゲーム起動時に自動装着）',
+      'pg.orbitTitle': 'オンにするとキャンバス上をドラッグして 3D モデルを 360° 回転できます',
       'pg.tailSmartTitle': '通常は両前足で打ち、忙しい時や高速 Enter でしっぽが自動補佐',
       'pg.tailCustomTitle': '自分で選んだキーだけしっぽで叩く',
       'pg.tailEdgeTitle': 'しっぽ側の外側端キーのみ（WASD 保護）',
@@ -698,6 +794,30 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'pg.tailPickerTitle': '上のキーボードをクリック、または実キーボードを押してしっぽキーを選択',
       'pg.privacyTitle': 'パスワード自動目隠しデモを切替',
       'pg.scaleResetTitle': 'クリックで 100% にリセット',
+    },
+    ariaLabels: {
+      'nav.backAria': '謙一ホームへ戻る',
+      'nav.mainAria': 'メインナビゲーション',
+      'pg.modeAria': '3D / 2D 表示モード切替',
+      'pg.backdropAria': 'プレビュー背景切替',
+      'pg.canvas2dAria': 'KuroCat 2D リアルタイム体験キャンバス',
+      'pg.canvas3dAria': 'KuroCat 3D リアルタイム体験キャンバス',
+      'pg.tailPickerAria': 'しっぽキーのカスタム設定',
+      'pg.skinGroupAria': 'ペットスキンを選択',
+      'pg.layoutAria': 'キーボード配列',
+      'pg.orientAria': 'キーボード視点',
+      'pg.collarAria': '3D 首輪と鈴のカラー',
+      'pg.tailModeAria': 'しっぽ打鍵モード',
+      'pg.pwdAria': 'パスワード自動保護デモ入力欄',
+      'pg.scaleAria': '拡大縮小 20%〜150%',
+    },
+    alts: {
+      'hero.iconAlt': 'KuroCat アプリアイコン',
+      'feat.kbImgAlt': 'KuroCat 65% コンパクト・108 フルサイズおよび 2 視点比較プレビュー',
+      'feat.mouseImgAlt': 'KuroCat マウス左右独立ハイライトとアプリ内自動更新プレビュー',
+    },
+    downloads: {
+      'feat.whaleDlFile': 'KuroCat-クジラ娘-14s縦型デモ.mp4',
     },
     prompts: {
       'mcp.p1': 'KuroCat MCP を使って、琥珀色の瞳とアイスブルーのキーハイライトを持つブリティッシュショートヘアを作ってすぐ切り替えて',
@@ -794,6 +914,27 @@ export function applyStaticI18n(locale: Locale): KuroCatI18nBundle {
     const key = el.dataset.i18nTitle;
     if (key && key in bundle.titles) {
       el.title = bundle.titles[key];
+    }
+  });
+
+  document.querySelectorAll<HTMLElement>('[data-i18n-aria]').forEach((el) => {
+    const key = el.dataset.i18nAria;
+    if (key && key in bundle.ariaLabels) {
+      el.setAttribute('aria-label', bundle.ariaLabels[key]);
+    }
+  });
+
+  document.querySelectorAll<HTMLImageElement>('[data-i18n-alt]').forEach((el) => {
+    const key = el.dataset.i18nAlt;
+    if (key && key in bundle.alts) {
+      el.alt = bundle.alts[key];
+    }
+  });
+
+  document.querySelectorAll<HTMLAnchorElement>('[data-i18n-download]').forEach((el) => {
+    const key = el.dataset.i18nDownload;
+    if (key && key in bundle.downloads) {
+      el.setAttribute('download', bundle.downloads[key]);
     }
   });
 

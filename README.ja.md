@@ -15,7 +15,7 @@
 
 > 🌐 **公式サイト・ブラウザ体験版・高速ダウンロード**：[**https://qianyi.one/kurocat/**](https://qianyi.one/kurocat/)（[日本語 UI](https://qianyi.one/kurocat/?lang=ja)）
 
-**Windows（Win11/10 & Win7 SP1）/ macOS（10.15+ Apple Silicon & Intel）/ Linux（Ubuntu / Debian / KylinOS / UOS）** 対応の軽量・透過・最前面デスクトップタイピング猫コンパニオンです。**Tauri v2（Rust ネイティブグローバルフック + 内蔵 MCP サーバー + HTML5 Canvas 2D）** で構築され、外部ランタイム不要・約 24 MB の軽快動作を実現。**手描き猫スキン 6 種 + 🐳 クジラ娘（大肥鱼）** を標準搭載し、**パスワード入力時の自動目閉じ・目隠しガード**、**しっぽタイピングの 4 モード＆キー直接指定**、**OBS 透過ブラウザソース内蔵**、さらに **MCP プロトコル対応** で愛猫の写真から AI が一言で専用ペットを作成できます。
+**Windows（Win11/10 & Win7 SP1）/ macOS（10.15+ Apple Silicon & Intel）/ Linux（Ubuntu / Debian / KylinOS / UOS）** 対応の軽量・透過・最前面デスクトップタイピング猫コンパニオンです。**Tauri v2（Rust ネイティブグローバルフック + 内蔵 MCP サーバー + Three.js 3D / HTML5 Canvas 2D デュアルエンジン）** で構築され、外部ランタイム不要・約 24 MB の軽快動作を実現。初期設定の **✨ 3D フィギュアモード** と **🎨 2D クラシック手描き** をワンクリックで切替でき、**手描き猫スキン 6 種 + 🐳 クジラ娘（BigFish）**、**選択式 3D 首輪ベル＆ゲーム自動検出ゲーミングヘッドセット（初期設定はいずれも OFF）**、**パスワード入力時の自動目閉じ・目隠しガード**、**しっぽタイピングの 4 モード＆キー直接指定**、**OBS 透過ブラウザソース内蔵**、さらに **MCP プロトコル対応** で愛猫の写真から AI が一言で専用ペットを作成できます（3D/2D でカスタム模様 `spots[]` を 1:1 同期）。
 
 ## 🎬 オンライン体験版 & クジラ娘 14 秒デモ動画
 
@@ -28,11 +28,11 @@
       <br/>
       <strong>🎮 <a href="https://qianyi.one/kurocat/?lang=ja">公式サイトで今すぐブラウザ体験（キーボード入力＆なでなで対応）→</a></strong>
       <br/>
-      <sub>猫 6 種 + 🐳 クジラ娘 · 65%/108 キー · 視点切替 · しっぽキー選択 · パスワード保護 · 20%–150% 拡大縮小</sub>
+      <sub>3D/2D 切替 · 3D 首輪＆ヘッドセット · 360° 回転 · 猫 6 種 + 🐳 クジラ娘 · 65%/108 キー · 視点切替 · しっぽキー選択 · パスワード保護 · 20%–150% 拡大縮小</sub>
     </td>
     <td align="center" width="46%" valign="top">
       <a href="https://qianyi.one/kurocat/?lang=ja#whale-demo" target="_blank" rel="noopener">
-        <img src="docs/whale-demo.webp" alt="KuroCat 🐳 クジラ娘（大肥鱼）14 秒デモ動画" width="272" />
+        <img src="docs/whale-demo.webp" alt="KuroCat 🐳 クジラ娘（BigFish）14 秒デモ動画" width="272" />
       </a>
       <br/>
       <strong>🐳 <a href="https://qianyi.one/kurocat/?lang=ja#whale-demo">1080×1920 60fps 音声付きデモ動画を再生 →</a></strong>
@@ -47,9 +47,9 @@
 
 ## 📥 ダウンロード（Windows / Win7 / macOS / Linux）
 
-[Releases](https://github.com/qianyiai/kurocat/releases) または以下の最新 **`v5.0.1`** パッケージから直接入手できます（**✨ 3D 立体フィギュアモード & 🎨 2D クラシック手描きデュアルエンジン（初期設定 3D）**、**2D/3D 腕プロポーション刷新**、**選択式 3D 首輪ベル＆ゲーム自動検出ゲーミングヘッドセット（初期設定はいずれも OFF）**、**MCP AI カスタム模様 `spots[]` の 3D/2D 完全同期**、**1px 微振動対策付き 28 秒うたた寝**、**画面最上部まで引っかからないネイティブ自由ドラッグ**、**しっぽタイピング 4 モード**、**OBS 透過ソース**、**パスワード自動保護**、**アプリ内自動更新** を搭載）：
+[Releases](https://github.com/qianyiai/kurocat/releases) または以下の最新 **`v5.0.2`** パッケージから直接入手できます（**✨ 3D フィギュアモード & 🎨 2D クラシック手描きデュアルエンジン（初期設定 3D）**、**2D/3D の前足プロポーション＆毛色なじみ刷新**、**選択式 3D 首輪ベル＆ゲーム自動検出ゲーミングヘッドセット（初期設定はいずれも OFF）**、**MCP AI カスタム模様 `spots[]` の 3D/2D 完全同期**、**1px 微振動対策付き 28 秒うたた寝**、**画面最上部まで引っかからないネイティブ自由ドラッグ**、**しっぽタイピング 4 モード**、**OBS 透過ソース**、**パスワード自動保護**、**アプリ内自動更新** を搭載）：
 
-- **🪟 Windows 10 / 11（65% インストーラー版 · `v5.0.1`）**：[**`KuroCat-5.0.1-x64-setup.exe`**](https://github.com/qianyiai/kurocat/releases/download/v5.0.1/KuroCat-5.0.1-x64-setup.exe)（2.15 MB）｜[**高速ミラー**](https://qianyi.one/kurocat/?lang=ja#download)
+- **🪟 Windows 10 / 11（65% インストーラー版 · `v5.0.2`）**：[**`KuroCat-5.0.2-x64-setup.exe`**](https://github.com/qianyiai/kurocat/releases/download/v5.0.2/KuroCat-5.0.2-x64-setup.exe)（2.15 MB）｜[**高速ミラー**](https://qianyi.one/kurocat/?lang=ja#download)
   - 初期設定は 65% コンパクト配列。デスクトップアイコン・スタートメニューを自動作成し、右クリックやトレイから **108 フルサイズ（テンキー付）**・**🐳 クジラ娘**・**OBS 透過ソース**・**更新確認** へいつでも切替可能。
   - **よくある質問**：
     - **Edge / Chrome のダウンロード警告・SmartScreen について**：商用コード署名なしの無料オープンソースのため警告が出ることがあります。
@@ -58,16 +58,16 @@
       - **青い SmartScreen 画面**：**詳細情報** → **実行** をクリック。
     - 古い Win10 / LTSC 環境で `WebView2 Runtime` 不足が表示される場合は、Microsoft 公式 1.8 MB ブートストラップを管理者権限で実行してください：[`MicrosoftEdgeWebview2Setup.exe`](https://go.microsoft.com/fwlink/p/?LinkId=2124703)。
     - **フルスクリーンゲーム / 管理者権限 / OBS 配信**：ボーダレス・FSO ゲーム向けにフォーカスを奪わない最前面ガードを内蔵（**マウス透過ロック**＋`Alt` 一時解除がおすすめ）。管理者権限で動くゲームはトレイから **管理者として再起動** を利用してください。OBS 配信は右クリック → **OBS 透過ソース URL をコピー**（`http://127.0.0.1:27421/obs`・透過チャンネル標準対応・デスクトップ非表示の「OBS のみ表示」対応）。カーネル型アンチチート搭載ゲーム（VALORANT 等）ではトレイの **監視を一時停止して非表示** を推奨します。
-- **🖥️ Windows 7 SP1（64bit 専用ポータブル版 · `v5.0.1`）**：[**`KuroCat-v5.0.1-win7-x64-portable.zip`**](https://github.com/qianyiai/kurocat/releases/download/v5.0.1/KuroCat-v5.0.1-win7-x64-portable.zip)（178.94 MB）｜[**高速ミラー**](https://qianyi.one/kurocat/releases/v5.0.1/KuroCat-v5.0.1-win7-x64-portable.zip)
+- **🖥️ Windows 7 SP1（64bit 専用ポータブル版 · `v5.0.2`）**：[**`KuroCat-v5.0.2-win7-x64-portable.zip`**](https://github.com/qianyiai/kurocat/releases/download/v5.0.2/KuroCat-v5.0.2-win7-x64-portable.zip)（178.94 MB）｜[**高速ミラー**](https://qianyi.one/kurocat/releases/v5.0.2/KuroCat-v5.0.2-win7-x64-portable.zip)
   - ネイティブ PE 6.01 ビルド。Win7 最終対応オフライン **WebView2 109.0.1518.78** を同梱し、Aero ON/OFF を問わず白枠・ギザギザゼロの **256 段階ピクセル透過（`UpdateLayeredWindow`）** に対応。すべて展開し `KuroCat.exe` と `WebView2Runtime` を同フォルダに置いて起動してください。
-- **🍎 macOS 10.15 Catalina+（Apple Silicon M1–M4 & Intel ユニバーサル · `v5.0.1`）**：[**`KuroCat-v5.0.1-macos-universal.dmg`**](https://github.com/qianyiai/kurocat/releases/download/v5.0.1/KuroCat-v5.0.1-macos-universal.dmg)（5.93 MB）｜[**高速ミラー**](https://qianyi.one/kurocat/releases/v5.0.1/KuroCat-v5.0.1-macos-universal.dmg)
+- **🍎 macOS 10.15 Catalina+（Apple Silicon M1–M4 & Intel ユニバーサル · `v5.0.2`）**：[**`KuroCat-v5.0.2-macos-universal.dmg`**](https://github.com/qianyiai/kurocat/releases/download/v5.0.2/KuroCat-v5.0.2-macos-universal.dmg)（5.93 MB）｜[**高速ミラー**](https://qianyi.one/kurocat/releases/v5.0.2/KuroCat-v5.0.2-macos-universal.dmg)
   - `.dmg` を開き `KuroCat.app` を「アプリケーション」フォルダへドラッグして起動。3D/2D 切替・65%/108 キー・全 7 スキン内蔵。
   - **初回起動時（未公証オープンソース）**：「開発元を確認できない」「破損しています」と表示された場合は、ターミナルで一度だけ `xattr -cr /Applications/KuroCat.app` を実行してください（次回以降のアプリ内自動更新では不要）。
   - **キー・マウス監視権限**：「システム設定 → プライバシーとセキュリティ」で **アクセシビリティ** と **入力監視** の両方に `KuroCat` を許可してください（Karabiner-Elements 併用対応）。
   - **macOS Stdio MCP パス**：`/Applications/KuroCat.app/Contents/MacOS/KuroCat`（引数 `--mcp`）、または起動中に `http://127.0.0.1:27420/mcp` へ接続。
-- **🐧 Linux / Ubuntu 22.04+ / Debian 12+ / KylinOS V11+ / UOS（`v5.0.1`）**：
-  - **x86_64**：[**`.deb`（2.38 MB）**](https://github.com/qianyiai/kurocat/releases/download/v5.0.1/KuroCat-v5.0.1-linux-amd64.deb) · [**`.AppImage`（77.52 MB）**](https://github.com/qianyiai/kurocat/releases/download/v5.0.1/KuroCat-v5.0.1-linux-amd64.AppImage)
-  - **ARM64**：[**`.deb`（2.34 MB）**](https://github.com/qianyiai/kurocat/releases/download/v5.0.1/KuroCat-v5.0.1-linux-arm64.deb) · [**`.AppImage`（75.69 MB）**](https://github.com/qianyiai/kurocat/releases/download/v5.0.1/KuroCat-v5.0.1-linux-arm64.AppImage)
+- **🐧 Linux / Ubuntu 22.04+ / Debian 12+ / KylinOS V11+ / UOS（`v5.0.2`）**：
+  - **x86_64**：[**`.deb`（2.38 MB）**](https://github.com/qianyiai/kurocat/releases/download/v5.0.2/KuroCat-v5.0.2-linux-amd64.deb) · [**`.AppImage`（77.52 MB）**](https://github.com/qianyiai/kurocat/releases/download/v5.0.2/KuroCat-v5.0.2-linux-amd64.AppImage)
+  - **ARM64**：[**`.deb`（2.34 MB）**](https://github.com/qianyiai/kurocat/releases/download/v5.0.2/KuroCat-v5.0.2-linux-arm64.deb) · [**`.AppImage`（75.69 MB）**](https://github.com/qianyiai/kurocat/releases/download/v5.0.2/KuroCat-v5.0.2-linux-arm64.AppImage)
   - **動作要件**：Tauri v2 / Ubuntu 22.04 ベースでビルドされており、**`glibc >= 2.34`** が必要です（`.deb` 版は **`libwebkit2gtk-4.1-0`** と **`libayatana-appindicator3-1`** に依存。Ubuntu 20.04 / `glibc 2.31` ベースの KylinOS V10 SP1 には非対応）。
   - X11 `XRecord` を動的ロードして root 権限なしでキー・マウスを取得（Wayland では `evdev` へ自動フォールバック）。ミラーは [`https://qianyi.one/kurocat/?lang=ja#linux-download`](https://qianyi.one/kurocat/?lang=ja#linux-download)。
 
@@ -86,8 +86,11 @@
   </tr>
 </table>
 
+- **✨ 3D フィギュア & 🎨 2D クラシックのデュアルエンジン + 選択式アクセサリー**：
+  - 初期設定は Three.js によるやわらかな質感の **3D フィギュアモード**。右クリックメニューやトレイからいつでもワンクリックで **2D クラシック手描きモード** へ切り替えられます。
+  - **選択式 3D 首輪ベル & ゲーミングヘッドセット（初期設定はいずれも OFF）**：赤・青・ピンク・緑の 4 色から選べる首輪ベル、PC ゲーム起動を自動検知して静かに着脱するゲーミングヘッドセットを搭載。
 - **標準 7 スキン（猫 6 種 + 🐳 クジラ娘）+ MCP で無限カスタマイズ**：
-  - **🐈‍⬛ 黒猫** / **🐱 ラグドール** / **🍊 茶トラ** / **🌸 三毛猫** / **🐄 ハチワレ（タキシード）** / **🤎 シャム猫** / **🐳 クジラ娘（大肥鱼）**（マウス＋手打ち＋水しぶき付きクジラ尾の 3 系統同時動作・Live2D 視線追従・打鍵速度連動の照れ＆笑顔）。右クリックやトレイから 0.1 秒で切替。
+  - **🐈‍⬛ 黒猫** / **🐱 ラグドール** / **🍊 茶トラ** / **🌸 三毛猫** / **🐄 ハチワレ（タキシード）** / **🤎 シャム猫** / **🐳 クジラ娘（BigFish）**（マウス＋手打ち＋水しぶき付きクジラ尾の 3 系統同時動作・Live2D 視線追従・打鍵速度連動の照れ＆笑顔）。右クリックやトレイから 0.1 秒で切替。
   - **🐾 しっぽタイピング 4 モード＆直接キー指定**：**スマート第 3 の手**（通常は両前足で打ち、同時押しや高速 Enter 時にしっぽが加勢）、**カスタム指定**（画面上のキーキャップをクリック、または物理キーボードを押すだけでトグル登録・遠端キーも体貫通なしの滑らか軌道）、**端エリアのみ**（`WASD` 保護）、**揺らすだけ** から選択可能。
   - **🙈 OS レベルのパスワード入力自動保護**：Windows（UI Automation `CurrentIsPassword` + Win32 `ES_PASSWORD`）および macOS（`IsSecureEventInputEnabled` + `AXSecureTextField`）でパスワード欄を自動検知し、Rust 層で打鍵情報を遮断。猫はやさしく目を閉じ、クジラ娘は両手で目を覆いキー表示を隠します。
   - **🎥 OBS 透過ブラウザソース内蔵**：クロマキー不要のローカル透過配信 URL（`http://127.0.0.1:27421/obs`、初期 OFF で負荷ゼロ）。デスクトップの猫を隠して OBS だけに映すモードやパスワード保護連動にも対応。
@@ -166,4 +169,4 @@ npm run tauri:build    # リリースバイナリ・インストーラーのビ�
 
 本プロジェクトは [MIT License](LICENSE) のもとで公開されています。
 
-- 標準スキン **🐳 クジラ娘（大肥鱼 / BigFish）** のランタイム素材は MIT ライセンスのオープンソースプロジェクト [PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet)（参考派生：[QCYTSN/dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu)）をもとに制作しています。詳細は `src/assets/dafeiyu/LICENSE-MIT.txt` をご覧ください。
+- 標準スキン **🐳 クジラ娘（BigFish）** のランタイム素材は MIT ライセンスのオープンソースプロジェクト [PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet)（参考派生：[QCYTSN/dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu)）をもとに制作しています。詳細は `src/assets/dafeiyu/LICENSE-MIT.txt` をご覧ください。
