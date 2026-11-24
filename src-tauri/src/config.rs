@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn default_cat_breed() -> String {
     "black".to_string()
@@ -264,13 +265,23 @@ pub fn load_settings() -> AppSettings {
 }
 
 pub fn save_settings(settings: &AppSettings) {
+    let _ = try_save_settings(settings);
+}
+
+pub fn try_save_settings(settings: &AppSettings) -> std::io::Result<()> {
+    static NEXT_WRITE: AtomicUsize = AtomicUsize::new(0);
     let path = config_path();
     if let Some(parent) = path.parent() {
-        let _ = fs::create_dir_all(parent);
+        fs::create_dir_all(parent)?;
     }
-    if let Ok(json) = serde_json::to_string_pretty(settings) {
-        let _ = fs::write(path, json);
+    let json = serde_json::to_string_pretty(settings).map_err(std::io::Error::other)?;
+    let write_id = NEXT_WRITE.fetch_add(1, Ordering::Relaxed);
+    let temporary_path = path.with_extension(format!("json.{}.{write_id}.tmp", std::process::id()));
+    let result = fs::write(&temporary_path, json).and_then(|()| fs::rename(&temporary_path, path));
+    if result.is_err() {
+        let _ = fs::remove_file(temporary_path);
     }
+    result
 }
 
 #[cfg(windows)]

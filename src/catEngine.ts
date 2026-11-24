@@ -214,6 +214,8 @@ const BODY_SLICES: Array<{ t: number; hw: number }> = [
 
 const IDLE_RENDER_AFTER_MS = 3000;
 const IDLE_RENDER_PAUSE_MS = 40;
+const KEYBOARD_HIT_HALF_WIDTH_RATIO = 0.54;
+const KEYBOARD_HIT_HALF_HEIGHT_RATIO = 0.56;
 
 export class KuroCatEngine {
   private canvas: HTMLCanvasElement;
@@ -234,6 +236,7 @@ export class KuroCatEngine {
   public tailKeyMode: TailKeyMode = 'smart';
   private tailKeyIdSet = new Set<string>(DEFAULT_TAIL_KEY_IDS);
   private tailPickerActive = false;
+  private tailPickerSelection: ReadonlySet<string> | null = null;
   private tailPickerHoverId: string | null = null;
   private renderScale = 1.0;
   private embedded = false;
@@ -305,8 +308,9 @@ export class KuroCatEngine {
     this.wakeRendering();
   }
 
-  public setTailPickerActive(active: boolean): void {
+  public setTailPickerActive(active: boolean, selection?: ReadonlySet<string>): void {
     this.tailPickerActive = Boolean(active);
+    this.tailPickerSelection = this.tailPickerActive ? selection ?? null : null;
     if (!this.tailPickerActive) {
       this.tailPickerHoverId = null;
     }
@@ -392,6 +396,27 @@ export class KuroCatEngine {
     };
   }
 
+  public getKeyboardClientBounds(): DOMRect {
+    const rect = this.canvas.getBoundingClientRect();
+    const { offsetX, offsetY, uniformScale } = this.getViewportTransform();
+    const scaleX = rect.width / this.canvas.width;
+    const scaleY = rect.height / this.canvas.height;
+    const sin = Math.abs(Math.sin(this.kbTiltRad));
+    const cos = Math.abs(Math.cos(this.kbTiltRad));
+    const halfWidth = this.kbWidth * KEYBOARD_HIT_HALF_WIDTH_RATIO;
+    const halfHeight = this.kbHeight * KEYBOARD_HIT_HALF_HEIGHT_RATIO;
+    const boundX = (halfWidth * cos + halfHeight * sin) * uniformScale;
+    const boundY = (halfWidth * sin + halfHeight * cos) * uniformScale;
+    const centerX = offsetX + this.kbCenterX * uniformScale;
+    const centerY = offsetY + this.kbCenterY * uniformScale;
+    return new DOMRect(
+      rect.left + (centerX - boundX) * scaleX,
+      rect.top + (centerY - boundY) * scaleY,
+      2 * boundX * scaleX,
+      2 * boundY * scaleY,
+    );
+  }
+
   public hitTestKeyAtClientPoint(clientX: number, clientY: number): KeySpec | null {
     const rect = this.canvas.getBoundingClientRect();
     if (rect.width < 2 || rect.height < 2) return null;
@@ -417,8 +442,8 @@ export class KuroCatEngine {
     const innerW = this.kbWidth - padX * 2;
     const innerH = this.kbHeight - padY * 2;
     if (
-      Math.abs(kx) > this.kbWidth * 0.54 ||
-      Math.abs(ky) > this.kbHeight * 0.56
+      Math.abs(kx) > this.kbWidth * KEYBOARD_HIT_HALF_WIDTH_RATIO ||
+      Math.abs(ky) > this.kbHeight * KEYBOARD_HIT_HALF_HEIGHT_RATIO
     ) {
       return null;
     }
@@ -3545,11 +3570,12 @@ export class KuroCatEngine {
     const rowH = innerH / layout.totalRows;
     const unitW = innerW / layout.totalUnits;
     const gap = is108 ? 0.85 : 0.9;
+    const selectedTailKeys = this.tailPickerSelection ?? this.tailKeyIdSet;
 
     for (const key of layout.keys) {
       const anim = this.keyAnims.get(key.id);
       const press = anim ? anim.pressAmount : 0;
-      const isTailSelected = this.tailPickerActive && this.tailKeyIdSet.has(key.id);
+      const isTailSelected = this.tailPickerActive && selectedTailKeys.has(key.id);
       const isTailHovered = this.tailPickerActive && this.tailPickerHoverId === key.id;
 
       const rY = key.rowY ?? key.row;
