@@ -477,8 +477,15 @@ main {
 .playground-bar-right {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+}
+
+.playground-bar-right .mini-pill {
+  padding: 4px 8px;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .backdrop-pills {

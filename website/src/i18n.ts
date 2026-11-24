@@ -144,7 +144,7 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'dl.tipWv2Title': '🪟 Windows 提示「Could not find the WebView2 Runtime」怎么办？',
       'dl.tipWv2Btn': '下载微软 WebView2 运行环境 ›',
       'dl.win7Title': '🖥️ Windows 7 SP1（64 位）专属兼容绿包版（内置 WebView2 109）',
-      'dl.win7Btn': '下载 Win7 兼容绿包版（178.77 MB）',
+      'dl.win7Btn': '下载 Win7 兼容绿包版（178.94 MB）',
       'dl.win7Gh': 'GitHub 官方源（Win7 绿包）›',
       'dl.linuxTitle': '🐧 Linux / Ubuntu 22.04+ / 银河麒麟 V11+ / 优麒麟（x86_64 & ARM64）',
       'dl.linuxArmDeb': 'ARM64 飞腾/麒麟 .deb（2.19 MB）',
@@ -193,7 +193,7 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
     html: {
       'hero.title': 'KuroCat · 敲键盘的小黑猫<br /><span>住进你的桌面</span>',
       'hero.sub':
-        '基于 <strong>Tauri v2 + Rust 原生钩子 + Canvas 2D</strong> 打造的透明置顶桌面键鼠伴侣。零外部依赖、约 24 MB 轻量常驻；内置 <strong>6 款手绘猫咪 + 🐳 大肥鱼（鲸鱼娘）</strong>、<strong>自定义尾巴拍键</strong>、<strong>OBS 原生透明直播源</strong>、<strong>输密码自动闭眼/捂眼防偷窥</strong> 与 <strong>原生 MCP 协议</strong>，发张照片就能让 AI 一句话捏出你家的猫。',
+        '基于 <strong>Tauri v2 + Rust 原生钩子 + Three.js 3D / Canvas 2D 双引擎</strong> 打造的透明置顶桌面键鼠伴侣。默认 <strong>✨ 3D 体积光影手办模式</strong>（右键一键切换 <strong>2D 经典手绘</strong>），安装包仅 <strong>2.15 MB</strong>；内置 <strong>6 款猫咪 + 🐳 大肥鱼（鲸鱼娘）</strong>、<strong>游戏自动戴电竞耳机</strong>、<strong>3D 项圈铃铛</strong>、<strong>自定义尾巴拍键</strong>、<strong>OBS 免抠像直播源</strong>、<strong>输密码自动闭眼防偷窥</strong> 与 <strong>MCP 协议 AI 捏猫</strong>（3D/2D 同步斑点）。',
       'dl.sub':
         '所有安装包均内置 <strong>20%–150% 无级缩放</strong>、<strong>65% / 108 键随时切换</strong>、<strong>自定义尾巴拍键</strong> 与 <strong>App 内自动更新</strong>。<br />默认提供 <code>qianyi.one</code> 国内高速直链，同时保留 GitHub Releases 官方原链与 SHA-256 校验。',
       'dl.winDesc':
@@ -371,7 +371,7 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'dl.tipWv2Title': '🪟 Seeing "Could not find the WebView2 Runtime" on Windows?',
       'dl.tipWv2Btn': 'Download Microsoft WebView2 Runtime ›',
       'dl.win7Title': '🖥️ Windows 7 SP1 (64-bit) Dedicated Portable (Bundled WebView2 109)',
-      'dl.win7Btn': 'Download Win7 Portable (178.77 MB)',
+      'dl.win7Btn': 'Download Win7 Portable (178.94 MB)',
       'dl.win7Gh': 'GitHub Official Mirror (Win7) ›',
       'dl.linuxTitle': '🐧 Linux / Ubuntu 22.04+ / Debian 12+ / KylinOS V11+ (x86_64 & ARM64)',
       'dl.linuxArmDeb': 'ARM64 .deb (2.19 MB)',
@@ -420,7 +420,7 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
     html: {
       'hero.title': 'KuroCat — A Typing Black Cat<br /><span>Living on Your Desktop</span>',
       'hero.sub':
-        'Built with <strong>Tauri v2 + native Rust hooks + Canvas 2D</strong> as a transparent, always-on-top desk companion. Zero runtime bloat (~24 MB RAM); includes <strong>6 hand-crafted cats + 🐳 BigFish (whale-girl)</strong>, <strong>customizable tail-key patting</strong>, <strong>native OBS transparent source</strong>, <strong>automatic password privacy guard</strong>, and a <strong>built-in MCP server</strong> so AI can turn a photo of your cat into a live pet.',
+        'Built with <strong>Tauri v2 + native Rust hooks + Three.js 3D / Canvas 2D dual engine</strong> as a transparent, always-on-top desk companion. Defaults to <strong>✨ 3D Volumetric Figurine</strong> (one-click switch to <strong>2D Classic</strong>), only <strong>2.15 MB</strong> installer; includes <strong>6 cats + 🐳 BigFish</strong>, <strong>optional auto-game gaming headphones</strong>, <strong>3D collar bells</strong>, <strong>customizable tail-key patting</strong>, <strong>native OBS transparent source</strong>, <strong>password privacy guard</strong>, and <strong>MCP AI cat studio</strong> (1:1 spots in 3D &amp; 2D).',
       'dl.sub':
         'Every build includes <strong>20%–150% smooth scaling</strong>, <strong>65% / 108-key switching</strong>, <strong>customizable tail keys</strong>, and <strong>in-app auto-updates</strong>.<br />Fast CDN mirrors on <code>qianyi.one</code> alongside official GitHub Releases with SHA-256 verification.',
       'dl.winDesc':
@@ -598,7 +598,7 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'dl.tipWv2Title': '🪟 Windows で「Could not find the WebView2 Runtime」が出たら？',
       'dl.tipWv2Btn': 'Microsoft WebView2 をダウンロード ›',
       'dl.win7Title': '🖥️ Windows 7 SP1（64bit）専用ポータブル版（WebView2 109 同梱）',
-      'dl.win7Btn': 'Win7 ポータブル版をダウンロード（178.77 MB）',
+      'dl.win7Btn': 'Win7 ポータブル版をダウンロード（178.94 MB）',
       'dl.win7Gh': 'GitHub 公式ミラー（Win7 版）›',
       'dl.linuxTitle': '🐧 Linux / Ubuntu 22.04+ / Debian 12+ / KylinOS V11+（x86_64 & ARM64）',
       'dl.linuxArmDeb': 'ARM64 .deb（2.19 MB）',
@@ -647,7 +647,7 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
     html: {
       'hero.title': 'KuroCat · キーボードを叩く黒猫が<br /><span>あなたのデスクトップに</span>',
       'hero.sub':
-        '<strong>Tauri v2 + Rust ネイティブフック + Canvas 2D</strong> で開発した透過・最前面デスクトップ伴侶。外部依存ゼロ・約 24 MB 常駐で、<strong>手描き猫 6 種 + 🐳 クジラ娘</strong>、<strong>しっぽタイピング自由指定</strong>、<strong>OBS 透過配信ソース</strong>、<strong>パスワード自動目隠し保護</strong>、さらに <strong>MCP サーバー</strong> を標準搭載。写真 1 枚から AI が愛猫をデスクトップに再現します。',
+        '<strong>Tauri v2 + Rust ネイティブフック + Three.js 3D / Canvas 2D デュアルエンジン</strong> で開発した透過・最前面デスクトップ伴侶。初期設定の <strong>✨ 3D 立体フィギュア</strong> と <strong>2D クラシック</strong> をワンクリック切替、インストーラーわずか <strong>2.15 MB</strong>；<strong>猫 6 種 + 🐳 クジラ娘</strong>、<strong>ゲーム自動検出ゲーミングヘッドセット</strong>、<strong>3D 首輪ベル</strong>、<strong>しっぽタイピング</strong>、<strong>OBS 透過ソース</strong>、<strong>パスワード自動保護</strong>、<strong>MCP AI 捏猫</strong> を標準搭載。',
       'dl.sub':
         '全パッケージに <strong>20%–150% 無段階ズーム</strong>・<strong>65% / 108 キー切替</strong>・<strong>しっぽキー選択</strong>・<strong>アプリ内自動更新</strong> を内蔵。<br /><code>qianyi.one</code> 高速ミラーと GitHub Releases 公式リンク（SHA-256 検証対応）を用意しています。',
       'dl.winDesc':
