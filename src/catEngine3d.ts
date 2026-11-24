@@ -1447,36 +1447,7 @@ export class KuroCatEngine3D {
   public start(): void {
     if (this.rafId !== null || this.idleTimer !== null) return;
     this.lastFrameMs = performance.now();
-    const tick = (nowMs: number) => {
-      this.rafId = null;
-      const dt = Math.min(0.05, Math.max(0.001, (nowMs - this.lastFrameMs) / 1000));
-      this.lastFrameMs = nowMs;
-      this.update(dt);
-      this.renderer.render(this.scene, this.camera);
-
-      // Smart 25fps idle throttle when calm > 3s so desktop 3D stays icy cool (~1-2% CPU/GPU)
-      const busy =
-        this.elapsed - this.lastInput < 3.0 ||
-        this.elapsed - this.cursorActiveAt < 2.4 ||
-        this.isCross ||
-        this.petting ||
-        this.elapsed < this.curiousUntil ||
-        this.popups.length > 0 ||
-        this.fxList.length > 0 ||
-        (this.sleepAmt > 0.02 && this.sleepAmt < 0.98) ||
-        Math.abs(this.sOrbitAz.v) > 0.05 ||
-        Math.abs(this.sOrbitEl.v) > 0.05;
-
-      if (busy) {
-        this.rafId = requestAnimationFrame(tick);
-      } else {
-        this.idleTimer = window.setTimeout(() => {
-          this.idleTimer = null;
-          this.rafId = requestAnimationFrame(tick);
-        }, 40);
-      }
-    };
-    this.rafId = requestAnimationFrame(tick);
+    this.rafId = requestAnimationFrame(this.renderFrame);
   }
 
   public stop(): void {
@@ -1489,6 +1460,39 @@ export class KuroCatEngine3D {
       this.idleTimer = null;
     }
   }
+
+  private readonly renderFrame = (nowMs: number): void => {
+    const frameId = this.rafId;
+    const dt = Math.min(0.05, Math.max(0.001, (nowMs - this.lastFrameMs) / 1000));
+    this.lastFrameMs = nowMs;
+    this.update(dt);
+    this.renderer.render(this.scene, this.camera);
+
+    if (this.rafId !== frameId) return;
+    // Sleep particles continue drawing at the idle rate.
+    const busy =
+      this.elapsed - this.lastInput < 3.0 ||
+      this.elapsed - this.cursorActiveAt < 2.4 ||
+      this.isCross ||
+      this.petting ||
+      this.elapsed < this.curiousUntil ||
+      this.popups.length > 0 ||
+      this.fxList.some((fx) => fx.kind !== 'z') ||
+      (this.sleepAmt > 0.02 && this.sleepAmt < 0.98) ||
+      Math.abs(this.sOrbitAz.v) > 0.05 ||
+      Math.abs(this.sOrbitEl.v) > 0.05;
+
+    if (busy) {
+      this.rafId = requestAnimationFrame(this.renderFrame);
+      return;
+    }
+
+    this.rafId = null;
+    this.idleTimer = window.setTimeout(() => {
+      this.idleTimer = null;
+      this.rafId = requestAnimationFrame(this.renderFrame);
+    }, 40);
+  };
 
   public setCatSkin(skin: CatSkinConfig): void {
     this.currentSkin = skin;
@@ -1579,6 +1583,7 @@ export class KuroCatEngine3D {
   public onPrivacyTyping(): void {
     if (this.privacyMode) {
       this.sSquash.kick(0.22);
+      this.wakeRendering();
     }
   }
 
@@ -1606,11 +1611,13 @@ export class KuroCatEngine3D {
   public addOrbitDelta(dAzDeg: number, dElDeg: number): void {
     this.orbitAzimuthTarget = clamp(this.orbitAzimuthTarget + dAzDeg, -165, 165);
     this.orbitElevTarget = clamp(this.orbitElevTarget + dElDeg, 6, 58);
+    this.wakeRendering();
   }
 
   public resetOrbit(): void {
     this.orbitAzimuthTarget = 0;
     this.orbitElevTarget = 24.5;
+    this.wakeRendering();
   }
 
   public triggerCuriousDemo(durSec = 3.6): void {
@@ -1655,7 +1662,10 @@ export class KuroCatEngine3D {
 
   public onKeyDown(vk: number, repeat = false): void {
     if (this.privacyMode) {
-      if (!repeat) this.sSquash.kick(0.25);
+      if (!repeat) {
+        this.sSquash.kick(0.25);
+        this.wakeRendering();
+      }
       return;
     }
     const k = this.desk.resolveKey(vk);
@@ -1756,6 +1766,7 @@ export class KuroCatEngine3D {
     if (delta > 0.0015) {
       this.cursorNdc.set(clamp(relX * 2 - 1, -1.6, 1.6), clamp(1 - relY * 2, -1.4, 1.4));
       this.cursorActiveAt = this.elapsed;
+      this.wakeRendering();
     }
     if (overCat && !this.leftMouseDown && !this.rightMouseDown && delta > 0.006) {
       this.petting = true;
@@ -1800,6 +1811,7 @@ export class KuroCatEngine3D {
     const ny = (clientY - rect.top) / rect.height;
     this.cursorNdc.set(nx * 2 - 1, -(ny * 2 - 1));
     this.cursorActiveAt = this.elapsed;
+    this.wakeRendering();
 
     const sx = clientX / 1440;
     const sy = clientY / 1440;
@@ -1866,8 +1878,16 @@ export class KuroCatEngine3D {
 
   // ---- Internal helpers ----
 
+  private wakeRendering(): void {
+    if (this.idleTimer === null) return;
+    window.clearTimeout(this.idleTimer);
+    this.idleTimer = null;
+    this.rafId = requestAnimationFrame(this.renderFrame);
+  }
+
   private wake(): void {
     this.lastInput = this.elapsed;
+    this.wakeRendering();
     if (this.asleep) {
       this.asleep = false;
       this.wakeAt = this.elapsed;
