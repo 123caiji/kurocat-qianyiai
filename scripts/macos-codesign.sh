@@ -18,12 +18,11 @@ set -euo pipefail
 
 CERT_NAME="${MACOS_SIGNING_CERT_NAME:-KuroCat Code Signing}"
 SECRET_HINT="Fix the secrets, or delete both of them to fall back to ad hoc signing."
+RCODESIGN_VERSION="0.29.0"
+RCODESIGN_URL="https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign/${RCODESIGN_VERSION}/apple-codesign-${RCODESIGN_VERSION}-macos-universal.tar.gz"
+RCODESIGN_SHA256="d98372d5524226ccf9dc0eda03d4e4f5826182dabb2fc3f2bd303ed9113a748d"
 WORK_DIR=""
-TEMP_KEYCHAIN=""
 MOUNT_POINT=""
-TEMP_TRUSTED_CERT=""
-ORIG_DEFAULT_KEYCHAIN=""
-ORIG_KEYCHAINS=()
 
 usage() {
   cat <<'EOF'
@@ -60,24 +59,9 @@ step_summary() {
 }
 
 cleanup() {
-  if [[ -n "$TEMP_TRUSTED_CERT" && -f "$TEMP_TRUSTED_CERT" ]]; then
-    sudo -n security remove-trusted-cert -d "$TEMP_TRUSTED_CERT" >/dev/null 2>&1 || true
-    TEMP_TRUSTED_CERT=""
-  fi
   if [[ -n "$MOUNT_POINT" ]]; then
     hdiutil detach "$MOUNT_POINT" >/dev/null 2>&1 ||
       hdiutil detach -force "$MOUNT_POINT" >/dev/null 2>&1 || true
-  fi
-  if [[ -n "$ORIG_DEFAULT_KEYCHAIN" ]]; then
-    security default-keychain -d user -s "$ORIG_DEFAULT_KEYCHAIN" >/dev/null 2>&1 || true
-    ORIG_DEFAULT_KEYCHAIN=""
-  fi
-  if [[ ${#ORIG_KEYCHAINS[@]} -gt 0 ]]; then
-    security list-keychains -d user -s "${ORIG_KEYCHAINS[@]}" >/dev/null 2>&1 || true
-    ORIG_KEYCHAINS=()
-  fi
-  if [[ -n "$TEMP_KEYCHAIN" ]]; then
-    security delete-keychain "$TEMP_KEYCHAIN" >/dev/null 2>&1 || true
   fi
   if [[ -n "$WORK_DIR" ]]; then
     rm -rf "$WORK_DIR" 2>/dev/null || true
@@ -114,68 +98,59 @@ find_app() {
   find "$1" -maxdepth 1 -name '*.app' -type d -print -quit
 }
 
+ensure_rcodesign() {
+  if command -v rcodesign >/dev/null 2>&1; then
+    command -v rcodesign
+    return 0
+  fi
+  local tgz="$WORK_DIR/rcodesign.tar.gz" extract="$WORK_DIR/rcodesign-bin" bin
+  mkdir -p "$extract"
+  curl -fsSL "$RCODESIGN_URL" -o "$tgz" || die "failed to download rcodesign ${RCODESIGN_VERSION}"
+  printf '%s  %s\n' "$RCODESIGN_SHA256" "$tgz" | shasum -a 256 -c - >/dev/null ||
+    die "rcodesign ${RCODESIGN_VERSION} SHA-256 checksum mismatch"
+  tar -xzf "$tgz" -C "$extract"
+  bin="$(find "$extract" -name rcodesign -type f -print -quit)"
+  [[ -n "$bin" ]] || die "rcodesign binary not found inside archive"
+  chmod +x "$bin"
+  echo "$bin"
+}
+
 sign_with_p12() {
-  local app="$1" id="$2" keychain_password identity kc valid_identity
+  local app="$1" id="$2" rcodesign_bin cert_info fingerprint
+  umask 077
   WORK_DIR="$(cd "$(mktemp -d)" && pwd -P)"
-  TEMP_KEYCHAIN="$WORK_DIR/kurocat-signing.keychain-db"
-  keychain_password="$(uuidgen)"
 
   printf '%s' "$MACOS_SIGNING_CERT_P12_BASE64" | tr -d '[:space:]' |
     base64 --decode > "$WORK_DIR/signing.p12" 2>/dev/null ||
     die "MACOS_SIGNING_CERT_P12_BASE64 is not valid base64. $SECRET_HINT"
   [[ -s "$WORK_DIR/signing.p12" ]] || die "MACOS_SIGNING_CERT_P12_BASE64 is empty. $SECRET_HINT"
+  printf '%s' "$MACOS_SIGNING_CERT_PASSWORD" > "$WORK_DIR/signing.password"
 
-  ORIG_DEFAULT_KEYCHAIN="$(security default-keychain -d user 2>/dev/null | sed -e 's/^[[:space:]]*"//' -e 's/"[[:space:]]*$//' || true)"
-  ORIG_KEYCHAINS=()
-  while IFS= read -r kc; do
-    kc="${kc#"${kc%%[![:space:]]*}"}"
-    kc="${kc%\"}"
-    kc="${kc#\"}"
-    [[ -n "$kc" ]] && ORIG_KEYCHAINS+=("$kc")
-  done < <(security list-keychains -d user)
+  # Use rcodesign to sign directly from the PKCS#12 file without touching the macOS Keychain
+  # (avoids headless CI securityd/SecurityAgent ACL prompts on modern macOS runners).
+  rcodesign_bin="$(ensure_rcodesign)"
+  cert_info="$("$rcodesign_bin" analyze-certificate \
+    --p12-file "$WORK_DIR/signing.p12" \
+    --p12-password-file "$WORK_DIR/signing.password" 2>&1)" ||
+    die "could not open the PKCS#12 certificate. MACOS_SIGNING_CERT_P12_BASE64 must be the base64 of kurocat-signing.p12 and MACOS_SIGNING_CERT_PASSWORD its password. $SECRET_HINT"
 
-  security create-keychain -p "$keychain_password" "$TEMP_KEYCHAIN"
-  security set-keychain-settings "$TEMP_KEYCHAIN"
-  security unlock-keychain -p "$keychain_password" "$TEMP_KEYCHAIN"
-  security default-keychain -d user -s "$TEMP_KEYCHAIN"
-  security list-keychains -d user -s "$TEMP_KEYCHAIN" "${ORIG_KEYCHAINS[@]}"
-  # Use -A alone (without -T, which overrides -A) so codesign never triggers a headless GUI ACL prompt.
-  security import "$WORK_DIR/signing.p12" -k "$TEMP_KEYCHAIN" -f pkcs12 \
-    -P "$MACOS_SIGNING_CERT_PASSWORD" -A >/dev/null 2>&1 ||
-    die "could not import the certificate. MACOS_SIGNING_CERT_P12_BASE64 must be the base64 of kurocat-signing.p12 and MACOS_SIGNING_CERT_PASSWORD its password. $SECRET_HINT"
-  # Omit -s so OpenSSL-exported RSA keys in this single-key keychain always get the partition list updated.
-  security set-key-partition-list -S apple-tool:,apple:,codesign: \
-    -k "$keychain_password" "$TEMP_KEYCHAIN" >/dev/null
-  security unlock-keychain -p "$keychain_password" "$TEMP_KEYCHAIN"
+  fingerprint="$(printf '%s\n' "$cert_info" |
+    awk '/^SHA-1 fingerprint:/ { print tolower($3); exit }')"
+  [[ "$fingerprint" =~ ^[0-9a-f]{40}$ ]] ||
+    die "could not determine certificate SHA-1 fingerprint. $SECRET_HINT"
 
-  identity="$(security find-identity -p codesigning "$TEMP_KEYCHAIN" |
-    awk '/^[[:space:]]*[0-9]+\)/ { print $2; exit }')"
-  [[ -n "$identity" ]] || die "the certificate contains no code signing identity. $SECRET_HINT"
+  csreq -r "=identifier \"$id\" and certificate leaf = H\"$fingerprint\"" -b "$WORK_DIR/dr.csreq" ||
+    die "csreq failed to compile designated requirement"
 
-  # On modern macOS runners (macOS 15/26+), codesign refuses untrusted self-signed identities
-  # with "no identity found" unless the leaf cert is temporarily trusted for codeSign during signing.
-  valid_identity="$(security find-identity -v -p codesigning "$TEMP_KEYCHAIN" |
-    awk '/^[[:space:]]*[0-9]+\)/ { print $2; exit }')"
-  if [[ -z "$valid_identity" && -n "${GITHUB_ACTIONS:-}" ]]; then
-    if openssl pkcs12 -in "$WORK_DIR/signing.p12" -clcerts -nokeys \
-      -passin env:MACOS_SIGNING_CERT_PASSWORD -out "$WORK_DIR/signing.crt" >/dev/null 2>&1; then
-      if sudo -n security add-trusted-cert -d -r trustRoot -p codeSign \
-        -k /Library/Keychains/System.keychain "$WORK_DIR/signing.crt" >/dev/null 2>&1; then
-        TEMP_TRUSTED_CERT="$WORK_DIR/signing.crt"
-      fi
-    fi
-  fi
-
-  echo "Signing $app with certificate SHA-1 $identity"
-  security find-identity -v -p codesigning "$TEMP_KEYCHAIN" || true
-  perl -e 'alarm 45; exec @ARGV' codesign --force --sign "$identity" --keychain "$TEMP_KEYCHAIN" \
-    --identifier "$id" --timestamp=none "$app"
-
-  # Remove temporary trust before verify_app so verification mirrors an end-user Mac.
-  if [[ -n "$TEMP_TRUSTED_CERT" && -f "$TEMP_TRUSTED_CERT" ]]; then
-    sudo -n security remove-trusted-cert -d "$TEMP_TRUSTED_CERT" >/dev/null 2>&1 || true
-    TEMP_TRUSTED_CERT=""
-  fi
+  echo "Signing $app with certificate SHA-1 $fingerprint (via rcodesign ${RCODESIGN_VERSION}, keychain-free)"
+  "$rcodesign_bin" sign \
+    --p12-file "$WORK_DIR/signing.p12" \
+    --p12-password-file "$WORK_DIR/signing.password" \
+    --code-requirements-file "$WORK_DIR/dr.csreq" \
+    --timestamp-url none \
+    "$app" "$WORK_DIR/signed.app"
+  rm -rf "$app"
+  mv "$WORK_DIR/signed.app" "$app"
 }
 
 sign_app() {
