@@ -21,6 +21,8 @@ SECRET_HINT="Fix the secrets, or delete both of them to fall back to ad hoc sign
 WORK_DIR=""
 TEMP_KEYCHAIN=""
 MOUNT_POINT=""
+TEMP_TRUSTED_CERT=""
+ORIG_KEYCHAINS=()
 
 usage() {
   cat <<'EOF'
@@ -57,9 +59,17 @@ step_summary() {
 }
 
 cleanup() {
+  if [[ -n "$TEMP_TRUSTED_CERT" && -f "$TEMP_TRUSTED_CERT" ]]; then
+    sudo -n security remove-trusted-cert -d "$TEMP_TRUSTED_CERT" >/dev/null 2>&1 || true
+    TEMP_TRUSTED_CERT=""
+  fi
   if [[ -n "$MOUNT_POINT" ]]; then
     hdiutil detach "$MOUNT_POINT" >/dev/null 2>&1 ||
       hdiutil detach -force "$MOUNT_POINT" >/dev/null 2>&1 || true
+  fi
+  if [[ ${#ORIG_KEYCHAINS[@]} -gt 0 ]]; then
+    security list-keychains -d user -s "${ORIG_KEYCHAINS[@]}" >/dev/null 2>&1 || true
+    ORIG_KEYCHAINS=()
   fi
   if [[ -n "$TEMP_KEYCHAIN" ]]; then
     security delete-keychain "$TEMP_KEYCHAIN" >/dev/null 2>&1 || true
@@ -100,8 +110,8 @@ find_app() {
 }
 
 sign_with_p12() {
-  local app="$1" id="$2" keychain_password identity
-  WORK_DIR="$(mktemp -d)"
+  local app="$1" id="$2" keychain_password identity kc valid_identity
+  WORK_DIR="$(cd "$(mktemp -d)" && pwd -P)"
   TEMP_KEYCHAIN="$WORK_DIR/kurocat-signing.keychain-db"
   keychain_password="$(uuidgen)"
 
@@ -110,23 +120,51 @@ sign_with_p12() {
     die "MACOS_SIGNING_CERT_P12_BASE64 is not valid base64. $SECRET_HINT"
   [[ -s "$WORK_DIR/signing.p12" ]] || die "MACOS_SIGNING_CERT_P12_BASE64 is empty. $SECRET_HINT"
 
+  ORIG_KEYCHAINS=()
+  while IFS= read -r kc; do
+    kc="${kc#"${kc%%[![:space:]]*}"}"
+    kc="${kc%\"}"
+    kc="${kc#\"}"
+    [[ -n "$kc" ]] && ORIG_KEYCHAINS+=("$kc")
+  done < <(security list-keychains -d user)
+
   security create-keychain -p "$keychain_password" "$TEMP_KEYCHAIN"
   security set-keychain-settings -lut 3600 "$TEMP_KEYCHAIN"
   security unlock-keychain -p "$keychain_password" "$TEMP_KEYCHAIN"
-  security import "$WORK_DIR/signing.p12" -k "$TEMP_KEYCHAIN" \
-    -P "$MACOS_SIGNING_CERT_PASSWORD" -T /usr/bin/codesign >/dev/null 2>&1 ||
+  security list-keychains -d user -s "$TEMP_KEYCHAIN" "${ORIG_KEYCHAINS[@]}"
+  security import "$WORK_DIR/signing.p12" -k "$TEMP_KEYCHAIN" -f pkcs12 \
+    -P "$MACOS_SIGNING_CERT_PASSWORD" -A -T /usr/bin/codesign -T /usr/bin/security >/dev/null 2>&1 ||
     die "could not import the certificate. MACOS_SIGNING_CERT_P12_BASE64 must be the base64 of kurocat-signing.p12 and MACOS_SIGNING_CERT_PASSWORD its password. $SECRET_HINT"
   security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
     -k "$keychain_password" "$TEMP_KEYCHAIN" >/dev/null
 
-  # A self-signed certificate is listed as untrusted; codesign still signs with it.
   identity="$(security find-identity -p codesigning "$TEMP_KEYCHAIN" |
     awk '/^[[:space:]]*[0-9]+\)/ { print $2; exit }')"
   [[ -n "$identity" ]] || die "the certificate contains no code signing identity. $SECRET_HINT"
 
+  # On modern macOS runners (macOS 15/26+), codesign refuses untrusted self-signed identities
+  # with "no identity found" unless the leaf cert is temporarily trusted for codeSign during signing.
+  valid_identity="$(security find-identity -v -p codesigning "$TEMP_KEYCHAIN" |
+    awk '/^[[:space:]]*[0-9]+\)/ { print $2; exit }')"
+  if [[ -z "$valid_identity" && -n "${GITHUB_ACTIONS:-}" ]]; then
+    if openssl pkcs12 -in "$WORK_DIR/signing.p12" -clcerts -nokeys \
+      -passin env:MACOS_SIGNING_CERT_PASSWORD -out "$WORK_DIR/signing.crt" >/dev/null 2>&1; then
+      if sudo -n security add-trusted-cert -d -r trustRoot -p codeSign \
+        -k /Library/Keychains/System.keychain "$WORK_DIR/signing.crt" >/dev/null 2>&1; then
+        TEMP_TRUSTED_CERT="$WORK_DIR/signing.crt"
+      fi
+    fi
+  fi
+
   echo "Signing $app with certificate SHA-1 $identity"
   codesign --force --sign "$identity" --keychain "$TEMP_KEYCHAIN" \
     --identifier "$id" --timestamp=none "$app"
+
+  # Remove temporary trust before verify_app so verification mirrors an end-user Mac.
+  if [[ -n "$TEMP_TRUSTED_CERT" && -f "$TEMP_TRUSTED_CERT" ]]; then
+    sudo -n security remove-trusted-cert -d "$TEMP_TRUSTED_CERT" >/dev/null 2>&1 || true
+    TEMP_TRUSTED_CERT=""
+  fi
 }
 
 sign_app() {
