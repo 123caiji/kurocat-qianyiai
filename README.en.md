@@ -177,6 +177,16 @@ npm run tauri:build    # Production release bundle & installer
 
 > 📡 Live-synced cumulative downloads and GitHub Stars (auto-adapts to GitHub dark/light themes). [Explore the interactive dual-axis chart on the website →](https://qianyi.one/kurocat/?lang=en#growth)
 
+## ☕ Support & Donate
+
+KuroCat is completely free and open-source under the MIT License. If this tiny desktop cat has brightened your coding, work, or streams, consider starring the repo ⭐ or buying the author a coffee:
+
+- **ETH / BNB / USDT / USDC (EVM Address)**  
+  Supported networks: `Ethereum (ERC-20)` · `BNB Smart Chain (BEP-20)` · `Base` · `Arbitrum`
+  ```text
+  0x40995b4c9ad8cd4356417a34ab94fa20d5844617
+  ```
+
 ## 📄 License & Credits
 
 Released under the [MIT License](LICENSE).

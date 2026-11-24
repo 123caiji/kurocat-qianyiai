@@ -192,6 +192,16 @@ gh secret set MACOS_SIGNING_CERT_PASSWORD < /path/outside/repo/kurocat-signing/k
 
 > 📡 实时同步累计下载量与 GitHub Stars（自动适配 GitHub 深/浅色主题）。[点击查看官网可交互双轴曲线 →](https://qianyi.one/kurocat/#growth)
 
+## ☕ 赞助支持
+
+KuroCat 完全免费且基于 MIT 协议开源。如果这只桌面小猫陪你写代码、办公或直播时带来过好心情，欢迎点一颗 ⭐ 或请作者喝杯咖啡：
+
+- **ETH / BNB / USDT / USDC（EVM 链通用地址）**  
+  支持网络：`Ethereum (ERC-20)` · `BNB Smart Chain (BEP-20)` · `Base` · `Arbitrum`
+  ```text
+  0x40995b4c9ad8cd4356417a34ab94fa20d5844617
+  ```
+
 ## 📄 开源协议与致谢
 
 本项目基于 [MIT License](LICENSE) 开源。

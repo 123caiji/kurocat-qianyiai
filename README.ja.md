@@ -177,6 +177,16 @@ npm run tauri:build    # リリースバイナリ・インストーラーのビ�
 
 > 📡 累計ダウンロード数と GitHub Stars をリアルタイム同期（GitHub のダーク／ライトテーマに自動対応）。[公式サイトでインタラクティブ版を見る →](https://qianyi.one/kurocat/?lang=ja#growth)
 
+## ☕ 開発を支援する（寄付）
+
+KuroCat は MIT ライセンスのもとで完全無料・オープンソースとして公開しています。作業や配信のお供として気に入っていただけたら、GitHub で ⭐ を付けていただくか、コーヒー一杯分の支援をいただけると励みになります：
+
+- **ETH / BNB / USDT / USDC（EVM 共通アドレス）**  
+  対応ネットワーク：`Ethereum (ERC-20)` · `BNB Smart Chain (BEP-20)` · `Base` · `Arbitrum`
+  ```text
+  0x40995b4c9ad8cd4356417a34ab94fa20d5844617
+  ```
+
 ## 📄 ライセンスと謝辞
 
 本プロジェクトは [MIT License](LICENSE) のもとで公開されています。
