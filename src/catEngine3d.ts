@@ -1671,13 +1671,12 @@ export class KuroCatEngine3D {
     }
 
     const useTail =
-      !this.isCross &&
-      this.tailKeyMode !== 'off' &&
-      (this.tailKeyMode === 'custom'
+      this.tailKeyMode === 'custom'
         ? this.tailKeyIdSet.has(k.spec.id)
-        : this.tailKeyMode === 'edge'
-          ? this.desk.isRightEdgeTailKey(k.spec.id)
-          : k.spec.id === 'space' || k.spec.id === 'enter' || this.desk.isRightEdgeTailKey(k.spec.id));
+        : !this.isCross &&
+          this.tailKeyMode !== 'off' &&
+          (this.desk.isRightEdgeTailKey(k.spec.id) ||
+            (this.tailKeyMode === 'smart' && (k.spec.id === 'space' || k.spec.id === 'enter')));
     if (useTail) {
       this.triggerTailKey(k.spec.id, k.spec.bubble || k.spec.label || k.spec.id);
       return;

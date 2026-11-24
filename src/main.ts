@@ -5,13 +5,18 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
   DEFAULT_TAIL_KEY_IDS,
   KuroCatEngine,
-  TAIL_KEY_PRESETS,
   type KeyboardOrientation,
   type TailKeyMode,
 } from './catEngine';
 import { catAudio } from './audio';
 import { DEFAULT_BUILTIN_CATS, type CatSkinConfig } from './catSkins';
-import { resolveKeyByVk, type KeyboardLayoutId } from './keyboardLayout';
+import {
+  getKeyboardLayout,
+  resolveKeyByVk,
+  type KeyboardLayoutDef,
+  type KeyboardLayoutId,
+  type KeySpec,
+} from './keyboardLayout';
 import type { CollarColorId, KuroCatEngine3D } from './catEngine3d';
 
 type DesktopRenderMode = '2d' | '3d';
@@ -88,7 +93,11 @@ let altOverride = false;
 let lastKnownLockState: boolean | null = null;
 let syncWin7OverlayFn: ((focusMenu?: boolean) => void) | null = null;
 let tailPickerOpen = false;
+let tailPickerLoading = false;
+let tailPickerSaving = false;
+let tailPickerSelection = new Set<string>();
 let tailPickerStatusOverride: string | null = null;
+const ARROW_KEY_IDS = new Set(['up', 'down', 'left', 'right']);
 
 const TAIL_MODE_LABELS: Record<TailKeyMode, string> = {
   smart: '智能第三只手',
@@ -134,7 +143,9 @@ const btnToastOpenEl = document.getElementById('btn-toast-open') as HTMLButtonEl
 const btnToastCloseEl = document.getElementById('btn-toast-close') as HTMLButtonElement;
 const tailPickerBarEl = document.getElementById('tail-picker-bar') as HTMLDivElement;
 const tailPickerTitleEl = document.getElementById('tail-picker-title') as HTMLSpanElement;
+const tailPresetButtons = tailPickerBarEl.querySelectorAll<HTMLButtonElement>('.tail-picker-presets [data-tailpreset]');
 const btnTailDoneEl = document.getElementById('btn-tail-done') as HTMLButtonElement;
+const btnTailCancelEl = document.getElementById('btn-tail-cancel') as HTMLButtonElement;
 const tailModeBadgeEl = document.getElementById('tail-mode-badge') as HTMLSpanElement;
 const tailKeysCountEl = document.getElementById('tail-keys-count') as HTMLSpanElement;
 const engine = new KuroCatEngine(canvas);
@@ -320,11 +331,6 @@ function syncMenuUI(): void {
   if (tailKeysCountEl) {
     tailKeysCountEl.textContent = `${tailIds.length} 键`;
   }
-  if (tailPickerTitleEl) {
-    tailPickerTitleEl.textContent =
-      tailPickerStatusOverride || `🐾 点键帽或敲键盘开关（已选 ${tailIds.length} 键）`;
-  }
-
   const activeCat = catList.find((c) => c.id === settings.catBreed) ?? catList[0];
   renderBreedPills();
 
@@ -376,11 +382,46 @@ function syncMenuUI(): void {
   }
   catAudio.setEnabled(settings.soundEnabled);
   activateRenderEngine();
+  if (tailPickerOpen) syncTailPickerSelection();
 }
 
 function syncWindowInteractiveState(): void {
-  const open = !menuEl.classList.contains('hidden') || tailPickerOpen;
+  const open = !menuEl.classList.contains('hidden');
   void invoke('set_menu_open', { open });
+}
+
+function syncTailPickerBounds(): void {
+  if (!tailPickerOpen) {
+    void invoke('set_tail_picker_bounds', { bounds: null });
+    return;
+  }
+
+  const normalized = (rect: DOMRect) => [
+    rect.left / window.innerWidth,
+    rect.top / window.innerHeight,
+    rect.right / window.innerWidth,
+    rect.bottom / window.innerHeight,
+  ];
+  void invoke('set_tail_picker_bounds', {
+    bounds: {
+      toolbar: normalized(tailPickerBarEl.getBoundingClientRect()),
+      keyboard: normalized(engine.getKeyboardClientBounds()),
+      closeButton: normalized(btnTailCancelEl.getBoundingClientRect()),
+    },
+  });
+}
+
+function syncTailPickerSelection(): void {
+  const layout = getKeyboardLayout(settings.keyboardLayout);
+  const visibleCount = layout.keys.filter(({ id }) => tailPickerSelection.has(id)).length;
+  tailPickerTitleEl.textContent =
+    tailPickerStatusOverride ?? `🐾 点键帽或敲键盘（已选 ${visibleCount} 键）`;
+  for (const button of tailPresetButtons) {
+    const presetKeys = getTailPresetKeys(button.dataset.tailpreset ?? '', layout);
+    button.setAttribute('aria-pressed', String(isTailPresetSelected(presetKeys)));
+  }
+  engine.setTailPickerActive(true, tailPickerSelection);
+  syncTailPickerBounds();
 }
 
 function closeContextMenu(): void {
@@ -413,72 +454,105 @@ function openContextMenu(clientX: number, clientY: number): void {
   });
 }
 
-function openTailPicker(): void {
-  closeContextMenu();
-  tailPickerOpen = true;
-  tailPickerStatusOverride = null;
-  activateRenderEngine();
-  tailPickerBarEl.classList.remove('hidden');
-  engine.setTailPickerActive(true);
-  syncWindowInteractiveState();
-  if (settings.tailKeyMode !== 'custom') {
-    void applySettingsPatch({ tailKeyMode: 'custom' });
-  } else {
+async function openTailPicker(): Promise<void> {
+  if (tailPickerOpen || tailPickerLoading) return;
+  tailPickerLoading = true;
+  try {
+    settings = await invoke<AppSettings>('get_settings');
+    tailPickerSelection = new Set(settings.tailKeyIds ?? DEFAULT_TAIL_KEY_IDS);
+    tailPickerStatusOverride = null;
+    tailPickerOpen = true;
+    closeContextMenu();
+    tailPickerBarEl.classList.remove('hidden');
     syncMenuUI();
+    requestAnimationFrame(() => syncWin7OverlayFn?.(true));
+  } catch (error) {
+    console.error('加载自定义尾巴按键失败', error);
+  } finally {
+    tailPickerLoading = false;
   }
-  requestAnimationFrame(() => syncWin7OverlayFn?.(true));
 }
 
 function closeTailPicker(): void {
-  if (!tailPickerOpen) return;
+  if (!tailPickerOpen || tailPickerSaving) return;
   tailPickerOpen = false;
   tailPickerStatusOverride = null;
+  tailPickerSelection.clear();
   tailPickerBarEl.classList.add('hidden');
   canvas.classList.remove('tail-key-hover');
   engine.setTailPickerActive(false);
+  syncTailPickerBounds();
   activateRenderEngine();
-  syncWindowInteractiveState();
   syncWin7OverlayFn?.(false);
 }
 
-function toggleTailKeyId(specId: string, label?: string): void {
-  const cur = Array.isArray(settings.tailKeyIds) ? [...settings.tailKeyIds] : [];
-  const idx = cur.indexOf(specId);
-  let added = false;
-  if (idx >= 0) {
-    cur.splice(idx, 1);
-  } else {
-    cur.push(specId);
-    added = true;
-  }
-  const keyText = label || specId.toUpperCase();
-  tailPickerStatusOverride = added
-    ? `🐾 已加「${keyText}」· 共 ${cur.length} 键`
-    : `🐾 已取消「${keyText}」· 共 ${cur.length} 键`;
-  void applySettingsPatch({ tailKeyMode: 'custom', tailKeyIds: cur });
-  if (added) {
-    engine.previewTailTap(specId);
-  }
+function toggleTailKeyId(specId: string): void {
+  if (tailPickerSaving) return;
+  if (!tailPickerSelection.delete(specId)) tailPickerSelection.add(specId);
+  tailPickerStatusOverride = null;
+  syncTailPickerSelection();
+}
+
+function getTailPresetKeys(presetKey: string, { keys, totalUnits, totalRows }: KeyboardLayoutDef): KeySpec[] {
+  return keys.filter((key) => {
+    switch (presetKey) {
+      case 'office':
+        return key.id === 'enter' || key.id === 'space';
+      case 'rightFn':
+        return ARROW_KEY_IDS.has(key.id) || key.id === 'numlk' || key.id.startsWith('np_');
+      case 'edgeMods': {
+        const top = key.rowY ?? key.row;
+        const bottom = top + (key.rowSpan ?? 1);
+        return key.uStart === 0 || key.uStart + key.uWidth >= totalUnits - 0.001 ||
+          top === 0 || bottom >= totalRows - 0.001;
+      }
+      default:
+        return false;
+    }
+  });
+}
+
+function isTailPresetSelected(keys: KeySpec[]): boolean {
+  return keys.length > 0 && keys.every(({ id }) => tailPickerSelection.has(id));
 }
 
 function applyTailPreset(presetKey: string): void {
-  let nextIds: string[] = [];
-  let label = '已清空';
-  if (presetKey === 'office') {
-    nextIds = [...TAIL_KEY_PRESETS.office.ids];
-    label = '预设：回车空格';
-  } else if (presetKey === 'rightFn') {
-    nextIds = [...TAIL_KEY_PRESETS.rightFn.ids];
-    label = '预设：方向/小键盘';
-  } else if (presetKey === 'edgeMods') {
-    nextIds = [...TAIL_KEY_PRESETS.edgeMods.ids];
-    label = '预设：外侧功能键';
+  if (tailPickerSaving) return;
+  if (presetKey === 'clear') {
+    tailPickerSelection.clear();
+  } else {
+    const presetKeys = getTailPresetKeys(presetKey, getKeyboardLayout(settings.keyboardLayout));
+    if (isTailPresetSelected(presetKeys)) {
+      for (const { id } of presetKeys) tailPickerSelection.delete(id);
+    } else {
+      for (const { id } of presetKeys) tailPickerSelection.add(id);
+    }
   }
-  tailPickerStatusOverride = `🐾 ${label}（${nextIds.length} 键）`;
-  void applySettingsPatch({ tailKeyMode: 'custom', tailKeyIds: nextIds });
-  if (nextIds.length > 0) {
-    engine.previewTailTap(nextIds[0]);
+  tailPickerStatusOverride = null;
+  syncTailPickerSelection();
+}
+
+async function confirmTailPicker(): Promise<void> {
+  if (!tailPickerOpen || tailPickerSaving) return;
+  tailPickerSaving = true;
+  btnTailDoneEl.disabled = true;
+  btnTailCancelEl.disabled = true;
+  try {
+    settings = await invoke<AppSettings>('save_tail_picker_selection', {
+      keyIds: [...tailPickerSelection],
+    });
+  } catch (error) {
+    console.error('保存自定义尾巴按键失败', error);
+    tailPickerStatusOverride = '保存失败，请重试';
+    syncTailPickerSelection();
+    return;
+  } finally {
+    tailPickerSaving = false;
+    btnTailDoneEl.disabled = false;
+    btnTailCancelEl.disabled = false;
   }
+  closeTailPicker();
+  syncMenuUI();
 }
 
 async function applySettingsPatch(patch: Partial<AppSettings>): Promise<void> {
@@ -775,7 +849,7 @@ async function bootstrap(): Promise<void> {
   });
 
   await listen('kuro-open-tail-picker', () => {
-    openTailPicker();
+    void openTailPicker();
   });
 
   await listen<number>('kuro-scale-preview', (ev) => {
@@ -786,7 +860,21 @@ async function bootstrap(): Promise<void> {
 
   btnTailDoneEl.addEventListener('click', (e) => {
     e.stopPropagation();
+    void confirmTailPicker();
+  });
+
+  btnTailCancelEl.addEventListener('click', (e) => {
+    e.stopPropagation();
     closeTailPicker();
+  });
+
+  window.addEventListener('resize', () => {
+    if (tailPickerOpen) syncTailPickerBounds();
+  });
+  tailPickerBarEl.addEventListener('animationend', () => {
+    if (!tailPickerOpen) return;
+    syncTailPickerBounds();
+    syncWin7OverlayFn?.(false);
   });
 
   tailPickerBarEl.addEventListener('click', (e) => {
@@ -805,7 +893,7 @@ async function bootstrap(): Promise<void> {
           if (!p.repeat) {
             const spec = resolveKeyByVk(p.vk, settings.keyboardLayout);
             if (spec) {
-              toggleTailKeyId(spec.id, spec.bubble || spec.label);
+              toggleTailKeyId(spec.id);
             }
           }
           break;
@@ -814,9 +902,9 @@ async function bootstrap(): Promise<void> {
         else engine.onKeyDown(p.vk, p.repeat);
         break;
       case 'keyUp':
-        if (!tailPickerOpen) {
-          if (active3d && engine3d) engine3d.onKeyUp(p.vk);
-          else engine.onKeyUp(p.vk);
+        if (active3d || tailPickerOpen) engine3d?.onKeyUp(p.vk);
+        if (!active3d) {
+          engine.onKeyUp(p.vk);
         }
         break;
       case 'mouseMove':
@@ -896,7 +984,7 @@ async function bootstrap(): Promise<void> {
         if (hit) {
           e.preventDefault();
           e.stopPropagation();
-          toggleTailKeyId(hit.id, hit.bubble || hit.label);
+          toggleTailKeyId(hit.id);
           return;
         }
       }
@@ -925,6 +1013,7 @@ async function bootstrap(): Promise<void> {
   // Right-click opens sleek dark glass settings menu (both 2D & 3D canvases!)
   const handleCanvasContextMenu = (e: MouseEvent) => {
     e.preventDefault();
+    if (tailPickerSaving) return;
     if (tailPickerOpen) {
       closeTailPicker();
     }
@@ -936,7 +1025,12 @@ async function bootstrap(): Promise<void> {
 
   // Side menu window auto-closes on its own focus loss; do NOT close on main blur (clicking the menu blurs main!)
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !tailPickerOpen) closeContextMenu();
+    if (tailPickerOpen) {
+      // Enter and Space can be selected without activating the focused toolbar button.
+      e.preventDefault();
+    } else if (e.key === 'Escape') {
+      closeContextMenu();
+    }
   });
 
   menuEl.addEventListener('click', (e) => {
@@ -1041,7 +1135,7 @@ async function bootstrap(): Promise<void> {
         void triggerManualUpdateCheck();
         break;
       case 'open-tail-picker':
-        openTailPicker();
+        void openTailPicker();
         break;
       case 'reset-pos':
         void invoke('reset_position');
@@ -1089,14 +1183,20 @@ async function bootstrap(): Promise<void> {
           }
         }
         if (tailPickerBarEl && !tailPickerBarEl.classList.contains('hidden')) {
-          const r = tailPickerBarEl.getBoundingClientRect();
-          if (r.width > 2 && r.height > 2) {
+          const toolbar = tailPickerBarEl.getBoundingClientRect();
+          const closeButton = btnTailCancelEl.getBoundingClientRect();
+          const pickerRegions = [
+            { rect: toolbar, radius: 13 },
+            { rect: closeButton, radius: closeButton.width / 2 },
+          ];
+          for (const { rect, radius } of pickerRegions) {
+            if (rect.width <= 2 || rect.height <= 2) continue;
             rects.push(
-              Math.max(0, Math.floor(r.left * dpr)),
-              Math.max(0, Math.floor(r.top * dpr)),
-              Math.min(physW, Math.ceil(r.right * dpr)),
-              Math.min(physH, Math.ceil(r.bottom * dpr)),
-              Math.round(13 * dpr),
+              Math.max(0, Math.floor(rect.left * dpr)),
+              Math.max(0, Math.floor(rect.top * dpr)),
+              Math.min(physW, Math.ceil(rect.right * dpr)),
+              Math.min(physH, Math.ceil(rect.bottom * dpr)),
+              Math.round(radius * dpr),
             );
           }
         }

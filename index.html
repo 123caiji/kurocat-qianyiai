@@ -17,14 +17,23 @@
     </div>
 
     <div id="tail-picker-bar" class="tail-picker-bar hidden" role="dialog" aria-label="自定义尾巴按键">
+      <button
+        class="tail-picker-close"
+        id="btn-tail-cancel"
+        type="button"
+        aria-label="取消选键"
+        title="取消选键"
+      ></button>
       <div class="tail-picker-top">
-        <span class="tail-picker-title" id="tail-picker-title">🐾 点键帽或敲键盘开关（已选 4 键）</span>
-        <button class="tail-picker-done" id="btn-tail-done" type="button">完成</button>
+        <span class="tail-picker-title" id="tail-picker-title">🐾 点键帽或敲键盘（已选 4 键）</span>
+        <button class="tail-picker-done" id="btn-tail-done" type="button">确定</button>
       </div>
       <div class="tail-picker-actions">
-        <button class="tail-preset-btn" data-tailpreset="office" type="button">回车空格</button>
-        <button class="tail-preset-btn" data-tailpreset="rightFn" type="button">方向/小键盘</button>
-        <button class="tail-preset-btn" data-tailpreset="edgeMods" type="button">外侧功能键</button>
+        <div class="tail-picker-presets">
+          <button class="tail-preset-btn" data-tailpreset="office" type="button" aria-pressed="false">回车空格</button>
+          <button class="tail-preset-btn" data-tailpreset="rightFn" type="button" aria-pressed="false">方向/小键盘</button>
+          <button class="tail-preset-btn" data-tailpreset="edgeMods" type="button" aria-pressed="false">外侧功能键</button>
+        </div>
         <button class="tail-preset-btn danger" data-tailpreset="clear" type="button">清空</button>
       </div>
     </div>
