@@ -12,6 +12,10 @@ import {
 import { catAudio } from './audio';
 import { DEFAULT_BUILTIN_CATS, type CatSkinConfig } from './catSkins';
 import { resolveKeyByVk, type KeyboardLayoutId } from './keyboardLayout';
+import type { CollarColorId, KuroCatEngine3D } from './catEngine3d';
+
+type DesktopRenderMode = '2d' | '3d';
+type HeadphoneMode = 'auto' | 'on' | 'off';
 
 interface AppSettings {
   x: number | null;
@@ -33,6 +37,9 @@ interface AppSettings {
   obsEnabled?: boolean;
   obsPort?: number;
   obsHidePet?: boolean;
+  renderMode?: DesktopRenderMode;
+  collarColor?: CollarColorId;
+  headphoneMode?: HeadphoneMode;
 }
 
 type InputEvent =
@@ -71,7 +78,7 @@ interface UpdateProgressEvent {
   info: UpdateInfo | null;
 }
 
-let appVersion = '4.9.1';
+let appVersion = '5.0.0';
 let latestUpdateInfo: UpdateInfo | null = null;
 let updateBusy = false;
 let dismissedVersion: string | null = null;
@@ -107,11 +114,15 @@ let settings: AppSettings = {
   privacyPasswordGuard: true,
   tailKeyMode: 'smart',
   tailKeyIds: [...DEFAULT_TAIL_KEY_IDS],
+  renderMode: '3d',
+  collarColor: 'none',
+  headphoneMode: 'off',
 };
 
 let catList: CatSkinConfig[] = [...DEFAULT_BUILTIN_CATS];
 
 const canvas = document.getElementById('pet-canvas') as HTMLCanvasElement;
+const canvas3d = document.getElementById('pet-canvas-3d') as HTMLCanvasElement;
 const menuEl = document.getElementById('context-menu') as HTMLDivElement;
 const breedPillsEl = document.getElementById('breed-pills') as HTMLDivElement;
 const scaleSliderEl = document.getElementById('scale-slider') as HTMLInputElement;
@@ -127,6 +138,117 @@ const btnTailDoneEl = document.getElementById('btn-tail-done') as HTMLButtonElem
 const tailModeBadgeEl = document.getElementById('tail-mode-badge') as HTMLSpanElement;
 const tailKeysCountEl = document.getElementById('tail-keys-count') as HTMLSpanElement;
 const engine = new KuroCatEngine(canvas);
+
+// Lazy-loaded Three.js 3D engine (NEVER imported when user stays in 2D mode -> +0 MB overhead!)
+let engine3d: KuroCatEngine3D | null = null;
+let loading3dPromise: Promise<void> | null = null;
+let webgl3dUnavailable = false;
+let isWin7Ulw = false;
+let active3d = false;
+let privacyActive = false;
+let gameActive = false;
+
+function shouldWearHeadphonesNow(): boolean {
+  if (settings.catBreed === 'dafeiyu') return false;
+  const hm: HeadphoneMode =
+    settings.headphoneMode === 'auto' || settings.headphoneMode === 'on'
+      ? settings.headphoneMode
+      : 'off';
+  if (hm === 'on') return true;
+  if (hm === 'off') return false;
+  return gameActive;
+}
+
+function wants3DNow(): boolean {
+  return (
+    settings.renderMode !== '2d' &&
+    settings.catBreed !== 'dafeiyu' &&
+    !tailPickerOpen &&
+    !isWin7Ulw &&
+    !webgl3dUnavailable
+  );
+}
+
+function syncEngine3DState(): void {
+  if (!engine3d) return;
+  const activeCat = catList.find((c) => c.id === settings.catBreed) ?? catList[0];
+  const kbLayout: KeyboardLayoutId = settings.keyboardLayout === '108' ? '108' : '65';
+  const kbOrient: KeyboardOrientation = settings.keyboardOrientation === 'viewer' ? 'viewer' : 'cat';
+  const tailMode: TailKeyMode =
+    settings.tailKeyMode === 'custom' ||
+    settings.tailKeyMode === 'edge' ||
+    settings.tailKeyMode === 'off'
+      ? settings.tailKeyMode
+      : 'smart';
+  const tailIds = Array.isArray(settings.tailKeyIds) ? settings.tailKeyIds : [...DEFAULT_TAIL_KEY_IDS];
+  const collar: CollarColorId =
+    settings.collarColor === 'red' ||
+    settings.collarColor === 'blue' ||
+    settings.collarColor === 'pink' ||
+    settings.collarColor === 'green'
+      ? settings.collarColor
+      : 'none';
+
+  engine3d.showKeyBubbles = settings.showKeyBubbles;
+  engine3d.setRenderStyle('3d');
+  if (activeCat) {
+    engine3d.setCatSkin(activeCat);
+  }
+  engine3d.setCollar(collar);
+  engine3d.setHeadphones(shouldWearHeadphonesNow());
+  engine3d.setKeyboardConfig(kbLayout, kbOrient);
+  engine3d.setTailKeyConfig(tailMode, tailIds);
+  engine3d.setPrivacyMode(privacyActive);
+  engine3d.resize();
+}
+
+function activateRenderEngine(): void {
+  const want3d = wants3DNow();
+  if (!want3d) {
+    if (active3d) {
+      engine3d?.stop();
+      canvas3d.classList.add('hidden');
+      canvas.classList.remove('hidden');
+      engine.resize();
+      engine.start();
+      active3d = false;
+    }
+    return;
+  }
+
+  if (engine3d) {
+    syncEngine3DState();
+    if (!active3d) {
+      engine.stop();
+      canvas.classList.add('hidden');
+      canvas3d.classList.remove('hidden');
+      engine3d.resize();
+      engine3d.start();
+      active3d = true;
+    }
+    return;
+  }
+
+  if (!loading3dPromise) {
+    loading3dPromise = import('./catEngine3d')
+      .then(({ KuroCatEngine3D }) => {
+        engine3d = new KuroCatEngine3D(canvas3d, { embedded: false });
+        window.addEventListener('resize', () => engine3d?.resize());
+        activateRenderEngine();
+      })
+      .catch((err) => {
+        console.warn('3D WebGL unavailable, keeping 2D mode:', err);
+        webgl3dUnavailable = true;
+        active3d = false;
+        canvas3d.classList.add('hidden');
+        canvas.classList.remove('hidden');
+        engine.start();
+      })
+      .finally(() => {
+        loading3dPromise = null;
+      });
+  }
+}
 
 function renderBreedPills(): void {
   if (!breedPillsEl) return;
@@ -206,6 +328,37 @@ function syncMenuUI(): void {
   const activeCat = catList.find((c) => c.id === settings.catBreed) ?? catList[0];
   renderBreedPills();
 
+  const renderMode: DesktopRenderMode = settings.renderMode === '2d' ? '2d' : '3d';
+  const collarColor: CollarColorId =
+    settings.collarColor === 'red' ||
+    settings.collarColor === 'blue' ||
+    settings.collarColor === 'pink' ||
+    settings.collarColor === 'green'
+      ? settings.collarColor
+      : 'none';
+  document.querySelectorAll<HTMLButtonElement>('[data-rendermode]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.rendermode === renderMode);
+  });
+  document.querySelectorAll<HTMLButtonElement>('[data-collar]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.collar === collarColor);
+  });
+  const collarRowEl = document.getElementById('collar-row');
+  if (collarRowEl) {
+    collarRowEl.classList.toggle('hidden', renderMode === '2d' || settings.catBreed === 'dafeiyu');
+  }
+
+  const headphoneMode: HeadphoneMode =
+    settings.headphoneMode === 'auto' || settings.headphoneMode === 'on'
+      ? settings.headphoneMode
+      : 'off';
+  document.querySelectorAll<HTMLButtonElement>('[data-headphonemode]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.headphonemode === headphoneMode);
+  });
+  const headphoneRowEl = document.getElementById('headphone-row');
+  if (headphoneRowEl) {
+    headphoneRowEl.classList.toggle('hidden', settings.catBreed === 'dafeiyu');
+  }
+
   const headerEl = document.getElementById('menu-header');
   if (headerEl && activeCat) {
     const emoji = activeCat.emoji || '🐱';
@@ -215,12 +368,14 @@ function syncMenuUI(): void {
 
   engine.showKeyBubbles = settings.showKeyBubbles;
   engine.setCatAppearance(activeCat?.id || 'black', activeCat);
+  engine.setHeadphones(shouldWearHeadphonesNow());
   engine.setKeyboardConfig(kbLayout, kbOrient);
   engine.setTailKeyConfig(tailMode, tailIds);
   if (!sliderDragging) {
     engine.setRenderScale(settings.scale);
   }
   catAudio.setEnabled(settings.soundEnabled);
+  activateRenderEngine();
 }
 
 function syncWindowInteractiveState(): void {
@@ -262,6 +417,7 @@ function openTailPicker(): void {
   closeContextMenu();
   tailPickerOpen = true;
   tailPickerStatusOverride = null;
+  activateRenderEngine();
   tailPickerBarEl.classList.remove('hidden');
   engine.setTailPickerActive(true);
   syncWindowInteractiveState();
@@ -280,6 +436,7 @@ function closeTailPicker(): void {
   tailPickerBarEl.classList.add('hidden');
   canvas.classList.remove('tail-key-hover');
   engine.setTailPickerActive(false);
+  activateRenderEngine();
   syncWindowInteractiveState();
   syncWin7OverlayFn?.(false);
 }
@@ -653,41 +810,68 @@ async function bootstrap(): Promise<void> {
           }
           break;
         }
-        engine.onKeyDown(p.vk, p.repeat);
+        if (active3d && engine3d) engine3d.onKeyDown(p.vk, p.repeat);
+        else engine.onKeyDown(p.vk, p.repeat);
         break;
       case 'keyUp':
         if (!tailPickerOpen) {
-          engine.onKeyUp(p.vk);
+          if (active3d && engine3d) engine3d.onKeyUp(p.vk);
+          else engine.onKeyUp(p.vk);
         }
         break;
       case 'mouseMove':
-        engine.onGlobalMouseMove(p.nx, p.ny);
+        if (active3d && engine3d) engine3d.onGlobalMouseMove(p.nx, p.ny);
+        else engine.onGlobalMouseMove(p.nx, p.ny);
         break;
       case 'mouseDown':
-        engine.onMouseDown(p.button);
+        if (active3d && engine3d) engine3d.onMouseDown(p.button);
+        else engine.onMouseDown(p.button);
         break;
       case 'mouseUp':
-        engine.onMouseUp(p.button);
+        if (active3d && engine3d) engine3d.onMouseUp(p.button);
+        else engine.onMouseUp(p.button);
         break;
       case 'mouseWheel':
-        engine.onMouseWheel();
+        if (active3d && engine3d) engine3d.onMouseWheel();
+        else engine.onMouseWheel();
         break;
       case 'privacyTyping':
-        engine.onPrivacyTyping();
+        if (active3d && engine3d) engine3d.onPrivacyTyping();
+        else engine.onPrivacyTyping();
         break;
     }
   });
 
   await listen<boolean>('kuro-privacy', (ev) => {
-    engine.setPrivacyMode(Boolean(ev.payload));
+    privacyActive = Boolean(ev.payload);
+    engine.setPrivacyMode(privacyActive);
+    engine3d?.setPrivacyMode(privacyActive);
+  });
+
+  try {
+    gameActive = await invoke<boolean>('get_game_active');
+    const wearNow = shouldWearHeadphonesNow();
+    engine.setHeadphones(wearNow);
+    engine3d?.setHeadphones(wearNow);
+  } catch {
+    // non-Tauri or older backend
+  }
+
+  await listen<{ active?: boolean; gameName?: string | null }>('kuro-game-active', (ev) => {
+    gameActive = Boolean(ev.payload?.active);
+    const wearNow = shouldWearHeadphonesNow();
+    engine.setHeadphones(wearNow);
+    engine3d?.setHeadphones(wearNow);
   });
 
   await listen<WindowCursorInfo>('kuro-cursor', (ev) => {
     const c = ev.payload;
     altOverride = Boolean(c.altOverride);
-    engine.onWindowCursor(c.relX, c.relY, c.overCat);
+    if (active3d && engine3d) engine3d.onWindowCursor(c.relX, c.relY, c.overCat);
+    else engine.onWindowCursor(c.relX, c.relY, c.overCat);
     const interactive = !settings.clickThroughLocked || altOverride;
     canvas.classList.toggle('pet-hover', c.overCat && interactive);
+    canvas3d.classList.toggle('pet-hover', c.overCat && interactive);
   });
 
   canvas.addEventListener('mousemove', (e) => {
@@ -703,8 +887,8 @@ async function bootstrap(): Promise<void> {
     canvas.classList.remove('tail-key-hover');
   });
 
-  // Left-click keycap toggle in tail-picker mode, OR drag to reposition transparent window
-  canvas.addEventListener('mousedown', async (e) => {
+  // Left-click keycap toggle in tail-picker mode, OR drag to reposition transparent window (both 2D & 3D canvases!)
+  const handleCanvasMouseDown = async (e: MouseEvent) => {
     if (e.button === 0) {
       closeContextMenu();
       if (tailPickerOpen) {
@@ -718,27 +902,37 @@ async function bootstrap(): Promise<void> {
       }
       if (settings.clickThroughLocked && !altOverride && !e.altKey) return;
       canvas.classList.add('pet-dragging');
+      canvas3d.classList.add('pet-dragging');
       void invoke('set_dragging', { dragging: true });
       try {
-        await getCurrentWindow().startDragging();
+        const nativeHandled = await invoke<boolean>('start_pet_drag').catch(() => false);
+        if (!nativeHandled) {
+          await getCurrentWindow().startDragging();
+        }
       } finally {
         canvas.classList.remove('pet-dragging');
+        canvas3d.classList.remove('pet-dragging');
         engine.onMouseUp('left');
+        engine3d?.onMouseUp('left');
         void invoke('set_dragging', { dragging: false });
         void invoke('save_window_pos');
       }
     }
-  });
+  };
+  canvas.addEventListener('mousedown', handleCanvasMouseDown);
+  canvas3d.addEventListener('mousedown', handleCanvasMouseDown);
 
-  // Right-click opens sleek dark glass settings menu
-  canvas.addEventListener('contextmenu', (e) => {
+  // Right-click opens sleek dark glass settings menu (both 2D & 3D canvases!)
+  const handleCanvasContextMenu = (e: MouseEvent) => {
     e.preventDefault();
     if (tailPickerOpen) {
       closeTailPicker();
     }
     if (settings.clickThroughLocked && !altOverride && !e.altKey) return;
     openContextMenu(e.clientX, e.clientY);
-  });
+  };
+  canvas.addEventListener('contextmenu', handleCanvasContextMenu);
+  canvas3d.addEventListener('contextmenu', handleCanvasContextMenu);
 
   // Side menu window auto-closes on its own focus loss; do NOT close on main blur (clicking the menu blurs main!)
   window.addEventListener('keydown', (e) => {
@@ -747,9 +941,33 @@ async function bootstrap(): Promise<void> {
 
   menuEl.addEventListener('click', (e) => {
     const target = (e.target as HTMLElement).closest<HTMLElement>(
-      '[data-action], [data-scale], [data-breed], [data-kblayout], [data-kborient], [data-tailmode]',
+      '[data-action], [data-scale], [data-breed], [data-rendermode], [data-collar], [data-headphonemode], [data-kblayout], [data-kborient], [data-tailmode]',
     );
     if (!target) return;
+
+    const headphoneAttr = target.dataset.headphonemode;
+    if (headphoneAttr === 'auto' || headphoneAttr === 'on' || headphoneAttr === 'off') {
+      void applySettingsPatch({ headphoneMode: headphoneAttr });
+      return;
+    }
+
+    const renderModeAttr = target.dataset.rendermode;
+    if (renderModeAttr === '2d' || renderModeAttr === '3d') {
+      void applySettingsPatch({ renderMode: renderModeAttr });
+      return;
+    }
+
+    const collarAttr = target.dataset.collar;
+    if (
+      collarAttr === 'none' ||
+      collarAttr === 'red' ||
+      collarAttr === 'blue' ||
+      collarAttr === 'pink' ||
+      collarAttr === 'green'
+    ) {
+      void applySettingsPatch({ collarColor: collarAttr });
+      return;
+    }
 
     const kbLayoutAttr = target.dataset.kblayout;
     if (kbLayoutAttr === '65' || kbLayoutAttr === '108') {
@@ -842,6 +1060,8 @@ async function bootstrap(): Promise<void> {
   try {
     const useWin7Ulw = await invoke<boolean>('is_win7_ulw_mode');
     if (useWin7Ulw) {
+      isWin7Ulw = true;
+      activateRenderEngine();
       document.documentElement.classList.add('win7-ulw-mode');
       const petCtx = canvas.getContext('2d');
       let win7Visible = true;

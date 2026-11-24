@@ -7,6 +7,7 @@
   </head>
   <body>
     <canvas id="pet-canvas"></canvas>
+    <canvas id="pet-canvas-3d" class="hidden"></canvas>
 
     <div id="update-toast" class="update-toast hidden" role="status" aria-live="polite">
       <span class="update-toast-text" id="update-toast-text">✨ 发现新版本</span>
@@ -36,6 +37,31 @@
           <button class="breed-pill active" data-breed="black">🐈‍⬛ 小黑猫</button>
           <button class="breed-pill" data-breed="ragdoll">🐱 布偶猫</button>
           <button class="breed-pill" data-breed="dafeiyu">🐳 大肥鱼</button>
+        </div>
+      </div>
+      <div class="menu-scale-row" id="render-mode-row">
+        <span class="menu-scale-label">视觉模式（可选 3D / 2D）</span>
+        <div class="kb-pills">
+          <button class="kb-pill active" data-rendermode="3d" type="button">✨ 3D 立体</button>
+          <button class="kb-pill" data-rendermode="2d" type="button">🎨 2D 经典</button>
+        </div>
+      </div>
+      <div class="menu-scale-row" id="collar-row">
+        <span class="menu-scale-label">3D 项圈铃铛</span>
+        <div class="collar-pills">
+          <button class="kb-pill active" data-collar="none" type="button">无</button>
+          <button class="kb-pill" data-collar="red" type="button">红</button>
+          <button class="kb-pill" data-collar="blue" type="button">蓝</button>
+          <button class="kb-pill" data-collar="pink" type="button">粉</button>
+          <button class="kb-pill" data-collar="green" type="button">绿</button>
+        </div>
+      </div>
+      <div class="menu-scale-row" id="headphone-row">
+        <span class="menu-scale-label">电竞耳机</span>
+        <div class="render-mode-pills">
+          <button class="kb-pill active" data-headphonemode="off" type="button">关闭</button>
+          <button class="kb-pill" data-headphonemode="auto" type="button">🎮 游戏自动</button>
+          <button class="kb-pill" data-headphonemode="on" type="button">🎧 常戴</button>
         </div>
       </div>
       <div class="menu-sep"></div>
@@ -132,7 +158,7 @@
       </button>
       <button class="menu-item" data-action="check-update" id="btn-check-update">
         <span>检查更新</span>
-        <span class="menu-hint" id="update-hint">v4.9.1</span>
+        <span class="menu-hint" id="update-hint">v5.0.0</span>
       </button>
       <button class="menu-item danger" data-action="quit">
         <span>退出 KuroCat</span>
