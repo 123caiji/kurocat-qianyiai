@@ -192,3 +192,4 @@ KuroCat is completely free and open-source under the MIT License. If this tiny d
 Released under the [MIT License](LICENSE).
 
 - The built-in **🐳 BigFish (whale-girl)** skin uses runtime sprite assets derived from the MIT-licensed project [PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet) (with reference to [QCYTSN/dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu)). See `src/assets/dafeiyu/LICENSE-MIT.txt` for full license details.
+- Special thanks to our community contributors: [@XYZliang](https://github.com/XYZliang), [@CandySunPlus](https://github.com/CandySunPlus) (#51), [@Jack-GPT](https://github.com/Jack-GPT) (#47, #64), [@Mangome](https://github.com/Mangome) (#67, #68), [@Zyred9](https://github.com/Zyred9) (#48), [@bj-wangxiaoxiao](https://github.com/bj-wangxiaoxiao) (#65), [@hacksmo](https://github.com/hacksmo) (#45), and [@LiMuhua](https://github.com/LiMuhua) (#75).

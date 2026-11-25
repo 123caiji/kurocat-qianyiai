@@ -192,3 +192,4 @@ KuroCat は MIT ライセンスのもとで完全無料・オープンソース�
 本プロジェクトは [MIT License](LICENSE) のもとで公開されています。
 
 - 標準スキン **🐳 クジラ娘（BigFish）** のランタイム素材は MIT ライセンスのオープンソースプロジェクト [PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet)（参考派生：[QCYTSN/dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu)）をもとに制作しています。詳細は `src/assets/dafeiyu/LICENSE-MIT.txt` をご覧ください。
+- コミュニティ貢献者の皆さまに心より感謝します：[@XYZliang](https://github.com/XYZliang)、[@CandySunPlus](https://github.com/CandySunPlus)（#51）、[@Jack-GPT](https://github.com/Jack-GPT)（#47, #64）、[@Mangome](https://github.com/Mangome)（#67, #68）、[@Zyred9](https://github.com/Zyred9)（#48）、[@bj-wangxiaoxiao](https://github.com/bj-wangxiaoxiao)（#65）、[@hacksmo](https://github.com/hacksmo)（#45）、[@LiMuhua](https://github.com/LiMuhua)（#75）。
