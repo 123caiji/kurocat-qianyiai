@@ -47,7 +47,7 @@
 
 ## 📥 ダウンロード（Windows / Win7 / macOS / Linux）
 
-[Releases](https://github.com/qianyiai/kurocat/releases) または以下の最新 **`v5.1.2`** パッケージから直接入手できます（**5 言語デスクトップ対応（簡中/繁中/EN/日本語/한국어＋システム自動）**、**メモリ大幅スリム化（メニュー終了 25 秒後自動破棄で約 50 MB 削減・3D→2D 切替 8 秒後 WebGL 自動解放・キーキャップアトラス 9 倍軽量化）**、**2D 描画高速化＋60/30 FPS 省電力切替**、**うたた寝起こし不機嫌モード＆なでなで機嫌直し**、**macOS 上書き更新時の権限自動リセット**に加え、**✨ 3D フィギュア / 🎨 2D クラシック切替**、**ゲーム自動ヘッドセット**、**MCP AI カスタム猫**、**OBS 透過ソース**、**パスワード保護** を搭載）：
+[Releases](https://github.com/qianyiai/kurocat/releases) または以下の最新 **`v5.1.2`** パッケージから直接入手できます（**🤖 AI コンパニオンリアルタイム連携（Doubao Work / WorkBuddy / DeepSeek Harness / Codex / Qwen / Antigravity / Claude Code 対応・作業中の自動タイピング＆承認待ち/エラー/完了アラート）**、**MCP 2D/3D 顔・耳シェイプ自由カスタム（10 ツール＋16 スポット）**、**2D/3D 切替＆WebGL 自動復旧**、**多重起動防止・Win11 更新ロック修正・macOS スリープ復帰/ドラッグ＆Linux スケール修正**に加え、**✨ 3D / 🎨 2D デュアルエンジン**、**5 言語 UI**、**OBS 透過ソース**、**パスワード保護** を搭載）：
 
 - **🪟 Windows 10 / 11（65% インストーラー版 · `v5.1.2`）**：[**`KuroCat-5.1.2-x64-setup.exe`**](https://github.com/qianyiai/kurocat/releases/download/v5.1.2/KuroCat-5.1.2-x64-setup.exe)（2.15 MB）｜[**高速ミラー**](https://qianyi.one/kurocat/?lang=ja#download)
   - 初期設定は 65% コンパクト配列。デスクトップアイコン・スタートメニューを自動作成し、右クリックやトレイから **108 フルサイズ（テンキー付）**・**🐳 クジラ娘**・**OBS 透過ソース**・**更新確認** へいつでも切替可能。

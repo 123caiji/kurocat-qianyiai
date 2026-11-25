@@ -48,7 +48,7 @@
 
 ## 📥 直接下载使用（Windows / Win7 / macOS / Linux）
 
-前往 [Releases](https://github.com/qianyiai/kurocat/releases) 页面或直接点击下方最新 **`v5.1.2`** 安装包下载（全新升级 **5 语言桌面多语言（简中/繁中/EN/日本語/한국어 + 跟随系统）**、**内存深度瘦身（关闭菜单 25s 自动销毁闲置进程立省 ~50 MB、3D 切 2D 8s 自动释放 WebGL、键帽贴图显存降 9 倍）**、**2D 彻底清除 44 处每帧高斯模糊大幅提速 + 60/30 FPS 省电档位**、**3D/2D 统一「睡着动鼠标/敲键触发起床气 + 摸头秒消气」**、**macOS 免费版覆盖升级权限自修复**，并完整保留 **✨ 3D 立体手办 / 🎨 2D 经典双引擎**、**3D 项圈铃铛与游戏自动电竞耳机**、**MCP AI 捏猫**、**OBS 透明直播源** 与 **密码防偷窥**）：
+前往 [Releases](https://github.com/qianyiai/kurocat/releases) 页面或直接点击下方最新 **`v5.1.2`** 安装包下载（全新升级 **🤖 AI 伴侣实时状态联动（豆包工作版 / WorkBuddy / DeepSeek Harness / Codex / 千问 / Antigravity / Claude Code 一键接入，写代码自动代打 + 待确认/出错/完工弹窗提醒）**、**MCP 2D/3D 脸型耳型自由雕塑（10 项工具 + 16 斑点）**、**2D/3D 切换 & WebGL 释放自愈 + 侧边菜单首次点击秒响应**、**跨平台单实例防多开 & Win11 更新锁文件修复 & macOS 唤醒/拖拽/Linux 缩放修复**，并完整保留 **✨ 3D 立体手办 / 🎨 2D 经典双引擎**、**5 语言多语言**、**OBS 透明直播源** 与 **密码防偷窥**）：
 
 - **🪟 Windows 10 / 11（65% 经典安装版 · `v5.1.2`）**：[**`KuroCat-5.1.2-x64-setup.exe`**](https://github.com/qianyiai/kurocat/releases/download/v5.1.2/KuroCat-5.1.2-x64-setup.exe)（2.15 MB）｜[**官网国内高速下载**](https://qianyi.one/kurocat/#download)
   - 默认 65% 紧凑机械键盘，自动创建桌面 **`KuroCat`** 图标、开始菜单与系统卸载入口；右键或托盘随时一键切换 **108 键全尺寸小键盘**、**🐳 大肥鱼（鲸鱼娘）**、**OBS 透明直播源** 与 App 内一键更新。

@@ -9,6 +9,7 @@ import {
   type TailKeyMode,
 } from './catEngine';
 import { catAudio } from './audio';
+import { AgentCompanionController, type AgentCompanionEvent } from './agentCompanion';
 import { DEFAULT_BUILTIN_CATS, type CatSkinConfig } from './catSkins';
 import {
   getKeyboardLayout,
@@ -180,6 +181,7 @@ const btnTailDoneEl = document.getElementById('btn-tail-done') as HTMLButtonElem
 const btnTailCancelEl = document.getElementById('btn-tail-cancel') as HTMLButtonElement;
 const tailModeBadgeEl = document.getElementById('tail-mode-badge') as HTMLSpanElement;
 const tailKeysCountEl = document.getElementById('tail-keys-count') as HTMLSpanElement;
+const agentBubbleEl = document.getElementById('agent-bubble') as HTMLDivElement | null;
 const engine = new KuroCatEngine(canvas);
 engine.onDeepSleep = () => {
   void invoke('trim_idle_memory').catch(() => {});
@@ -195,6 +197,13 @@ let isWin7Ulw = false;
 let active3d = false;
 let privacyActive = false;
 let gameActive = false;
+
+const agentCompanion = new AgentCompanionController({
+  bubbleEl: agentBubbleEl,
+  getTarget: () => (active3d && engine3d ? engine3d : engine),
+  is3DTarget: () => Boolean(active3d && engine3d),
+  allowSound: () => settings.soundEnabled !== false,
+});
 
 window.addEventListener('resize', () => engine3d?.resize());
 
@@ -785,6 +794,35 @@ async function copyMcpConfig(): Promise<void> {
   }
 }
 
+async function copyAgentHooksConfig(): Promise<void> {
+  const hint = document.getElementById('hooks-copy-hint');
+  try {
+    const jsonText = await invoke<string>('get_agent_hooks_config');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(jsonText);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = jsonText;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    if (hint) {
+      hint.textContent = t('menu.copied_hint');
+      hint.classList.add('copied');
+      setTimeout(() => {
+        hint.textContent = t('menu.hooks_hint');
+        hint.classList.remove('copied');
+      }, 1800);
+    }
+  } catch (err) {
+    console.error('Failed to copy Agent hooks config:', err);
+  }
+}
+
 async function createDesktopShortcut(): Promise<void> {
   const hint = document.getElementById('shortcut-hint');
   try {
@@ -1161,6 +1199,7 @@ async function bootstrap(): Promise<void> {
     const p = ev.payload;
     switch (p.kind) {
       case 'keyDown':
+        agentCompanion.notifyRealUserInput();
         if (tailPickerOpen) {
           if (!p.repeat) {
             const spec = resolveKeyByVk(p.vk, settings.keyboardLayout);
@@ -1184,6 +1223,7 @@ async function bootstrap(): Promise<void> {
         else engine.onGlobalMouseMove(p.nx, p.ny);
         break;
       case 'mouseDown':
+        agentCompanion.notifyRealUserInput();
         if (active3d && engine3d) engine3d.onMouseDown(p.button);
         else engine.onMouseDown(p.button);
         break;
@@ -1206,6 +1246,11 @@ async function bootstrap(): Promise<void> {
     privacyActive = Boolean(ev.payload);
     engine.setPrivacyMode(privacyActive);
     engine3d?.setPrivacyMode(privacyActive);
+    agentCompanion.setPrivacyMode(privacyActive);
+  });
+
+  await listen<AgentCompanionEvent>('kuro-agent-event', (ev) => {
+    agentCompanion.handleEvent(ev.payload);
   });
 
   try {
@@ -1428,6 +1473,9 @@ async function bootstrap(): Promise<void> {
         break;
       case 'copy-mcp':
         void copyMcpConfig();
+        break;
+      case 'copy-hooks':
+        void copyAgentHooksConfig();
         break;
       case 'desktop-shortcut':
         void createDesktopShortcut();

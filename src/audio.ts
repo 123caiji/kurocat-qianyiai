@@ -209,6 +209,55 @@ class CatAudio {
     const timeConst = target > 0.01 ? 0.14 : 0.22;
     this.masterGain.gain.setTargetAtTime(targetGain, now, timeConst);
   }
+
+  /**
+   * Soft, cozy synthesized notification chime for AI Companion events (done / waiting / error).
+   * Respects the global sound toggle and leaves zero persistent audio nodes behind.
+   */
+  public playAgentNotice(kind: 'done' | 'waiting' | 'error'): void {
+    if (!this.enabled) return;
+    if (!this.ensurePurrGraph() || !this.ctx) return;
+    const ctx = this.ctx;
+    if (ctx.state === 'suspended') {
+      void ctx.resume().catch(() => {});
+    }
+
+    const notes: Array<{ freq: number; delay: number; dur: number; gain: number }> =
+      kind === 'done'
+        ? [
+            { freq: 587.33, delay: 0.0, dur: 0.16, gain: 0.085 },
+            { freq: 880.0, delay: 0.095, dur: 0.24, gain: 0.095 },
+          ]
+        : kind === 'waiting'
+          ? [{ freq: 659.25, delay: 0.0, dur: 0.22, gain: 0.075 }]
+          : [
+              { freq: 311.13, delay: 0.0, dur: 0.14, gain: 0.075 },
+              { freq: 246.94, delay: 0.11, dur: 0.20, gain: 0.075 },
+            ];
+
+    const t0 = ctx.currentTime + 0.01;
+    for (const n of notes) {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = kind === 'error' ? 'triangle' : 'sine';
+      osc.frequency.setValueAtTime(n.freq, t0 + n.delay);
+      g.gain.setValueAtTime(0.0001, t0 + n.delay);
+      g.gain.linearRampToValueAtTime(n.gain, t0 + n.delay + 0.018);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + n.delay + n.dur);
+      osc.connect(g);
+      g.connect(ctx.destination);
+      osc.start(t0 + n.delay);
+      osc.stop(t0 + n.delay + n.dur + 0.02);
+      osc.onended = () => {
+        try {
+          osc.disconnect();
+          g.disconnect();
+        } catch {
+          // ignore
+        }
+      };
+    }
+  }
 }
 
 export const catAudio = new CatAudio();

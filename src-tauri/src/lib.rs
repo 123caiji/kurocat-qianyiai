@@ -254,6 +254,10 @@ pub fn run_mcp_stdio() {
     mcp::run_stdio_mcp();
 }
 
+pub fn run_hook_cli(args: &[String]) {
+    mcp::run_hook_cli(args);
+}
+
 pub struct AppState {
     pub settings: Arc<Mutex<AppSettings>>,
     pub menu_open: Arc<AtomicBool>,
@@ -367,21 +371,160 @@ fn get_game_active() -> bool {
 }
 
 #[tauri::command]
-fn get_mcp_config(state: State<'_, AppState>) -> String {
-    let port = state.settings.lock().unwrap().mcp_port;
+fn get_mcp_config() -> String {
     let exe = std::env::current_exe()
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| "KuroCat.exe".to_string());
+    // Pure, conflict-free Stdio MCP config (compatible with Antigravity, Claude Desktop/Code,
+    // Cursor, Codex, WorkBuddy, Windsurf, Trae; HTTP Streamable endpoint is also live on /mcp).
     serde_json::to_string_pretty(&serde_json::json!({
         "mcpServers": {
             "kurocat": {
                 "command": exe,
-                "args": ["--mcp"],
-                "url": format!("http://127.0.0.1:{}/mcp", port)
+                "args": ["--mcp"]
             }
         }
     }))
     .unwrap_or_default()
+}
+
+#[tauri::command]
+fn get_agent_hooks_config(state: State<'_, AppState>) -> String {
+    let (port, lang) = {
+        let s = state.settings.lock().unwrap();
+        (if s.mcp_port == 0 { 27420 } else { s.mcp_port }, s.language.clone())
+    };
+    let exe = std::env::current_exe()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| "KuroCat.exe".to_string());
+    let exe_json = serde_json::to_string(&exe).unwrap_or_else(|_| "\"KuroCat.exe\"".to_string());
+    let agy_cmd = format!("\"{}\" --hook --source Antigravity", exe);
+    let claude_cmd = format!("\"{}\" --hook --source Claude", exe);
+    let wb_cmd = format!("\"{}\" --hook --source WorkBuddy", exe);
+    let codex_cmd = format!("\"{}\" --hook --source Codex", exe);
+    let dsh_cmd = format!("\"{}\" --hook --source DeepSeek", exe);
+    let qwen_cmd = format!("\"{}\" --hook --source Qwen", exe);
+
+    let config_json = serde_json::to_string_pretty(&serde_json::json!({
+        "mcpServers": {
+            "kurocat": {
+                "command": exe,
+                "args": ["--mcp"]
+            }
+        },
+        "http_streamable_mcp_url": format!("http://127.0.0.1:{}/mcp", port),
+        "http_hook_url": format!("http://127.0.0.1:{}/hook", port),
+        "doubao_work_setup": {
+            "mode": "direct_http_and_memory (no local hooks.json needed)",
+            "hook_endpoint": format!("http://127.0.0.1:{}/hook", port),
+            "mcp_endpoint": format!("http://127.0.0.1:{}/mcp", port),
+            "optional_native_mcp_connector": {
+                "streamable_http_url": format!("http://127.0.0.1:{}/mcp", port),
+                "stdio": {
+                    "command": exe,
+                    "args": ["--mcp"]
+                }
+            },
+            "memory_rule": format!(
+                "将以下规则保存为跨会话长期偏好（不要在用户目录创建临时脚本文件）：每次开始处理实质任务前，向 http://127.0.0.1:{}/hook 发送 UTF-8 JSON {{\"status\":\"working\",\"source\":\"豆包工作版\",\"text\":\"处理任务中…\"}}；需用户确认发 status:\"waiting\"；报错发 status:\"error\"；完成后发 status:\"done\",\"text\":\"任务完成！\"。",
+                port
+            )
+        },
+        "workbuddy_hooks": {
+            "hooks": {
+                "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": wb_cmd, "timeout": 3 }] }],
+                "PreToolUse": [{ "matcher": "*", "hooks": [{ "type": "command", "command": wb_cmd, "timeout": 3 }] }],
+                "PostToolUseFailure": [{ "matcher": "*", "hooks": [{ "type": "command", "command": wb_cmd, "timeout": 3 }] }],
+                "PermissionRequest": [{ "hooks": [{ "type": "command", "command": wb_cmd, "timeout": 3 }] }],
+                "Stop": [{ "hooks": [{ "type": "command", "command": wb_cmd, "timeout": 3 }] }]
+            }
+        },
+        "deepseek_harness_hooks": {
+            "hooks": {
+                "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": dsh_cmd, "timeout": 3 }] }],
+                "PreToolUse": [{ "matcher": "*", "hooks": [{ "type": "command", "command": dsh_cmd, "timeout": 3 }] }],
+                "PostToolUseFailure": [{ "matcher": "*", "hooks": [{ "type": "command", "command": dsh_cmd, "timeout": 3 }] }],
+                "PermissionRequest": [{ "hooks": [{ "type": "command", "command": dsh_cmd, "timeout": 3 }] }],
+                "Stop": [{ "hooks": [{ "type": "command", "command": dsh_cmd, "timeout": 3 }] }]
+            }
+        },
+        "codex_hooks_json": {
+            "hooks": {
+                "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": codex_cmd, "timeout": 3 }] }],
+                "PreToolUse": [{ "matcher": "*", "hooks": [{ "type": "command", "command": codex_cmd, "timeout": 3 }] }],
+                "PermissionRequest": [{ "hooks": [{ "type": "command", "command": codex_cmd, "timeout": 3 }] }],
+                "Stop": [{ "hooks": [{ "type": "command", "command": codex_cmd, "timeout": 3 }] }]
+            }
+        },
+        "codex_config_toml": format!(
+            "notify = [{}, \"--hook\", \"--source\", \"Codex\"]\n\n[mcp_servers.kurocat]\ncommand = {}\nargs = [\"--mcp\"]",
+            exe_json, exe_json
+        ),
+        "qwen_code_hooks": {
+            "hooks": {
+                "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": qwen_cmd, "timeout": 3 }] }],
+                "PreToolUse": [{ "matcher": "*", "hooks": [{ "type": "command", "command": qwen_cmd, "timeout": 3 }] }],
+                "PostToolUseFailure": [{ "matcher": "*", "hooks": [{ "type": "command", "command": qwen_cmd, "timeout": 3 }] }],
+                "PermissionRequest": [{ "hooks": [{ "type": "command", "command": qwen_cmd, "timeout": 3 }] }],
+                "Stop": [{ "hooks": [{ "type": "command", "command": qwen_cmd, "timeout": 3 }] }]
+            }
+        },
+        "antigravity_hooks_json": {
+            "kurocat-companion": {
+                "SessionStart": [{ "type": "command", "command": agy_cmd, "timeout": 3 }],
+                "PreInvocation": [{ "type": "command", "command": agy_cmd, "timeout": 3 }],
+                "PostToolUse": [{ "matcher": "*", "hooks": [{ "type": "command", "command": agy_cmd, "timeout": 3 }] }],
+                "Stop": [{ "type": "command", "command": agy_cmd, "timeout": 3 }]
+            }
+        },
+        "claude_code_hooks": {
+            "hooks": {
+                "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": claude_cmd, "timeout": 3 }] }],
+                "PreToolUse": [{ "matcher": "*", "hooks": [{ "type": "command", "command": claude_cmd, "timeout": 3 }] }],
+                "PostToolUseFailure": [{ "matcher": "*", "hooks": [{ "type": "command", "command": claude_cmd, "timeout": 3 }] }],
+                "PermissionRequest": [{ "hooks": [{ "type": "command", "command": claude_cmd, "timeout": 3 }] }],
+                "Stop": [{ "hooks": [{ "type": "command", "command": claude_cmd, "timeout": 3 }] }]
+            }
+        }
+    }))
+    .unwrap_or_default();
+
+    let resolved = crate::i18n::effective_locale(&lang);
+    if resolved == "zh-CN" || resolved == "zh-TW" {
+        format!(
+            "请帮我把桌面宠物 KuroCat 的**任务状态联动**接入你当前运行的客户端（请自动判断你是 豆包工作版 / WorkBuddy / DeepSeek Harness / Codex / 千问 / Antigravity / Claude Code / Cursor 等，目标是干活时桌宠自动敲键盘，待确认/出错/任务完成时气泡提醒）：\n\
+            1. **情况 A — 无本地 hooks 配置文件的桌面端 Agent（如豆包工作版）**：\n\
+               - **不要修改别的客户端配置，也不要在项目/桌面目录创建临时 `.ps1` 或 `.json` 脚本文件**；\n\
+               - 请直接把下方 `doubao_work_setup.memory_rule` **保存为你的跨会话长期偏好/记忆**，统一通过 UTF-8 JSON 调用本地 `POST http://127.0.0.1:{}/hook` 同步 `working / waiting / error / done`（避免 Windows 命令行中文乱码）。\n\
+            2. **情况 B — 支持本地配置文件的 Agent（合并写入，完整保留我原有的其他配置，绝不覆盖删除已有项）**：\n\
+               - 腾讯 WorkBuddy / CodeBuddy：合并 `mcpServers.kurocat` + `workbuddy_hooks`\n\
+               - DeepSeek Harness (`dsh`)：合并 `mcpServers.kurocat` + `deepseek_harness_hooks`\n\
+               - OpenAI Codex CLI：`~/.codex/config.toml`（`[mcp_servers.kurocat]` 与 `notify`）+ `~/.codex/hooks.json`\n\
+               - 千问 Qwen Code：`~/.qwen/settings.json` 合并 `mcpServers.kurocat` + `qwen_code_hooks`\n\
+               - Antigravity（反重力）：`~/.gemini/config/mcp_config.json` + `~/.gemini/config/hooks.json`\n\
+               - Claude Code / Cursor / Windsurf / Trae：合并 `mcpServers.kurocat` + `claude_code_hooks`（也支持 Streamable HTTP `http://127.0.0.1:{}/mcp`）\n\
+            3. **立刻验收**：请通过 UTF-8 JSON 向 `POST http://127.0.0.1:{}/hook` 发送 `{{\"status\":\"done\",\"source\":\"<你的名字>\",\"text\":\"AI 伴侣配置成功！\"}}` 让我看到小猫冒泡。配置并验收完成后简短回复结果即可，无需额外推荐其他功能。\n\n\
+            ```json\n{}\n```",
+            port, port, port, config_json
+        )
+    } else {
+        format!(
+            "Please configure **live task-status sync** for the KuroCat desktop pet on your current client (auto-detect whether you are Doubao Work, WorkBuddy, DeepSeek Harness, OpenAI Codex CLI, Qwen Code, Antigravity, Claude Code, Cursor, etc., so the pet auto-types while working and alerts on waiting/error/done):\n\
+            1. **Case A — Desktop Agents without local hooks config files (e.g. Doubao Work)**:\n\
+               - **Do NOT touch other clients' config files and do NOT create temporary `.ps1`/`.json` scripts in my workspace**;\n\
+               - Save `doubao_work_setup.memory_rule` into your **long-term memory / preferences** so future chats automatically POST UTF-8 JSON to `http://127.0.0.1:{}/hook` (`working` / `waiting` / `error` / `done`).\n\
+            2. **Case B — Clients with local config files (MERGE cleanly without overwriting existing entries)**:\n\
+               - WorkBuddy / CodeBuddy: merge `mcpServers.kurocat` + `workbuddy_hooks`\n\
+               - DeepSeek Harness (`dsh`): merge `mcpServers.kurocat` + `deepseek_harness_hooks`\n\
+               - OpenAI Codex CLI: `~/.codex/config.toml` (`[mcp_servers.kurocat]` + `notify`) + `~/.codex/hooks.json`\n\
+               - Qwen Code: `~/.qwen/settings.json` (`mcpServers.kurocat` + `qwen_code_hooks`)\n\
+               - Antigravity: `~/.gemini/config/mcp_config.json` + `~/.gemini/config/hooks.json`\n\
+               - Claude Code / Cursor / Windsurf / Trae: merge `mcpServers.kurocat` + `claude_code_hooks` (or Streamable HTTP `http://127.0.0.1:{}/mcp`)\n\
+            3. **Live verification**: POST UTF-8 JSON `{{\"status\":\"done\",\"source\":\"<your-name>\",\"text\":\"KuroCat AI Companion connected!\"}}` to `http://127.0.0.1:{}/hook`, then reply briefly with the result without suggesting extra features.\n\n\
+            ```json\n{}\n```",
+            port, port, port, config_json
+        )
+    }
 }
 
 #[tauri::command]
@@ -1050,12 +1193,15 @@ pub fn reload_and_emit_all(app: &AppHandle) {
     let cats = all_cats();
     let state = app.state::<AppState>();
 
-    let (disk_settings, size_changed, top_changed, display_changed) = {
+    let (disk_settings, size_changed, top_changed, display_changed, obs_hide_changed, lang_changed) = {
         let mut s = state.settings.lock().unwrap();
         let disk_settings = load_settings();
         let sc = (s.scale - disk_settings.scale).abs() > 0.01
             || s.keyboard_layout != disk_settings.keyboard_layout;
         let tc = s.always_on_top != disk_settings.always_on_top;
+        let ohc = (s.obs_enabled && s.obs_hide_pet)
+            != (disk_settings.obs_enabled && disk_settings.obs_hide_pet);
+        let lc = s.language != disk_settings.language;
         #[cfg(target_os = "macos")]
         let display_changed = s.display_id != disk_settings.display_id;
         #[cfg(windows)]
@@ -1063,11 +1209,19 @@ pub fn reload_and_emit_all(app: &AppHandle) {
         #[cfg(all(not(windows), not(target_os = "macos")))]
         let display_changed = false;
         *s = disk_settings.clone();
-        (disk_settings, sc, tc, display_changed)
+        (disk_settings, sc, tc, display_changed, ohc, lc)
     };
     state
         .mcp_enabled
         .store(disk_settings.mcp_enabled, Ordering::Relaxed);
+    obs::sync_obs_server(app, disk_settings.obs_enabled, disk_settings.obs_port);
+    if obs_hide_changed && !state.paused_guard.load(Ordering::Relaxed) {
+        set_pet_visible(app, !(disk_settings.obs_enabled && disk_settings.obs_hide_pet));
+    }
+    tray::sync_checkmarks(&disk_settings);
+    if lang_changed {
+        tray::refresh_tray_language(app);
+    }
 
     if top_changed {
         set_pet_always_on_top(app, disk_settings.always_on_top);
@@ -2757,10 +2911,21 @@ pub fn run() {
             updater::start_background_update_checker(handle.clone());
 
             let http_handle = handle.clone();
+            let agent_handle = handle.clone();
             let mcp_port = if s.mcp_port == 0 { 27420 } else { s.mcp_port };
-            mcp::start_http_mcp_server(mcp_port, mcp_for_setup, move || {
-                reload_and_emit_all(&http_handle);
-            });
+            mcp::start_http_mcp_server(
+                mcp_port,
+                mcp_for_setup,
+                move || {
+                    reload_and_emit_all(&http_handle);
+                },
+                move |ev| {
+                    let _ = agent_handle.emit("kuro-agent-event", &ev);
+                    if let Ok(raw) = serde_json::to_string(&ev) {
+                        obs::broadcast_raw("agentEvent", &raw);
+                    }
+                },
+            );
 
             // Forward settings / cats / privacy broadcasts to OBS SSE clients (1ns no-op when OBS is off)
             handle.listen("kuro-settings", |ev| {
@@ -2826,6 +2991,7 @@ pub fn run() {
             get_cats,
             get_game_active,
             get_mcp_config,
+            get_agent_hooks_config,
             get_obs_url,
             get_app_version,
             update_settings,

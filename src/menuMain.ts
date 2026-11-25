@@ -218,7 +218,11 @@ function syncUI(): void {
   }
   const mcpHint = document.getElementById('mcp-copy-hint');
   if (mcpHint && !mcpHint.classList.contains('copied')) {
-    mcpHint.textContent = t('menu.mcp_hint');
+    mcpHint.textContent = t('menu.copy_mcp');
+  }
+  const hooksHint = document.getElementById('hooks-copy-hint');
+  if (hooksHint && !hooksHint.classList.contains('copied')) {
+    hooksHint.textContent = t('menu.copy_hooks');
   }
 
   if (!sliderDragging) {
@@ -348,12 +352,30 @@ async function copyMcpConfig(): Promise<void> {
       hint.textContent = t('menu.copied_hint');
       hint.classList.add('copied');
       setTimeout(() => {
-        hint.textContent = t('menu.mcp_hint');
+        hint.textContent = t('menu.copy_mcp');
         hint.classList.remove('copied');
       }, 1800);
     }
   } catch (err) {
     console.error('Failed to copy MCP config:', err);
+  }
+}
+
+async function copyAgentHooksConfig(): Promise<void> {
+  const hint = document.getElementById('hooks-copy-hint');
+  try {
+    const jsonText = await invoke<string>('get_agent_hooks_config');
+    await copyText(jsonText);
+    if (hint) {
+      hint.textContent = t('menu.copied_hint');
+      hint.classList.add('copied');
+      setTimeout(() => {
+        hint.textContent = t('menu.copy_hooks');
+        hint.classList.remove('copied');
+      }, 1800);
+    }
+  } catch (err) {
+    console.error('Failed to copy Agent hooks config:', err);
   }
 }
 
@@ -583,6 +605,9 @@ async function bootstrap(): Promise<void> {
           break;
         case 'copy-mcp':
           void copyMcpConfig();
+          break;
+        case 'copy-hooks':
+          void copyAgentHooksConfig();
           break;
         case 'open-tail-picker':
           void invoke('open_tail_picker_from_menu');
