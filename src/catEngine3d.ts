@@ -84,7 +84,17 @@ interface SimpleLimb3D {
   update(point: (t: number, out: THREE.Vector3) => void, radius: (t: number) => number): void;
 }
 
-const CAP_GEO = new THREE.SphereGeometry(1, 10, 8);
+/**
+ * Limb end caps are plain spheres, so they carry no `along` attribute and the fur shader reads
+ * them as along=0 (limb root). Bake the correct value per instance so tail/arm tips keep their
+ * tip colour while still allowing clean per-instance GPU disposal.
+ */
+function createCapGeometry(along: number): THREE.SphereGeometry {
+  const geo = new THREE.SphereGeometry(1, 10, 8);
+  const count = geo.attributes.position.count;
+  geo.setAttribute('along', new THREE.BufferAttribute(new Float32Array(count).fill(along), 1));
+  return geo;
+}
 
 function createCleanLimb(
   parent: THREE.Object3D,
@@ -92,6 +102,8 @@ function createCleanLimb(
     segments: number;
     radial: number;
     fill: THREE.Material;
+    capGeoStart: THREE.BufferGeometry;
+    capGeoEnd: THREE.BufferGeometry;
     order?: number;
     capStart?: boolean;
     capEnd?: boolean;
@@ -106,7 +118,7 @@ function createCleanLimb(
   if (opts.capStart !== false) capTs.push(0);
   if (opts.capEnd !== false) capTs.push(1);
   for (let i = 0; i < capTs.length; i++) {
-    const cap = new THREE.Mesh(CAP_GEO, opts.fill);
+    const cap = new THREE.Mesh(capTs[i] >= 1 ? opts.capGeoEnd : opts.capGeoStart, opts.fill);
     cap.renderOrder = order;
     parent.add(cap);
     caps.push(cap);
@@ -529,7 +541,10 @@ export class KuroCatEngine3D {
 
   private readonly catRoot = new THREE.Group();
   private readonly homePos = new THREE.Vector3(0.02, 0, -0.02);
+  private readonly capGeoStart = createCapGeometry(0);
+  private readonly capGeoEnd = createCapGeometry(1);
   private readonly bodyGeo: THREE.LatheGeometry;
+  private disposed = false;
   private readonly bodyMesh: THREE.Mesh;
   private readonly outlineSamplePts: THREE.Vector3[];
 
@@ -881,6 +896,8 @@ export class KuroCatEngine3D {
       segments: 38,
       radial: 8,
       fill: this.collarMat,
+      capGeoStart: this.capGeoStart,
+      capGeoEnd: this.capGeoEnd,
       order: 2,
     });
     band.update(
@@ -1077,6 +1094,8 @@ export class KuroCatEngine3D {
       segments: 22,
       radial: 10,
       fill: this.furSystem.createMaterial('TAIL'),
+      capGeoStart: this.capGeoStart,
+      capGeoEnd: this.capGeoEnd,
       capStart: false,
     });
 
@@ -1094,6 +1113,8 @@ export class KuroCatEngine3D {
         segments: 16,
         radial: 10,
         fill: this.furSystem.createMaterial('ARM', s),
+        capGeoStart: this.capGeoStart,
+        capGeoEnd: this.capGeoEnd,
         order: 18,
       });
       const paw = new THREE.Mesh(pawGeo, this.pawMat);
@@ -1456,7 +1477,7 @@ export class KuroCatEngine3D {
   }
 
   public start(): void {
-    if (this.rafId !== null || this.idleTimer !== null) return;
+    if (this.disposed || this.rafId !== null || this.idleTimer !== null) return;
     this.lastFrameMs = performance.now();
     this.directRafPrevMs = 0;
     this.isIdlePacing = false;
@@ -1483,7 +1504,18 @@ export class KuroCatEngine3D {
     this.fpsCap = cap === 30 ? 30 : cap === 60 ? 60 : 0;
   }
 
+  public isContextLost(): boolean {
+    if (this.disposed) return true;
+    try {
+      return this.renderer.getContext().isContextLost();
+    } catch {
+      return true;
+    }
+  }
+
   public dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
     this.stop();
     this.desk.dispose();
     this.scene.traverse((obj) => {
@@ -1502,6 +1534,8 @@ export class KuroCatEngine3D {
         mat.dispose();
       }
     });
+    this.capGeoStart.dispose();
+    this.capGeoEnd.dispose();
     disposeSpriteTexCache();
     this.renderer.dispose();
     try {
@@ -1512,6 +1546,7 @@ export class KuroCatEngine3D {
   }
 
   private readonly renderFrame = (nowMs: number): void => {
+    if (this.disposed) return;
     const frameId = this.rafId;
     const workStart = performance.now();
 

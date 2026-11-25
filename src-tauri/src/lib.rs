@@ -247,6 +247,7 @@ pub fn shutdown_pet_windows() {
     if win_needs_win7_ulw() {
         win7_layered::shutdown();
     }
+    release_single_instance_lock();
 }
 
 pub fn run_mcp_stdio() {
@@ -1595,13 +1596,14 @@ pub fn win_restart_as_admin(app: AppHandle) {
         };
         if result > 32 {
             crate::input_hook::set_hooks_paused(true);
+            release_single_instance_lock();
             app.exit(0);
         }
     });
 }
 
 #[cfg(windows)]
-fn win_wait_for_previous_pid_if_requested() {
+fn win_wait_for_previous_pid_if_requested() -> bool {
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::System::Threading::{OpenProcess, WaitForSingleObject};
 
@@ -1620,6 +1622,7 @@ fn win_wait_for_previous_pid_if_requested() {
         }
     }
 
+    let waited = wait_pid.is_some();
     if let Some(pid) = wait_pid {
         if pid != 0 && pid != std::process::id() {
             unsafe {
@@ -1642,6 +1645,16 @@ fn win_wait_for_previous_pid_if_requested() {
             std::thread::sleep(Duration::from_millis(200));
         }
     }
+
+    // Opportunistically remove any leftover `.exe.old` renamed aside by NSIS_HOOK_PREINSTALL (#73).
+    if let Ok(exe) = std::env::current_exe() {
+        let stale_old = exe.with_extension("exe.old");
+        if stale_old.exists() {
+            let _ = std::fs::remove_file(&stale_old);
+        }
+    }
+
+    waited
 }
 
 fn is_over_interactive_silhouette(rx: f64, ry: f64, is_108: bool) -> (bool, bool) {
@@ -2295,6 +2308,252 @@ fn win_configure_local_webview2_runtime() {
     }
 }
 
+/// Keeps the kill-on-close job object handle alive for the whole process lifetime.
+/// The handle must never be closed: closing it is what triggers the kill, so it is the
+/// job's only owner and dies with us (the kernel closes it on exit, which is the point).
+#[cfg(windows)]
+static WINDOWS_JOB_HANDLE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+#[cfg(windows)]
+pub(crate) fn win_has_kill_on_close_job() -> bool {
+    WINDOWS_JOB_HANDLE.load(Ordering::Relaxed) != 0
+}
+
+#[cfg(windows)]
+const WIN_JOB_LIMIT_FLAGS: u32 = {
+    use windows_sys::Win32::System::JobObjects::{
+        JOB_OBJECT_LIMIT_BREAKAWAY_OK, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    };
+    JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_BREAKAWAY_OK
+};
+
+/// WebView2 spawns its `msedgewebview2.exe` browser/GPU/renderer helpers as ordinary
+/// child processes. When KuroCat dies hard (crash or Task Manager "End task"), nothing
+/// gets to run our exit code and the whole helper tree can survive as orphans.
+///
+/// Assigning ourselves to a `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` Job Object before Tauri
+/// starts moves cleanup into the kernel (matching Electron/Chromium). We also set
+/// `JOB_OBJECT_LIMIT_BREAKAWAY_OK` so self-update installers and restarted binaries spawned
+/// by `updater.rs` with `CREATE_BREAKAWAY_FROM_JOB` survive `app.exit(0)`.
+#[cfg(windows)]
+fn win_kill_webview2_children_on_exit() {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+    };
+    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+
+    unsafe {
+        let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+        if job.is_null() {
+            return;
+        }
+        let mut limits: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+        limits.BasicLimitInformation.LimitFlags = WIN_JOB_LIMIT_FLAGS;
+        let configured = SetInformationJobObject(
+            job,
+            JobObjectExtendedLimitInformation,
+            &limits as *const _ as *const core::ffi::c_void,
+            std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+        );
+        if configured == 0 || AssignProcessToJobObject(job, GetCurrentProcess()) == 0 {
+            // Best effort only: Windows 7 cannot nest job objects, so being launched from
+            // a process that already owns a job (some terminals / installers) makes the
+            // assignment fail. Leave the old behaviour untouched in that case.
+            let _ = CloseHandle(job);
+            return;
+        }
+        // Deliberately never closed: the handle must outlive everything else, because
+        // closing it is precisely what fires the kill.
+        WINDOWS_JOB_HANDLE.store(job as usize, Ordering::Relaxed);
+    }
+}
+
+/// Process-lifetime single-instance guard (Fixes #74 duplicate tray icons/processes).
+/// Note: `--mcp` stdio mode exits in `main.rs` before `run()`, so AI MCP clients are never blocked.
+#[cfg(windows)]
+static WINDOWS_SINGLE_INSTANCE_MUTEX: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+
+#[cfg(windows)]
+const WIN_SINGLE_INSTANCE_MUTEX_NAME: &str = "Local\\KuroCat.SingleInstance.Mutex";
+#[cfg(windows)]
+const WIN_SINGLE_INSTANCE_WAKE_EVENT: &str = "Local\\KuroCat.ShowExisting.Event";
+
+#[cfg(windows)]
+fn win_try_acquire_named_mutex(name: &str) -> Result<usize, bool> {
+    use windows_sys::Win32::Foundation::{
+        CloseHandle, GetLastError, ERROR_ACCESS_DENIED, ERROR_ALREADY_EXISTS,
+    };
+    use windows_sys::Win32::System::Threading::CreateMutexW;
+
+    let wide: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
+    unsafe {
+        let handle = CreateMutexW(std::ptr::null(), 0, wide.as_ptr());
+        let err = GetLastError();
+        if handle.is_null() {
+            if err == ERROR_ACCESS_DENIED {
+                // Another (e.g. elevated admin) instance owns the mutex in this session.
+                return Err(true);
+            }
+            // Unexpected OS error: fail open so we never prevent startup.
+            return Err(false);
+        }
+        if err == ERROR_ALREADY_EXISTS {
+            let _ = CloseHandle(handle);
+            return Err(true);
+        }
+        Ok(handle as usize)
+    }
+}
+
+#[cfg(windows)]
+fn win_signal_existing_instance() {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{OpenEventW, SetEvent};
+
+    const EVENT_MODIFY_STATE: u32 = 0x0002;
+    let wide: Vec<u16> = WIN_SINGLE_INSTANCE_WAKE_EVENT
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+    unsafe {
+        let ev = OpenEventW(EVENT_MODIFY_STATE, 0, wide.as_ptr());
+        if !ev.is_null() {
+            let _ = SetEvent(ev);
+            let _ = CloseHandle(ev);
+        }
+    }
+}
+
+#[cfg(windows)]
+fn win_start_single_instance_wake_listener(app: AppHandle) {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{CreateEventW, WaitForSingleObject};
+
+    const INFINITE: u32 = 0xFFFF_FFFF;
+    const WAIT_OBJECT_0: u32 = 0;
+
+    std::thread::spawn(move || {
+        let wide: Vec<u16> = WIN_SINGLE_INSTANCE_WAKE_EVENT
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect();
+        let ev = unsafe { CreateEventW(std::ptr::null(), 0, 0, wide.as_ptr()) };
+        if ev.is_null() {
+            return;
+        }
+        loop {
+            let wait_res = unsafe { WaitForSingleObject(ev, INFINITE) };
+            if wait_res != WAIT_OBJECT_0 {
+                break;
+            }
+            let handle = app.clone();
+            let _ = app.run_on_main_thread(move || {
+                set_pet_visible(&handle, true);
+            });
+        }
+        unsafe {
+            let _ = CloseHandle(ev);
+        }
+    });
+}
+
+#[cfg(unix)]
+fn unix_single_instance_slot() -> &'static Mutex<Option<std::fs::File>> {
+    use std::sync::OnceLock;
+    static SLOT: OnceLock<Mutex<Option<std::fs::File>>> = OnceLock::new();
+    SLOT.get_or_init(|| Mutex::new(None))
+}
+
+fn acquire_single_instance_lock(wait_briefly: bool) -> bool {
+    #[cfg(windows)]
+    {
+        let attempts = if wait_briefly { 25 } else { 1 };
+        for i in 0..attempts {
+            match win_try_acquire_named_mutex(WIN_SINGLE_INSTANCE_MUTEX_NAME) {
+                Ok(handle) => {
+                    WINDOWS_SINGLE_INSTANCE_MUTEX.store(handle, Ordering::Relaxed);
+                    return true;
+                }
+                Err(true) => {
+                    if i + 1 < attempts {
+                        std::thread::sleep(Duration::from_millis(100));
+                        continue;
+                    }
+                    win_signal_existing_instance();
+                    return false;
+                }
+                Err(false) => return true,
+            }
+        }
+        win_signal_existing_instance();
+        false
+    }
+    #[cfg(unix)]
+    {
+        use std::fs::OpenOptions;
+        use std::os::unix::io::AsRawFd;
+
+        extern "C" {
+            fn flock(fd: i32, operation: i32) -> i32;
+        }
+        const LOCK_EX: i32 = 2;
+        const LOCK_NB: i32 = 4;
+
+        let dir = config::app_data_dir();
+        let _ = std::fs::create_dir_all(&dir);
+        let lock_path = dir.join("kurocat.lock");
+        let attempts = if wait_briefly { 25 } else { 1 };
+        for i in 0..attempts {
+            let Ok(file) = OpenOptions::new()
+                .create(true)
+                .read(true)
+                .write(true)
+                .open(&lock_path)
+            else {
+                return true;
+            };
+            let rc = unsafe { flock(file.as_raw_fd(), LOCK_EX | LOCK_NB) };
+            if rc == 0 {
+                if let Ok(mut guard) = unix_single_instance_slot().lock() {
+                    *guard = Some(file);
+                }
+                return true;
+            }
+            if i + 1 < attempts {
+                std::thread::sleep(Duration::from_millis(100));
+            }
+        }
+        false
+    }
+    #[cfg(not(any(windows, unix)))]
+    {
+        let _ = wait_briefly;
+        true
+    }
+}
+
+pub(crate) fn release_single_instance_lock() {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+        let raw = WINDOWS_SINGLE_INSTANCE_MUTEX.swap(0, Ordering::AcqRel);
+        if raw != 0 {
+            unsafe {
+                let _ = CloseHandle(raw as HANDLE);
+            }
+        }
+    }
+    #[cfg(unix)]
+    {
+        if let Ok(mut guard) = unix_single_instance_slot().lock() {
+            *guard = None;
+        }
+    }
+}
+
 #[cfg(target_os = "linux")]
 fn linux_configure_display_env() {
     // Prevent WebKitGTK 4.1 DMABUF blank/black transparent window issues on KylinOS/Mesa/NVIDIA/VMs
@@ -2315,9 +2574,29 @@ fn linux_configure_display_env() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Emergency CLI escape hatch: launching with `--unlock` clears click-through lock immediately,
+    // even if an existing instance is already running (its storage watcher reloads within 400ms).
+    let unlock_requested = std::env::args().any(|a| a == "--unlock");
+    if unlock_requested {
+        let mut s = load_settings();
+        if s.click_through_locked {
+            s.click_through_locked = false;
+            save_settings(&s);
+        }
+    }
+
+    #[cfg(windows)]
+    let wait_briefly = win_wait_for_previous_pid_if_requested();
+    #[cfg(not(windows))]
+    let wait_briefly = false;
+
+    if !acquire_single_instance_lock(wait_briefly) {
+        return;
+    }
+
     #[cfg(windows)]
     {
-        win_wait_for_previous_pid_if_requested();
+        win_kill_webview2_children_on_exit();
         win_configure_local_webview2_runtime();
     }
     #[cfg(target_os = "linux")]
@@ -2325,13 +2604,7 @@ pub fn run() {
         linux_configure_display_env();
     }
 
-    let mut initial_settings = load_settings();
-    // Respect persisted `clickThroughLocked` across restarts (Issue #41).
-    // Emergency CLI escape hatch: launching with `--unlock` clears click-through lock immediately.
-    if std::env::args().any(|a| a == "--unlock") && initial_settings.click_through_locked {
-        initial_settings.click_through_locked = false;
-        save_settings(&initial_settings);
-    }
+    let initial_settings = load_settings();
     let settings_arc = Arc::new(Mutex::new(initial_settings.clone()));
     let menu_open = Arc::new(AtomicBool::new(false));
     let menu_creating = Arc::new(AtomicBool::new(false));
@@ -2371,6 +2644,13 @@ pub fn run() {
             }
 
             if let Some(win) = app.get_webview_window("main") {
+                #[cfg(target_os = "linux")]
+                {
+                    // On X11, `resizable: false` in tauri.conf.json sets fixed min==max WM size hints,
+                    // causing programmatic `set_size()` calls (e.g. scale < 100%) to be silently ignored (#56).
+                    // Because the window is borderless/undecorated, enabling resizable on Linux adds no frame.
+                    let _ = win.set_resizable(true);
+                }
                 let (win_w, win_h) = window_dimensions(&s.keyboard_layout, s.scale);
                 let _ = win.set_size(Size::Logical(LogicalSize::new(win_w, win_h)));
                 #[cfg(not(target_os = "macos"))]
@@ -2472,6 +2752,8 @@ pub fn run() {
                 paused_for_setup,
             );
             start_storage_watcher(handle.clone());
+            #[cfg(windows)]
+            win_start_single_instance_wake_listener(handle.clone());
             updater::start_background_update_checker(handle.clone());
 
             let http_handle = handle.clone();
@@ -2777,5 +3059,69 @@ mod side_menu_layout_tests {
         let json = serde_json::to_string(&s).expect("serialize settings");
         let parsed: crate::config::AppSettings = serde_json::from_str(&json).expect("deserialize settings");
         assert!(parsed.click_through_locked, "clickThroughLocked must round-trip as true");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_job_object_configures_kill_on_close_and_breakaway() {
+        use windows_sys::Win32::Foundation::CloseHandle;
+        use windows_sys::Win32::System::JobObjects::{
+            CreateJobObjectW, JobObjectExtendedLimitInformation, QueryInformationJobObject,
+            SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+            JOB_OBJECT_LIMIT_BREAKAWAY_OK, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        };
+
+        unsafe {
+            let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+            assert!(!job.is_null(), "CreateJobObjectW must succeed");
+            let mut limits: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            limits.BasicLimitInformation.LimitFlags = super::WIN_JOB_LIMIT_FLAGS;
+            let set_ok = SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                &limits as *const _ as *const core::ffi::c_void,
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            );
+            assert_ne!(set_ok, 0, "SetInformationJobObject must succeed");
+
+            let mut queried: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            let mut returned = 0u32;
+            let query_ok = QueryInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                &mut queried as *mut _ as *mut core::ffi::c_void,
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+                &mut returned,
+            );
+            let _ = CloseHandle(job);
+
+            assert_ne!(query_ok, 0, "QueryInformationJobObject must succeed");
+            let flags = queried.BasicLimitInformation.LimitFlags;
+            assert_ne!(flags & JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, 0);
+            assert_ne!(flags & JOB_OBJECT_LIMIT_BREAKAWAY_OK, 0);
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn single_instance_mutex_blocks_duplicate_until_released() {
+        use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+
+        let name = format!("Local\\KuroCat.UnitTest.Mutex.{}", std::process::id());
+        let first = super::win_try_acquire_named_mutex(&name)
+            .expect("first acquire of fresh named mutex must succeed");
+        assert_eq!(
+            super::win_try_acquire_named_mutex(&name),
+            Err(true),
+            "second acquire while first handle is open must report duplicate"
+        );
+        unsafe {
+            let _ = CloseHandle(first as HANDLE);
+        }
+        let reacquired = super::win_try_acquire_named_mutex(&name)
+            .expect("acquire after closing previous handle must succeed");
+        unsafe {
+            let _ = CloseHandle(reacquired as HANDLE);
+        }
     }
 }

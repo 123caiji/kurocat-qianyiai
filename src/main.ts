@@ -21,6 +21,7 @@ import type { CollarColorId, KuroCatEngine3D } from './catEngine3d';
 import {
   applyDomTranslations,
   isMacPlatform,
+  isWindowsPlatform,
   localizeBreedName,
   normalizeLanguageSetting,
   setActiveLocale,
@@ -112,7 +113,7 @@ function saveDismissedVersion(version: string): void {
   }
 }
 
-let appVersion = '5.1.1';
+let appVersion = '5.1.2';
 let latestUpdateInfo: UpdateInfo | null = null;
 let updateBusy = false;
 let dismissedVersion: string | null = loadDismissedVersion();
@@ -157,7 +158,11 @@ let settings: AppSettings = {
 let catList: CatSkinConfig[] = [...DEFAULT_BUILTIN_CATS];
 
 const canvas = document.getElementById('pet-canvas') as HTMLCanvasElement;
-const canvas3d = document.getElementById('pet-canvas-3d') as HTMLCanvasElement;
+let canvas3d = document.getElementById('pet-canvas-3d') as HTMLCanvasElement;
+let canvas3dMouseDownListener: ((e: MouseEvent) => void) | null = null;
+let canvas3dContextMenuListener: ((e: MouseEvent) => void) | null = null;
+let canvas3dDirty = false;
+let settingsPatchSeq = 0;
 const menuEl = document.getElementById('context-menu') as HTMLDivElement;
 const breedPillsEl = document.getElementById('breed-pills') as HTMLDivElement;
 const scaleSliderEl = document.getElementById('scale-slider') as HTMLInputElement;
@@ -193,6 +198,69 @@ let gameActive = false;
 
 window.addEventListener('resize', () => engine3d?.resize());
 
+function bindCanvas3dListeners(el: HTMLCanvasElement): void {
+  if (canvas3dMouseDownListener) {
+    el.addEventListener('mousedown', canvas3dMouseDownListener);
+  }
+  if (canvas3dContextMenuListener) {
+    el.addEventListener('contextmenu', canvas3dContextMenuListener);
+  }
+  el.addEventListener('webglcontextlost', (ev) => {
+    ev.preventDefault();
+    if (el !== canvas3d) return;
+    canvas3dDirty = true;
+    if (engine3d) {
+      const dead = engine3d;
+      engine3d = null;
+      dead.stop();
+      if (active3d) {
+        active3d = false;
+        canvas3d.classList.add('hidden');
+        canvas.classList.remove('hidden');
+        engine.resize();
+        engine.start();
+      }
+      window.setTimeout(() => {
+        if (wants3DNow() && !engine3d && !loading3dPromise) {
+          activateRenderEngine();
+        }
+      }, 300);
+    }
+  });
+}
+
+function replaceCanvas3d(): HTMLCanvasElement {
+  const old = canvas3d;
+  if (canvas3dMouseDownListener) {
+    old.removeEventListener('mousedown', canvas3dMouseDownListener);
+  }
+  if (canvas3dContextMenuListener) {
+    old.removeEventListener('contextmenu', canvas3dContextMenuListener);
+  }
+  const fresh = document.createElement('canvas');
+  fresh.id = 'pet-canvas-3d';
+  fresh.className = old.className;
+  fresh.classList.remove('pet-hover', 'pet-dragging');
+  old.replaceWith(fresh);
+  canvas3d = fresh;
+  canvas3dDirty = false;
+  bindCanvas3dListeners(fresh);
+  return fresh;
+}
+
+function disposeEngine3D(): void {
+  if (!engine3d) return;
+  const old = engine3d;
+  engine3d = null;
+  active3d = false;
+  old.dispose();
+  // Calling forceContextLoss() permanently loses the old <canvas>'s WebGL context per spec;
+  // immediately swap in a brand-new <canvas id="pet-canvas-3d"> so switching back to 3D
+  // always acquires a fresh WebGL2 context while the old canvas & GPU buffers are GC'd.
+  replaceCanvas3d();
+  canvas3d.classList.add('hidden');
+}
+
 function cancelPending3dDispose(): void {
   if (dispose3dTimer !== null) {
     window.clearTimeout(dispose3dTimer);
@@ -206,8 +274,7 @@ function schedule3dDisposeIf2D(): void {
   dispose3dTimer = window.setTimeout(() => {
     dispose3dTimer = null;
     if (engine3d && !active3d && !tailPickerOpen && !wants3DNow()) {
-      engine3d.dispose();
-      engine3d = null;
+      disposeEngine3D();
       void invoke('trim_idle_memory').catch(() => {});
     }
   }, IDLE_3D_DISPOSE_MS);
@@ -286,6 +353,10 @@ function activateRenderEngine(): void {
 
   cancelPending3dDispose();
 
+  if (engine3d && engine3d.isContextLost()) {
+    disposeEngine3D();
+  }
+
   if (engine3d) {
     syncEngine3DState();
     if (!active3d) {
@@ -301,9 +372,21 @@ function activateRenderEngine(): void {
   }
 
   if (!loading3dPromise) {
+    if (canvas3dDirty) {
+      replaceCanvas3d();
+    }
     loading3dPromise = import('./catEngine3d')
       .then(({ KuroCatEngine3D }) => {
-        engine3d = new KuroCatEngine3D(canvas3d, { embedded: false });
+        if (canvas3dDirty) {
+          replaceCanvas3d();
+        }
+        const created = new KuroCatEngine3D(canvas3d, { embedded: false });
+        if (created.isContextLost()) {
+          created.dispose();
+          replaceCanvas3d();
+          throw new Error('WebGL context lost immediately after creation');
+        }
+        engine3d = created;
         engine3d.onDeepSleep = () => {
           void invoke('trim_idle_memory').catch(() => {});
         };
@@ -313,8 +396,10 @@ function activateRenderEngine(): void {
         console.warn('3D WebGL unavailable, keeping 2D mode:', err);
         webgl3dUnavailable = true;
         active3d = false;
+        replaceCanvas3d();
         canvas3d.classList.add('hidden');
         canvas.classList.remove('hidden');
+        engine.resize();
         engine.start();
       })
       .finally(() => {
@@ -348,7 +433,9 @@ function renderBreedPills(): void {
     const btn = document.createElement('button');
     btn.className = 'breed-pill';
     btn.dataset.breed = cat.id;
-    btn.textContent = formatBreedPillLabel(cat);
+    const label = formatBreedPillLabel(cat);
+    btn.textContent = label;
+    btn.title = label;
     const accent = cat.accentColor || (cat.id === 'ragdoll' ? '#7ac7ff' : '#c8f538');
     btn.style.setProperty('--pill-accent', accent);
     btn.classList.toggle('active', cat.id === settings.catBreed);
@@ -438,6 +525,10 @@ function syncMenuUI(): void {
   document.querySelectorAll<HTMLButtonElement>('[data-collar]').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.collar === collarColor);
   });
+  const renderModeRowEl = document.getElementById('render-mode-row');
+  if (renderModeRowEl) {
+    renderModeRowEl.classList.toggle('hidden', settings.catBreed === 'dafeiyu');
+  }
   const collarRowEl = document.getElementById('collar-row');
   if (collarRowEl) {
     collarRowEl.classList.toggle('hidden', renderMode === '2d' || settings.catBreed === 'dafeiyu');
@@ -653,9 +744,15 @@ async function confirmTailPicker(): Promise<void> {
 }
 
 async function applySettingsPatch(patch: Partial<AppSettings>): Promise<void> {
+  if (patch.renderMode === '3d') {
+    webgl3dUnavailable = false;
+  }
+  const seq = ++settingsPatchSeq;
   settings = { ...settings, ...patch };
   syncMenuUI();
-  settings = await invoke<AppSettings>('update_settings', { patch: settings });
+  const updated = await invoke<AppSettings>('update_settings', { patch: settings });
+  if (seq !== settingsPatchSeq) return;
+  settings = updated;
   syncMenuUI();
 }
 
@@ -993,7 +1090,11 @@ async function bootstrap(): Promise<void> {
 
   await listen<AppSettings>('kuro-settings', (ev) => {
     const prevLock = lastKnownLockState;
+    const prevRenderMode = settings.renderMode;
     settings = ev.payload;
+    if (prevRenderMode === '2d' && settings.renderMode !== '2d') {
+      webgl3dUnavailable = false;
+    }
     lastKnownLockState = settings.clickThroughLocked;
     syncMenuUI();
     if (prevLock !== null && prevLock !== settings.clickThroughLocked) {
@@ -1173,8 +1274,15 @@ async function bootstrap(): Promise<void> {
       canvas3d.classList.add('pet-dragging');
       void invoke('set_dragging', { dragging: true });
       try {
-        const nativeHandled = await invoke<boolean>('start_pet_drag').catch(() => false);
-        if (!nativeHandled) {
+        // On macOS/Linux, awaiting an IPC call before `startDragging()` loses AppKit's synchronous
+        // current NSLeftMouseDown event and causes dragging to silently fail (#59). Only Windows uses
+        // the native unclamped `start_pet_drag` loop; other platforms must invoke `startDragging()` directly.
+        if (isWindowsPlatform()) {
+          const nativeHandled = await invoke<boolean>('start_pet_drag').catch(() => false);
+          if (!nativeHandled) {
+            await getCurrentWindow().startDragging();
+          }
+        } else {
           await getCurrentWindow().startDragging();
         }
       } finally {
@@ -1187,8 +1295,8 @@ async function bootstrap(): Promise<void> {
       }
     }
   };
+  canvas3dMouseDownListener = handleCanvasMouseDown;
   canvas.addEventListener('mousedown', handleCanvasMouseDown);
-  canvas3d.addEventListener('mousedown', handleCanvasMouseDown);
 
   // Right-click opens sleek dark glass settings menu (both 2D & 3D canvases!)
   const handleCanvasContextMenu = (e: MouseEvent) => {
@@ -1200,8 +1308,9 @@ async function bootstrap(): Promise<void> {
     if (settings.clickThroughLocked && !altOverride && !e.altKey) return;
     openContextMenu(e.clientX, e.clientY);
   };
+  canvas3dContextMenuListener = handleCanvasContextMenu;
   canvas.addEventListener('contextmenu', handleCanvasContextMenu);
-  canvas3d.addEventListener('contextmenu', handleCanvasContextMenu);
+  bindCanvas3dListeners(canvas3d);
 
   // Side menu window auto-closes on its own focus loss; do NOT close on main blur (clicking the menu blurs main!)
   window.addEventListener('keydown', (e) => {
