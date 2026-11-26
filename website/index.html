@@ -384,6 +384,20 @@
         </div>
       </div>
 
+      <!-- macOS Homebrew One-Line Install -->
+      <div class="macos-tip-card" id="macos-brew-tip">
+        <div class="macos-tip-left">
+          <div class="tip-title" data-i18n="dl.tipBrewTitle">🍺 macOS Homebrew 一键安装（推荐 · 自动免隔离）</div>
+          <p class="tip-body" data-i18n-html="dl.tipBrewBody">
+            已上线官方 Homebrew Tap（<code>qianyiai/homebrew-tap</code>），终端执行右侧一行命令即可直接安装并自动清理隔离属性（免手动 <code>xattr</code>），后续可随时运行 <code>brew upgrade --cask kurocat</code> 一键升级。
+          </p>
+        </div>
+        <div class="cli-pill">
+          <code id="macos-brew-cmd">brew install --cask qianyiai/tap/kurocat</code>
+          <button class="copy-trigger" id="copy-brew-btn" type="button" data-i18n="dl.copyCmd">复制命令</button>
+        </div>
+      </div>
+
       <!-- macOS First-Run Tip -->
       <div class="macos-tip-card">
         <div class="macos-tip-left">

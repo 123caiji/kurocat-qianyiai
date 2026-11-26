@@ -1092,6 +1092,19 @@ function initMcpCodeTabs(): void {
     });
   }
 
+  // macOS Homebrew copy
+  const brewBtn = document.getElementById('copy-brew-btn');
+  if (brewBtn) {
+    brewBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText('brew install --cask qianyiai/tap/kurocat').then(() => {
+        brewBtn.textContent = i18n.fmt.copied();
+        window.setTimeout(() => {
+          brewBtn.textContent = i18n.fmt.copyCmd();
+        }, 1600);
+      });
+    });
+  }
+
   // Prompt chips copy
   document.querySelectorAll('.prompt-chip').forEach((chip) => {
     chip.addEventListener('click', () => {

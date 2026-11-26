@@ -152,6 +152,7 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'dl.macName': 'macOS 通用版（M 芯片 & Intel）',
       'dl.macSub': 'macOS 10.15+ (Catalina 及以上) Universal DMG',
       'dl.tipWinTitle': '🛡️ Windows 浏览器提示「通常不会下载 .exe / 保护你的电脑」怎么办？',
+      'dl.tipBrewTitle': '🍺 macOS Homebrew 一键安装（推荐 · 自动免隔离）',
       'dl.tipMacTitle': '🍎 macOS 首次打开说明（仅需一次 · 无需开着终端）',
       'dl.copyCmd': '复制命令',
       'dl.tipWv2Title': '🪟 Windows 提示「Could not find the WebView2 Runtime」怎么办？',
@@ -234,6 +235,8 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
         '原生编译 ARM64 + x86_64 通用镜像，兼容 M1/M2/M3/M4 与老款 Intel Mac（macOS 10.15 Catalina 及以上），内置 65% / 108 键、6 款猫咪与大肥鱼皮肤。打开 <code>.dmg</code> 拖入「应用程序」即可运行。',
       'dl.tipWinBody':
         '由于本项目为免费开源软件、未购买商业 EV 代码签名证书，Edge 浏览器在下载新版本 <code>.exe</code> 时可能会弹出「通常不会下载」提示（全部源码已在 GitHub 公开，可放心使用）：<br /><strong>① Edge 浏览器保留步骤</strong>：鼠标移到下载记录上 → 点右侧<strong>三个点 <code>···</code></strong> → 点<strong>「保留」</strong> → 弹窗显示「删除」按钮时，点击旁边的<strong>下箭头 <code>▾</code>（显示更多）</strong> → 选择<strong>「仍然保留」</strong>即可下载完成（Chrome 请按 <code>Ctrl + J</code> 打开下载页 → 点「保留危险文件」→「仍然保留」）。<br /><strong>② 双击安装若弹出蓝框「Windows 已保护你的电脑」</strong>：点击<strong>「更多信息」</strong> → 点击<strong>「仍要运行」</strong>即可完成安装。',
+      'dl.tipBrewBody':
+        '已上线官方 Homebrew Tap（<code>qianyiai/homebrew-tap</code>），终端执行右侧一行命令即可直接安装并自动清理隔离属性（免手动 <code>xattr</code>），后续可随时运行 <code>brew upgrade --cask kurocat</code> 一键升级。',
       'dl.tipMacBody':
         '由于本项目为免费开源未公证应用，首次拖入「应用程序」后若提示「无法验证开发者」或「已损坏」，<strong>请勿进入包内容用终端运行</strong>，只需打开一次终端粘贴执行右侧命令即可彻底解除隔离（跑完可关闭终端，后续直接双击图标打开）。全局键鼠响应请在<strong>「系统设置 → 隐私与安全性」</strong>中同时勾选<strong>「辅助功能」与「输入监控」</strong>里的 <code>KuroCat</code>，即开即生效（兼容 Karabiner-Elements）。',
       'dl.tipWv2Body':
@@ -434,6 +437,7 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'dl.macName': 'macOS Universal (Apple Silicon & Intel)',
       'dl.macSub': 'macOS 10.15+ (Catalina or later) Universal DMG',
       'dl.tipWinTitle': '🛡️ Browser says "isn\'t commonly downloaded" or Windows SmartScreen pops up?',
+      'dl.tipBrewTitle': '🍺 Install on macOS via Homebrew (Recommended)',
       'dl.tipMacTitle': '🍎 macOS First-Launch Guide (One-Time Setup)',
       'dl.copyCmd': 'Copy Command',
       'dl.tipWv2Title': '🪟 Seeing "Could not find the WebView2 Runtime" on Windows?',
@@ -516,6 +520,8 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
         'Native ARM64 + x86_64 Universal DMG supporting Apple Silicon M1–M4 and Intel Macs (macOS 10.15 Catalina+). Includes 65%/108-key layouts, all 6 cats & BigFish. Open <code>.dmg</code> and drag to Applications.',
       'dl.tipWinBody':
         'Because KuroCat is free open-source software without a commercial EV code-signing certificate, Edge/Chrome may show a download warning (100% source code is public on GitHub):<br /><strong>① Edge</strong>: Hover the download → click <strong><code>···</code></strong> → <strong>Keep</strong> → click the down arrow <strong><code>▾</code> (Show more)</strong> → <strong>Keep anyway</strong> (Chrome: press <code>Ctrl + J</code> → Keep dangerous file → Keep anyway).<br /><strong>② Windows SmartScreen</strong>: Click <strong>More info</strong> → <strong>Run anyway</strong>.',
+      'dl.tipBrewBody':
+        'Official Homebrew Tap (<code>qianyiai/homebrew-tap</code>) is live. Run the command on the right to install and automatically clear quarantine attributes (no manual <code>xattr</code> needed), and update anytime with <code>brew upgrade --cask kurocat</code>.',
       'dl.tipMacBody':
         'Because this open-source app is not Apple-notarized, if macOS says "cannot be verified" or "damaged" on first launch, run the command on the right once in Terminal to remove the quarantine attribute. Then enable <code>KuroCat</code> in <strong>System Settings → Privacy &amp; Security → Accessibility &amp; Input Monitoring</strong> (Karabiner-Elements compatible).',
       'dl.tipWv2Body':
@@ -716,6 +722,7 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
       'dl.macName': 'macOS ユニバーサル版（M チップ & Intel）',
       'dl.macSub': 'macOS 10.15+ (Catalina 以降) Universal DMG',
       'dl.tipWinTitle': '🛡️ ブラウザのダウンロード警告や SmartScreen が表示されたら？',
+      'dl.tipBrewTitle': '🍺 macOS Homebrew ワンラインインストール（推奨・自動検疫解除）',
       'dl.tipMacTitle': '🍎 macOS 初回起動ガイド（初回のみ・常時ターミナル不要）',
       'dl.copyCmd': 'コマンドをコピー',
       'dl.tipWv2Title': '🪟 Windows で「Could not find the WebView2 Runtime」が出たら？',
@@ -798,6 +805,8 @@ export const KUROCAT_I18N: Record<Locale, KuroCatI18nBundle> = {
         'Apple Silicon (M1–M4) と Intel Mac（macOS 10.15 Catalina 以降）両対応の Universal DMG。65%/108 キーと全 7 スキンを内蔵。<code>.dmg</code> を開いて「アプリケーション」へドラッグするだけです。',
       'dl.tipWinBody':
         '無料オープンソースで商用コード署名がないため、ダウンロード時に警告が表示される場合があります（全ソースコードは GitHub で公開済み）：<br /><strong>① Edge</strong>：履歴にカーソルを合わせ <strong><code>···</code></strong> → <strong>保存</strong> → <strong><code>▾</code>（詳細表示）</strong> → <strong>保持する</strong>（Chrome は <code>Ctrl + J</code> → 危険なファイルを保存 → 保持）。<br /><strong>② SmartScreen の青い画面</strong>：<strong>詳細情報</strong> → <strong>実行</strong> をクリックしてください。',
+      'dl.tipBrewBody':
+        '公式 Homebrew Tap（<code>qianyiai/homebrew-tap</code>）を公開しました。右のコマンド 1 行で導入でき、検疫属性も自動解除されます（手動 <code>xattr</code> 不要）。以降は <code>brew upgrade --cask kurocat</code> で簡単に更新できます。',
       'dl.tipMacBody':
         '未公証アプリのため初回起動時に「開発元を確認できない」等と出た場合は、ターミナルで右のコマンドを一度だけ実行して隔離属性を解除してください。その後、<strong>システム設定 → プライバシーとセキュリティ</strong> で <strong>アクセシビリティ</strong> と <strong>入力監視</strong> の両方に <code>KuroCat</code> を許可すれば即時動作します（Karabiner-Elements 併用可）。',
       'dl.tipWv2Body':
